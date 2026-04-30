@@ -1,0 +1,419 @@
+schema_version: 1
+spec_version: "2026-04-30"
+status: spec_only
+source_document: docs/causal_inference.md
+principles:
+  predictive_causal_separation: >
+    Predictive Explorer scores estimate risk conditional on an observed profile.
+    Causal workbench estimates target potential-outcome contrasts under explicit
+    adjustment, DAG, overlap, and sensitivity assumptions. Prediction deltas,
+    feature importance, SHAP values, and rule paths must not be reported as
+    causal effects.
+  serving_policy: >
+    Causal estimates are not served through the FastAPI scenario endpoints or
+    displayed as Explorer risk scores in this PR.
+common:
+  population_base: >
+    Adult BRFSS respondents in supported survey years, using survey weights
+    when the feature contract exposes them and excluding records with missing
+    treatment or outcome.
+  required_review_before_estimation:
+    - Confirm treatment and outcome field mappings against the BRFSS codebook.
+    - Confirm excluded variables do not enter the adjustment set.
+    - Confirm positivity and overlap before estimating effects.
+    - Report missingness, exclusion counts, diagnostics, and limitations.
+  prohibited_adjustment_fields:
+    - outcome labels and their direct components
+    - model predictions or explanation values
+    - downstream mediators in total-effect models
+    - colliders caused by treatment and outcome
+    - symptom or quality-of-life fields plausibly caused by the outcome
+questions:
+  - id: smoking_chronic_lung_disease
+    title: Current smoking and diagnosed chronic lung disease
+    population:
+      include:
+        - Adult BRFSS respondents with valid smoking status.
+        - Respondents with a valid chronic lung disease label.
+        - Respondents with core demographics, geography, and survey weights when available.
+      exclude:
+        - Missing treatment or outcome.
+        - Impossible age values or records outside the BRFSS adult sampling frame.
+        - Proxy or special records that violate BRFSS analytic guidance if present.
+    treatment:
+      name: current_smoking
+      contrast: current smoker versus not current smoker
+      coding_notes:
+        - Derive from documented ever-smoked and current-frequency BRFSS fields.
+        - Keep former smokers in the not-current contrast only for the primary current-smoking estimand.
+        - Run a never-smoker reference sensitivity check.
+    outcome:
+      name: diagnosed_chronic_lung_disease
+      label_field: label_chronic_lung_disease
+      timing: prevalent diagnosed condition, not incident disease
+    estimand:
+      type: average_treatment_effect
+      target_population: eligible BRFSS adults represented by survey weights
+      primary_scale: risk_difference
+      secondary_scales:
+        - risk_ratio
+        - odds_ratio
+    candidate_confounders:
+      individual:
+        - age
+        - sex
+        - race_ethnicity
+        - education
+        - income
+        - employment_status
+        - marital_status
+        - insurance_status
+        - healthcare_access
+        - physical_activity
+        - bmi_category
+        - alcohol_use_category
+      geography_time:
+        - state
+        - survey_year
+        - region
+        - urbanicity_if_available
+      contextual:
+        - acs_income_poverty_education_insurance_context
+        - svi_overall_and_theme_context
+        - epa_pollutant_context
+    excluded_variables:
+      - variable_group: chronic_lung_disease_label_components
+        reason: outcome leakage
+      - variable_group: respiratory_symptoms_or_poor_physical_health_days
+        reason: likely downstream of lung disease
+      - variable_group: healthcare_utilization_caused_by_lung_disease
+        reason: possible collider or mediator
+      - variable_group: model_outputs
+        reason: predictive artifacts are not causal covariates
+    dag_assumptions:
+      version: smoking_lung_v1
+      key_edges:
+        - demographics -> current_smoking
+        - demographics -> diagnosed_chronic_lung_disease
+        - socioeconomic_context -> current_smoking
+        - socioeconomic_context -> diagnosed_chronic_lung_disease
+        - healthcare_access -> diagnosed_chronic_lung_disease
+        - air_quality_context -> diagnosed_chronic_lung_disease
+        - physical_activity_bmi_alcohol -> current_smoking
+        - physical_activity_bmi_alcohol -> diagnosed_chronic_lung_disease
+      residual_risks:
+        - occupational exposure
+        - secondhand smoke
+        - early-life exposure
+        - genetics
+    negative_controls:
+      outcomes:
+        - sex_at_birth_if_available
+        - race_ethnicity_if_available
+        - adult_height_if_available
+        - interview_month_if_available
+      exposures:
+        - within_stratum_permuted_smoking_status
+    sensitivity_checks:
+      - never_smoker_reference
+      - exclude_former_smokers_from_reference
+      - age_overlap_restriction
+      - unweighted_vs_survey_weighted_vs_overlap_weighted
+      - e_value_or_rosenbaum_unmeasured_confounding
+      - dowhy_placebo_subset_random_common_cause_refutations
+    predictive_separation: >
+      Smoking can be a predictive feature, but Explorer scenario deltas are
+      not the causal effect of smoking. Report causal estimates only in the
+      workbench with diagnostics and assumptions.
+
+  - id: physical_activity_diabetes
+    title: Meeting physical-activity guidance and diagnosed diabetes
+    population:
+      include:
+        - Adult BRFSS respondents with valid physical-activity fields.
+        - Respondents with a valid diabetes label.
+        - Respondents with core demographics, geography, and survey weights when available.
+      exclude:
+        - Missing treatment or outcome.
+        - Pregnancy-related diabetes categories when the label contract supports that exclusion.
+    treatment:
+      name: meets_physical_activity_guidance
+      contrast: meets aerobic guidance versus does not meet guidance
+      coding_notes:
+        - Use documented BRFSS activity minutes or activity-status fields.
+        - Do not tune the threshold to maximize observed diabetes separation.
+    outcome:
+      name: diagnosed_diabetes
+      label_field: label_diabetes
+      timing: prevalent diagnosed diabetes, not incident disease
+    estimand:
+      type: average_treatment_effect
+      target_population: eligible BRFSS adults represented by survey weights
+      primary_scale: risk_difference
+      secondary_scales:
+        - risk_ratio
+        - odds_ratio
+    candidate_confounders:
+      individual:
+        - age
+        - sex
+        - race_ethnicity
+        - education
+        - income
+        - employment_status
+        - marital_status
+        - insurance_status
+        - healthcare_access
+        - smoking_status
+        - alcohol_use_category
+      mediator_or_sensitivity_only:
+        - bmi_category
+      geography_time:
+        - state
+        - survey_year
+        - region
+        - urbanicity_if_available
+      contextual:
+        - acs_socioeconomic_context
+        - svi_context
+        - epa_pollutant_context
+    excluded_variables:
+      - variable_group: diabetes_label_components
+        reason: outcome leakage
+      - variable_group: general_health_or_poor_physical_health_days
+        reason: likely downstream of diabetes or activity limitation
+      - variable_group: bmi_in_primary_total_effect_model
+        reason: possible mediator from activity to diabetes
+      - variable_group: model_outputs
+        reason: predictive artifacts are not causal covariates
+    dag_assumptions:
+      version: activity_diabetes_v1
+      key_edges:
+        - demographics -> physical_activity
+        - demographics -> diagnosed_diabetes
+        - socioeconomic_context -> physical_activity
+        - socioeconomic_context -> diagnosed_diabetes
+        - built_environment_context -> physical_activity
+        - smoking_alcohol -> physical_activity
+        - smoking_alcohol -> diagnosed_diabetes
+        - physical_activity -> bmi
+        - bmi -> diagnosed_diabetes
+      residual_risks:
+        - diet
+        - family history
+        - reverse causation from diabetes to reduced activity
+    negative_controls:
+      outcomes:
+        - sex_at_birth_if_available
+        - race_ethnicity_if_available
+        - adult_height_if_available
+        - interview_month_if_available
+      exposures:
+        - within_stratum_permuted_activity_status
+        - placebo_non_guidance_activity_threshold
+    sensitivity_checks:
+      - add_bmi_for_controlled_direct_effect_style_comparison
+      - exclude_activity_limitation_if_available
+      - trim_or_overlap_weight_weak_overlap_regions
+      - age_and_sex_heterogeneity_screen
+      - survey_year_and_state_fixed_effect_robustness
+      - dowhy_placebo_subset_random_common_cause_refutations
+    predictive_separation: >
+      Prediction can condition on physical activity and BMI together. A causal
+      total-effect estimate for activity changes when BMI is adjusted for, so
+      causal results must not be inferred from predictive scenario deltas.
+
+  - id: bmi_diabetes
+    title: Obesity-range BMI and diagnosed diabetes
+    population:
+      include:
+        - Adult BRFSS respondents with valid height, weight, and computed BMI.
+        - Respondents with a valid diabetes label.
+        - Respondents with core demographics, geography, and survey weights when available.
+      exclude:
+        - Missing treatment or outcome.
+        - Implausible height or weight values.
+        - Underweight respondents from the primary obesity-versus-normal contrast.
+        - Pregnant respondents when pregnancy status is available.
+    treatment:
+      name: obesity_range_bmi
+      contrast: BMI >= 30 versus 18.5 <= BMI < 25
+      coding_notes:
+        - Treat overweight as outside the primary binary contrast unless a secondary category analysis is declared.
+        - Use fixed public-health BMI cutpoints, not data-derived thresholds.
+    outcome:
+      name: diagnosed_diabetes
+      label_field: label_diabetes
+      timing: prevalent diagnosed diabetes, not incident disease
+    estimand:
+      type: average_treatment_effect
+      target_population: eligible BRFSS adults in the obesity or normal BMI contrast
+      primary_scale: risk_difference
+      secondary_scales:
+        - risk_ratio
+        - odds_ratio
+    candidate_confounders:
+      individual:
+        - age
+        - sex
+        - race_ethnicity
+        - education
+        - income
+        - employment_status
+        - marital_status
+        - insurance_status
+        - healthcare_access
+        - smoking_status
+        - alcohol_use_category
+        - physical_activity
+      geography_time:
+        - state
+        - survey_year
+        - region
+        - urbanicity_if_available
+      contextual:
+        - acs_socioeconomic_context
+        - svi_context
+        - epa_pollutant_context
+    excluded_variables:
+      - variable_group: diabetes_label_components
+        reason: outcome leakage
+      - variable_group: hypertension_or_cardiovascular_disease
+        reason: possible mediator for some BMI effects
+      - variable_group: poor_physical_health_or_general_health
+        reason: likely downstream of BMI or diabetes
+      - variable_group: weight_loss_after_diagnosis
+        reason: possible reverse-causation pathway
+      - variable_group: model_outputs
+        reason: predictive artifacts are not causal covariates
+    dag_assumptions:
+      version: bmi_diabetes_v1
+      key_edges:
+        - demographics -> obesity_range_bmi
+        - demographics -> diagnosed_diabetes
+        - socioeconomic_context -> obesity_range_bmi
+        - socioeconomic_context -> diagnosed_diabetes
+        - physical_activity -> obesity_range_bmi
+        - physical_activity -> diagnosed_diabetes
+        - smoking_alcohol -> obesity_range_bmi
+        - smoking_alcohol -> diagnosed_diabetes
+        - healthcare_access -> diagnosed_diabetes
+      residual_risks:
+        - diet
+        - early-life factors
+        - genetics
+        - medication history
+        - reverse causation from diabetes treatment to weight change
+    negative_controls:
+      outcomes:
+        - sex_at_birth_if_available
+        - race_ethnicity_if_available
+        - interview_month_if_available
+      exposures:
+        - within_stratum_permuted_obesity_indicator
+    sensitivity_checks:
+      - class_i_obesity_only_versus_normal_bmi
+      - include_overweight_as_separate_category
+      - alternate_bmi_cutpoints_and_self_report_winsorization
+      - trim_or_overlap_weight_weak_overlap_regions
+      - e_value_or_rosenbaum_unmeasured_confounding
+    predictive_separation: >
+      BMI is a predictive diabetes input, but the causal BMI contrast has a
+      different reference population, exclusion policy, and mediator policy.
+      Explorer BMI scenario deltas must not be described as causal effects.
+
+  - id: alcohol_depression
+    title: Heavy alcohol use and diagnosed depression
+    population:
+      include:
+        - Adult BRFSS respondents with valid alcohol-use fields.
+        - Respondents with a valid diagnosed-depression label.
+        - Respondents with core demographics, geography, and survey weights when available.
+      exclude:
+        - Missing treatment or outcome.
+        - Records requiring pregnancy, treatment, or abstainer-history handling until those rules are specified.
+    treatment:
+      name: heavy_alcohol_use
+      contrast: heavy alcohol use versus not heavy alcohol use
+      coding_notes:
+        - Use documented BRFSS or CDC sex-specific heavy-use thresholds when available.
+        - Treat binge drinking as a secondary treatment question, not a silent substitute.
+    outcome:
+      name: diagnosed_depression
+      label_field: label_depression
+      timing: prevalent diagnosed depressive disorder, not incident disease
+    estimand:
+      type: average_treatment_effect
+      target_population: eligible BRFSS adults represented by survey weights
+      primary_scale: risk_difference
+      secondary_scales:
+        - risk_ratio
+        - odds_ratio
+    candidate_confounders:
+      individual:
+        - age
+        - sex
+        - race_ethnicity
+        - education
+        - income
+        - employment_status
+        - marital_status
+        - insurance_status
+        - healthcare_access
+        - smoking_status
+        - physical_activity
+        - bmi_category
+      geography_time:
+        - state
+        - survey_year
+        - region
+        - urbanicity_if_available
+      contextual:
+        - acs_socioeconomic_context
+        - svi_context
+        - epa_pollutant_context
+    excluded_variables:
+      - variable_group: depression_label_components
+        reason: outcome leakage
+      - variable_group: poor_mental_health_days_or_current_treatment
+        reason: likely downstream of depression or alcohol use
+      - variable_group: general_health_or_social_support_after_exposure
+        reason: possible mediator or collider
+      - variable_group: model_outputs
+        reason: predictive artifacts are not causal covariates
+    dag_assumptions:
+      version: alcohol_depression_v1
+      key_edges:
+        - demographics -> heavy_alcohol_use
+        - demographics -> diagnosed_depression
+        - socioeconomic_context -> heavy_alcohol_use
+        - socioeconomic_context -> diagnosed_depression
+        - healthcare_access -> diagnosed_depression
+        - smoking_physical_activity_bmi -> heavy_alcohol_use
+        - smoking_physical_activity_bmi -> diagnosed_depression
+      residual_risks:
+        - reverse causation from depression to alcohol use
+        - trauma
+        - family history
+        - medication use
+        - local alcohol policy
+    negative_controls:
+      outcomes:
+        - sex_at_birth_if_available
+        - race_ethnicity_if_available
+        - adult_height_if_available
+        - interview_month_if_available
+      exposures:
+        - within_stratum_permuted_heavy_drinking_indicator
+        - placebo_non_guideline_alcohol_threshold
+    sensitivity_checks:
+      - separate_heavy_drinking_from_binge_drinking
+      - moderate_drinker_reference
+      - exclude_lifetime_abstainers_or_former_drinkers_if_available
+      - sex_stratified_estimates
+      - trim_or_overlap_weight_weak_overlap_regions
+      - dowhy_placebo_subset_random_common_cause_refutations
+    predictive_separation: >
+      Alcohol use can help predict depression, but depression can also affect
+      alcohol use. The causal estimate needs its own assumptions and diagnostics
+      and cannot be inferred from Explorer prediction deltas.

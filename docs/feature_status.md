@@ -20,7 +20,8 @@ Legend:
 - [TODO] Scripted EDA/report generation to replace notebooks as canonical outputs.
 - [TODO] Modeling benchmark harness and calibrated gradient-boosted model family.
 - [TODO] Typed explanation, uncertainty, and model-card surfaces.
-- [TODO] Separate causal inference specification and workbench.
+- [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
+- [TODO] Causal workbench for sensitivity-tested, non-serving causal estimates.
 - [TODO] UI information architecture, Explorer upgrade, and deployment packaging.
 
 ## Current baseline
@@ -59,6 +60,13 @@ Legend:
 - [DONE] Subgroup/slice analysis export for trained bundles (`src/longevity_lab/pipeline/evaluate.py`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Artifact manifest schema, bundle loader, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
 - [DONE] Explanation outputs aligned to saved explanation trees (`src/longevity_lab/services/artifact_engine.py`).
+
+### Causal inference
+
+- [DONE] Spec-only causal questions documented for smoking, physical activity, BMI, and alcohol (`docs/causal_inference.md`).
+- [DONE] Machine-readable causal question registry with populations, treatments, outcomes, estimands, confounders, exclusions, DAG assumptions, negative controls, and sensitivity checks (`conf/causal/questions.yaml`).
+- [DONE] Predictive risk and causal estimates are documented as separate surfaces; Explorer scenario deltas must not be described as causal effects.
+- [TODO] Implement a non-serving causal workbench that materializes DAGs, runs diagnostics, estimates effects, and writes assumption-bound reports.
 
 ### Backend/API
 
