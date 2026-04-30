@@ -3,9 +3,11 @@ import type { CSSProperties, JSX } from 'react'
 import { healthRecommendations } from '../content/health-recommendations'
 import type {
   ConditionDefinition,
+  ExplanationRecordResponse,
   HeatmapMode,
   OrganDefinition,
   ScenarioCompareResponse,
+  UncertaintySummaryResponse,
 } from '../types'
 
 interface ConditionInspectorProps {
@@ -31,10 +33,10 @@ interface RenderedCondition {
   displayValue: string
   driverLabel: string
   drivers: string[]
+  explanations: ExplanationRecordResponse[]
   label: string
-  recommendationKey: string
-  scoreForGuidance: number
   style: CSSProperties
+  uncertainty: UncertaintySummaryResponse | null
   valueLabel: string
   citationLabel: string
   citationUrl: string
@@ -53,6 +55,23 @@ interface RecommendationCondition {
     title: string
     url: string
   }>
+}
+
+function formatDirection(direction: ExplanationRecordResponse['direction']): string {
+  if (direction === 'increases') {
+    return 'raises predicted risk'
+  }
+  if (direction === 'decreases') {
+    return 'lowers predicted risk'
+  }
+  return 'is neutral in this rule path'
+}
+
+function formatUncertainty(uncertainty: UncertaintySummaryResponse): string {
+  const confidence = uncertainty.confidence_level
+    ? `, ${(uncertainty.confidence_level * 100).toFixed(0)}% level`
+    : ''
+  return `${formatPercent(uncertainty.lower)}-${formatPercent(uncertainty.upper)}${confidence}`
 }
 
 export function ConditionInspector({
@@ -92,10 +111,10 @@ export function ConditionInspector({
             displayValue: formatPercent(condition.probability),
             driverLabel: 'Current drivers',
             drivers: condition.key_drivers,
+            explanations: condition.explanations ?? [],
             label: condition.label,
-            recommendationKey: condition.condition_id,
-            scoreForGuidance: condition.probability,
             style: { width: `${Math.max(condition.probability * 100, 3)}%` },
+            uncertainty: condition.uncertainty ?? null,
             valueLabel: 'Current',
             citationLabel: metadata?.citation_label ?? '',
             citationUrl: metadata?.citation_url ?? '',
@@ -115,15 +134,15 @@ export function ConditionInspector({
             displayValue: mode === 'scenario' ? formatPercent(condition.probability) : formatDelta(deltaValue),
             driverLabel: mode === 'scenario' ? 'What-if drivers' : 'Change drivers',
             drivers: condition.key_drivers,
+            explanations: condition.explanations ?? [],
             label: condition.label,
-            recommendationKey: condition.condition_id,
-            scoreForGuidance: condition.probability,
             style: {
               width:
                 mode === 'scenario'
                   ? `${Math.max(condition.probability * 100, 3)}%`
                   : `${Math.max(Math.abs(deltaValue) * 100, 3)}%`,
             },
+            uncertainty: condition.uncertainty ?? null,
             valueLabel: mode === 'scenario' ? 'What-if' : 'Change',
             citationLabel: metadata?.citation_label ?? '',
             citationUrl: metadata?.citation_url ?? '',
@@ -302,6 +321,36 @@ export function ConditionInspector({
                       ))
                     ) : (
                       <span className="muted">No drivers available.</span>
+                    )}
+                  </div>
+                  <div className="explanation-block">
+                    <p className="condition-driver-label">Model explanation caveats</p>
+                    {condition.explanations.length ? (
+                      <ul className="explanation-list">
+                        {condition.explanations.map((explanation) => (
+                          <li key={`${condition.conditionId}-${explanation.feature}-${explanation.method}`}>
+                            <strong>{explanation.display_name}</strong>
+                            <span>{formatDirection(explanation.direction)}</span>
+                            <small>{explanation.caveat}</small>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="muted explanation-empty">
+                        No typed explanation is available for this condition in the active model
+                        bundle.
+                      </p>
+                    )}
+                    {condition.uncertainty ? (
+                      <p className="uncertainty-note">
+                        Calibrated uncertainty: {formatUncertainty(condition.uncertainty)}.
+                        {' '}
+                        {condition.uncertainty.caveat}
+                      </p>
+                    ) : (
+                      <p className="uncertainty-note">
+                        No calibrated uncertainty interval is declared for this condition.
+                      </p>
                     )}
                   </div>
                   {condition.citationUrl ? (

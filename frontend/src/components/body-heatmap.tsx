@@ -113,11 +113,11 @@ const organShapes: Record<string, OrganShapeDefinition> = {
 
 const deltaColor = scaleThreshold<number, string>()
   .domain([-0.05, -0.01, 0.01, 0.05])
-  .range(['#15803d', '#22c55e', '#64748b', '#f59e0b', '#ef4444'])
+  .range(['#0072b2', '#56b4e9', '#64748b', '#e69f00', '#d55e00'])
 
 const riskColor = scaleThreshold<number, string>()
   .domain([0.15, 0.35])
-  .range(['#16a34a', '#f59e0b', '#ef4444'])
+  .range(['#0072b2', '#e69f00', '#d55e00'])
 
 function formatDelta(delta: number): string {
   return `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`
@@ -164,7 +164,7 @@ function getModeCopy(mode: HeatmapMode): ModeCopy {
     }
   }
   return {
-    description: 'How the what-if profile changes each organ versus current. Green means improved and red means worsened relative to current, not low or high absolute risk.',
+    description: 'How the what-if profile changes each organ versus current. Blue means improved and orange means worsened relative to current, not low or high absolute risk.',
     emptyValue: '--',
     legendEnd: 'Worsens vs current',
     legendStart: 'Improves vs current',
@@ -398,6 +398,8 @@ export function BodyHeatmap({
 
           return (
             <g
+              aria-label={`${renderData?.label ?? organ.label} callout`}
+              aria-pressed={isSelected}
               className={
                 isSelected
                   ? 'organ-callout selected'
@@ -407,9 +409,14 @@ export function BodyHeatmap({
               }
               data-testid={`organ-callout-${organ.organ_id}`}
               key={`${organ.organ_id}-callout`}
+              onBlur={() => clearPreview(organ.organ_id)}
               onClick={() => onSelectOrgan(organ.organ_id)}
+              onFocus={() => setHoveredOrganId(organ.organ_id)}
+              onKeyDown={(event) => handleKeyboardSelection(event, organ.organ_id)}
               onMouseEnter={() => setHoveredOrganId(organ.organ_id)}
               onMouseLeave={() => clearPreview(organ.organ_id)}
+              role="button"
+              tabIndex={0}
             >
               <path
                 className="organ-callout-line"
@@ -443,6 +450,21 @@ export function BodyHeatmap({
           <span>{copy.legendStart}</span>
           <span>{copy.legendEnd}</span>
         </div>
+        <ul className="legend-buckets" aria-label="Heatmap color meanings">
+          {mode === 'delta' ? (
+            <>
+              <li><span className="legend-swatch delta-improves" /> Blue: improves</li>
+              <li><span className="legend-swatch delta-neutral" /> Gray: little change</li>
+              <li><span className="legend-swatch delta-worsens" /> Orange: worsens</li>
+            </>
+          ) : (
+            <>
+              <li><span className="legend-swatch risk-lower" /> Blue: lower band</li>
+              <li><span className="legend-swatch risk-moderate" /> Amber: moderate band</li>
+              <li><span className="legend-swatch risk-higher" /> Orange: higher band</li>
+            </>
+          )}
+        </ul>
       </div>
     </section>
   )

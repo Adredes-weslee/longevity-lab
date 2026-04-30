@@ -115,6 +115,34 @@ function formatNumericValue(value: number, field: keyof FeatureProfile): string 
   return String(value)
 }
 
+function formatProfileValue(
+  value: FeatureProfile[keyof FeatureProfile],
+  field: keyof FeatureProfile,
+): string {
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No'
+  }
+  return formatNumericValue(Number(value), field)
+}
+
+function formatCandidateChange(
+  field: keyof FeatureProfile,
+  baseline: FeatureProfile,
+  candidate: FeatureProfile,
+): string | null {
+  const currentValue = baseline[field]
+  const candidateValue = candidate[field]
+  if (currentValue === candidateValue) {
+    return null
+  }
+  if (typeof currentValue === 'boolean' || typeof candidateValue === 'boolean') {
+    return `${formatProfileValue(currentValue, field)} to ${formatProfileValue(candidateValue, field)}`
+  }
+  const delta = Number(candidateValue) - Number(currentValue)
+  const sign = delta > 0 ? '+' : ''
+  return `${sign}${formatProfileValue(delta, field)} vs current`
+}
+
 function groupedFeatures(features: FeatureDefinition[]): Array<[string, FeatureDefinition[]]> {
   const grouped = new Map<string, FeatureDefinition[]>()
   for (const feature of features) {
@@ -152,6 +180,8 @@ function ProfileSection({
 }): JSX.Element {
   const { state, dispatch } = useScenario()
   const profile = state[profileKey]
+  const baseline = state.baseline
+  const candidate = state.candidate
   const profileLabel = profileKey === 'baseline' ? 'Current' : 'What-if'
   const sectionTone = profileKey === 'baseline' ? 'profile-current' : 'profile-whatif'
 
@@ -214,10 +244,17 @@ function ProfileSection({
               const value = profile[feature.field]
               const meta = fieldMeta[feature.field]
               const fieldId = `${profileKey}-${feature.field}`
+              const candidateChange =
+                profileKey === 'candidate'
+                  ? formatCandidateChange(feature.field, baseline, candidate)
+                  : null
               return (
                 <section
                   aria-labelledby={`${fieldId}-label`}
-                  className="control-field"
+                  className={candidateChange ? 'control-field changed' : 'control-field'}
+                  data-testid={
+                    candidateChange ? `changed-input-${feature.field}` : undefined
+                  }
                   key={`${profileKey}-${feature.field}`}
                 >
                   <div className="control-field-header">
@@ -233,10 +270,15 @@ function ProfileSection({
                       </strong>
                     ) : (
                       <strong className="control-field-value">
-                        {value ? 'Current smoker' : 'No smoking'}
+                        {value ? 'Smoker' : 'No smoking'}
                       </strong>
                     )}
                   </div>
+                  {candidateChange ? (
+                    <p className="change-chip">
+                      Changed: {candidateChange}
+                    </p>
+                  ) : null}
 
                   {feature.kind === 'boolean' ? (
                     <div className="toggle-group" role="group" aria-label={feature.label}>

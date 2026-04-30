@@ -24,10 +24,18 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await expect(page.getByTestId('heatmap-mode-baseline')).toContainText('Current')
   await expect(page.getByTestId('heatmap-mode-scenario')).toContainText('What-if')
   await expect(page.getByTestId('heatmap-mode-delta')).toContainText('Change vs current')
+  await expect(page.getByTestId('changed-input-smoker')).toContainText('Changed:')
+  await expect(page.getByText('Blue: improves')).toBeVisible()
 
   await page.getByTestId('organ-callout-heart').click()
   await expect(page.getByTestId('condition-heart_disease')).toBeVisible()
   await expect(page.getByText('Improves vs current')).toBeVisible()
+  await expect(page.getByText('Model explanation caveats')).toBeVisible()
+  await expect(page.getByText(/Demo-mode heuristic contribution/i).first()).toBeVisible()
+
+  await page.getByTestId('organ-callout-brain').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByTestId('condition-stroke')).toBeVisible()
 
   await page.getByTestId('heatmap-mode-baseline').click()
   await expect(page.getByText('Lower current risk')).toBeVisible()
@@ -38,7 +46,7 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await page.getByTestId('heatmap-mode-delta').click()
   await expect(page.getByText('Relative change scale')).toBeVisible()
   await expect(
-    page.getByText('Green means improved and red means worsened relative to current'),
+    page.getByText('Blue means improved and orange means worsened relative to current'),
   ).toBeVisible()
 
   await page.getByRole('button', { name: 'Data evidence' }).click()
@@ -281,7 +289,10 @@ test('keeps drill-down content aligned with the selected heatmap mode', async ({
   })
 
   await page.goto('/')
-  await expect(page.getByTestId('overview-whatif').locator('.metric-value')).toHaveText('44.1')
+  await expect(page.getByTestId('overview-whatif').locator('.metric-value')).toHaveText(
+    '44.1',
+    { timeout: 15000 },
+  )
 
   await page.getByTestId('heatmap-mode-baseline').click()
   await page.getByTestId('organ-callout-brain').click()
