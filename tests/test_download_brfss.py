@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from longevity_lab.pipeline.download_brfss import _ensure_canonical_xpt_name
+from longevity_lab.pipeline.download_brfss import _brfss_urls, _ensure_canonical_xpt_name
 
 
 class _FakeCandidate:
@@ -86,3 +86,19 @@ def test_ensure_canonical_xpt_name_rejects_multiple_variants(
 
     with pytest.raises(FileExistsError):
         _ensure_canonical_xpt_name(raw_dir, year=2023)
+
+
+def test_brfss_urls_are_registry_backed() -> None:
+    """BRFSS URLs should still match the CDC v1 paths after registry refactor."""
+    microdata_url, codebook_url = _brfss_urls(2023)
+
+    assert microdata_url == "https://www.cdc.gov/brfss/annual_data/2023/files/LLCP2023XPT.zip"
+    assert codebook_url == (
+        "https://www.cdc.gov/brfss/annual_data/2023/zip/codebook23_llcp-v2-508.zip"
+    )
+
+
+def test_brfss_urls_reject_unsupported_year() -> None:
+    """The current BRFSS registry remains pinned to supported years."""
+    with pytest.raises(NotImplementedError):
+        _brfss_urls(2022)

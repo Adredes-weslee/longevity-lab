@@ -4,6 +4,18 @@ This project uses **public** datasets and keeps raw/processed data **out of git*
 
 Raw downloads belong under `data/external/` (gitignored). Derived tables belong under `data/processed/` (gitignored).
 
+## Data-source registry (v1)
+
+Scriptable public sources are registered in `conf/data_sources.yaml`. Each record includes:
+
+- `source_id`, title, official landing URL, and concrete download URL template.
+- Supported years, geography, expected local file pattern, and local landing path.
+- Checksum policy and license/terms notes for provenance review.
+
+The registry is intentionally small and curated: it includes only sources that are already used by
+the local pipeline or are approved for near-term ingestion. Download scripts enrich each provenance
+JSON with a `source_registry` block so raw files can be traced back to the exact registry record.
+
 ## Baseline dataset choices (v1)
 
 For reproducibility and easy onboarding (no auth tokens), we prefer **official** sources over third-party mirrors.
@@ -23,6 +35,7 @@ Expected local paths (gitignored):
 Notes:
 
 - We use the **CDC release** instead of third-party mirrors to avoid external credentials and keep provenance clear.
+- Registry source IDs: `cdc_brfss_llcp_xpt`, `cdc_brfss_llcp_codebook`.
 
 ### EPA AirData - Annual AQI by county (2023)
 
@@ -38,6 +51,7 @@ Notes:
 
 - The raw file contains `State` and `County` names but **no FIPS codes**. Our v1 join is therefore **state-year**:
   we map `State` name -> `state_fips` and aggregate county rows to `annual_aqi_state_year` (see `docs/data_dictionary.md`).
+- Registry source ID: `epa_airdata_annual_aqi_by_county`.
 
 ## Download commands (Windows)
 

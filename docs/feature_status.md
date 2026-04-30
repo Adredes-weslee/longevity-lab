@@ -12,7 +12,7 @@ Legend:
 
 - [DONE] Governance, roadmap, local overlay, worktree policy, and PR plan drafted.
 - [DONE] Artifact-first runtime default when a valid local bundle exists.
-- [TODO] Data source registry and provenance schema for additional public sources.
+- [DONE] Data source registry and provenance schema for current public sources.
 - [TODO] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
 - [TODO] EPA pollutant-specific features beyond annual AQI.
 - [TODO] ACS/SVI contextual social-determinants features.
@@ -46,6 +46,8 @@ Legend:
 - [DONE] Small sample slice committed in `data/sample/` for dev/testing only.
 - [DONE] DuckDB stable views builder (`src/longevity_lab/pipeline/build_duckdb_views.py`).
 - [DONE] Pipeline CLIs default to repo-root `data/` even when invoked from subdirectories (`src/longevity_lab/pipeline/common.py`).
+- [DONE] Source registry records official URLs, download templates, year support, expected files, checksum policy, license notes, and landing paths (`conf/data_sources.yaml`).
+- [DONE] BRFSS and EPA download provenance embeds registry metadata (`src/longevity_lab/pipeline/provenance.py`).
 
 ### Modeling
 
@@ -94,8 +96,8 @@ Legend:
 
 ## Highest-ROI next tasks
 
-1. Add the public data-source registry.
-2. Add BRFSS v2 and contextual data feature contracts.
-3. Replace notebook-derived analysis with scripted reports.
-4. Add reproducible model benchmarking and model-card outputs.
+1. Add BRFSS v2 and contextual data feature contracts.
+2. Replace notebook-derived analysis with scripted reports.
+3. Add reproducible model benchmarking and model-card outputs.
+4. Add pollutant-specific EPA and socioeconomic context tables.
 5. Start the modeling benchmark harness.
