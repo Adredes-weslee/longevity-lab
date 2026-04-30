@@ -164,7 +164,7 @@ function getModeCopy(mode: HeatmapMode): ModeCopy {
     }
   }
   return {
-    description: 'How the what-if profile changes each organ versus current. Green means improved and red means worsened relative to current, not low or high absolute risk.',
+    description: 'How the what-if profile changes each organ versus current. Blue means improved and orange means worsened relative to current, not low or high absolute risk.',
     emptyValue: '--',
     legendEnd: 'Worsens vs current',
     legendStart: 'Improves vs current',

@@ -46,7 +46,7 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await page.getByTestId('heatmap-mode-delta').click()
   await expect(page.getByText('Relative change scale')).toBeVisible()
   await expect(
-    page.getByText('Green means improved and red means worsened relative to current'),
+    page.getByText('Blue means improved and orange means worsened relative to current'),
   ).toBeVisible()
 
   await page.getByRole('button', { name: 'Data evidence' }).click()
