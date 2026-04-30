@@ -42,6 +42,14 @@ def build_artifact_model_metadata(bundle: ArtifactBundle) -> ModelMetadataRespon
         for method in _unique_sorted(item.uncertainty_method for item in bundle.manifest.conditions)
         if method != "none"
     ]
+    explanation_methods = [
+        cast(ExplanationMethod, method)
+        for method in _unique_sorted(
+            item.explanation_method
+            for item in bundle.manifest.conditions
+            if item.explanation_path is not None
+        )
+    ]
     retrieved_at = bundle.manifest.dataset.retrieved_at
     return ModelMetadataResponse(
         model_mode="artifact",
@@ -50,12 +58,7 @@ def build_artifact_model_metadata(bundle: ArtifactBundle) -> ModelMetadataRespon
         dataset_name=bundle.manifest.dataset.name,
         dataset_version=bundle.manifest.dataset.version,
         dataset_retrieved_at=retrieved_at.isoformat() if retrieved_at else None,
-        explanation_methods=[
-            cast(ExplanationMethod, method)
-            for method in _unique_sorted(
-                item.explanation_method for item in bundle.manifest.conditions
-            )
-        ],
+        explanation_methods=explanation_methods,
         uncertainty_available=bool(uncertainty_methods),
         uncertainty_methods=uncertainty_methods,
         contextual_geography=_infer_contextual_geography(bundle.manifest.features),

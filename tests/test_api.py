@@ -288,7 +288,7 @@ def test_metadata_bootstrap_auto_selects_artifact_bundle(
         assert model_metadata["dataset_name"] == "brfss"
         assert model_metadata["dataset_version"] == "test"
         assert model_metadata["dataset_retrieved_at"] is None
-        assert model_metadata["explanation_methods"] == ["tree_path"]
+        assert model_metadata["explanation_methods"] == []
         assert model_metadata["uncertainty_available"] is False
         assert model_metadata["uncertainty_methods"] == []
         assert model_metadata["contextual_geography"] == {
@@ -407,7 +407,8 @@ def test_scenario_compare_auto_selected_artifact_reports_model_metadata(
         assert payload["model_metadata"]["model_mode"] == "artifact"
         assert payload["model_metadata"]["artifact_id"] == bundle_id
         assert payload["model_metadata"]["data_vintage"] == "test"
-        assert payload["model_metadata"]["explanation_methods"] == ["tree_path"]
+        assert payload["model_metadata"]["explanation_methods"] == []
+        assert payload["baseline"]["conditions"][0]["explanations"] == []
         assert payload["model_metadata"]["contextual_geography"]["levels"] == ["state"]
 
 

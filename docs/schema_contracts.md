@@ -80,7 +80,9 @@ clients that read the original organs, conditions, runtime, and scenario scores 
 - `artifact_id`: the selected local bundle id when artifact-backed scoring is active.
 - `data_vintage`, `dataset_name`, `dataset_version`, and `dataset_retrieved_at`: provenance copied
   from the active artifact manifest, or explicit demo values when no artifact is active.
-- `explanation_methods`: the artifact-declared explanation methods surfaced in condition responses.
+- `explanation_methods`: explanation methods whose artifact paths are present in the active bundle.
+  A condition can still return an empty `explanations` list when no qualifying rule-path split or
+  attribution is available for the current row.
 - `uncertainty_available` and `uncertainty_methods`: whether calibrated uncertainty summaries are
   available from the active artifact bundle.
 - `contextual_geography`: the geographic context levels inferred from artifact features, such as
