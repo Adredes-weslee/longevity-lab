@@ -1,0 +1,143 @@
+{
+  "benchmark_id": null,
+  "output": {
+    "base_dir": "reports/benchmarks",
+    "force_overwrite": false
+  },
+  "training_spec": {
+    "bundle_id": "benchmark-reference",
+    "data": {
+      "year": 2023,
+      "base_dir": "data",
+      "input_path": null,
+      "sample_path": "data/sample/integrated_person_year_sample.csv",
+      "use_sample_if_missing": true
+    },
+    "artifacts": {
+      "base_dir": "artifacts/models",
+      "force_overwrite": false,
+      "notes": "Benchmark harness config; model artifacts are not written by default."
+    },
+    "features": [
+      "age",
+      "bmi",
+      "smoker",
+      "alcohol_servings_per_week",
+      "exercise_minutes_per_week",
+      "annual_aqi",
+      "sex",
+      "race_ethnicity",
+      "has_healthcare_coverage",
+      "has_personal_doctor",
+      "cost_barrier_to_care",
+      "last_checkup_within_year",
+      "sleep_hours_per_night",
+      "physical_health_days",
+      "mental_health_days"
+    ],
+    "feature_contract": {
+      "version": "brfss_v2",
+      "scenario_editable_features": [
+        "age",
+        "bmi",
+        "smoker",
+        "alcohol_servings_per_week",
+        "exercise_minutes_per_week",
+        "annual_aqi"
+      ],
+      "adjustment_features": [
+        "sex",
+        "race_ethnicity",
+        "has_healthcare_coverage",
+        "has_personal_doctor",
+        "cost_barrier_to_care",
+        "last_checkup_within_year",
+        "sleep_hours_per_night",
+        "physical_health_days",
+        "mental_health_days"
+      ],
+      "context_features": [],
+      "sample_weight_column": "survey_weight",
+      "label_feature_exclusions": {
+        "heart_disease": ["physical_health_days"],
+        "chronic_lung_disease": ["physical_health_days"],
+        "stroke": ["physical_health_days"],
+        "depression": ["mental_health_days"],
+        "diabetes": ["physical_health_days"]
+      }
+    },
+    "conditions": {
+      "heart_disease": "label_heart_disease",
+      "chronic_lung_disease": "label_chronic_lung_disease",
+      "stroke": "label_stroke",
+      "depression": "label_depression",
+      "diabetes": "label_diabetes"
+    },
+    "training": {
+      "random_state": 42,
+      "test_size": 0.2,
+      "calibration_method": "sigmoid",
+      "calibration_cv": 3,
+      "prediction_sample_rows": 5000
+    },
+    "tuning": {
+      "enabled": false,
+      "metric": "average_precision",
+      "n_trials": 1,
+      "timeout_seconds": 60,
+      "cv_folds": 3,
+      "sample_size": 50000
+    },
+    "model": {
+      "criterion": "gini",
+      "class_weight": "balanced",
+      "search_space": {
+        "max_depth": {"low": 2, "high": 7},
+        "min_samples_split": {"low": 10, "high": 100},
+        "min_samples_leaf": {"low": 5, "high": 80},
+        "max_leaf_nodes": {"low": 8, "high": 64},
+        "ccp_alpha": {"low": 0.00001, "high": 0.01}
+      }
+    }
+  },
+  "models": [
+    {
+      "model_id": "logistic_baseline",
+      "kind": "logistic_regression",
+      "params": {"max_iter": 1000, "class_weight": "balanced"}
+    },
+    {
+      "model_id": "decision_tree_baseline",
+      "kind": "decision_tree",
+      "params": {
+        "max_depth": 7,
+        "min_samples_split": 68,
+        "min_samples_leaf": 64,
+        "max_leaf_nodes": 49,
+        "ccp_alpha": 0.0000138,
+        "class_weight": "balanced"
+      }
+    }
+  ],
+  "ablations": [
+    {
+      "variant_id": "no_aqi",
+      "display_name": "Drop annual AQI",
+      "drop_features": ["annual_aqi"]
+    },
+    {
+      "variant_id": "scenario_editable_only",
+      "display_name": "Scenario-editable inputs only",
+      "keep_features": [
+        "age",
+        "bmi",
+        "smoker",
+        "alcohol_servings_per_week",
+        "exercise_minutes_per_week",
+        "annual_aqi"
+      ]
+    }
+  ],
+  "subgroups": {"min_rows": 200},
+  "calibration": {"bins": 10}
+}
