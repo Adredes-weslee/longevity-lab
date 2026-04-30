@@ -54,9 +54,11 @@ Open the Vite URL (usually `http://localhost:5173`).
 Useful routes:
 
 - Explorer: `http://localhost:5173/`
-- Data integration: `http://localhost:5173/#/data`
+- Data Evidence: `http://localhost:5173/#/data`
+- Model Cards: `http://localhost:5173/#/models`
+- Scenario Lab: `http://localhost:5173/#/lab`
 
-Tip: the UI includes a separate **Data integration** page that calls `GET /api/pipeline/status`
+Tip: the UI includes a separate **Data Evidence** page that calls `GET /api/pipeline/status`
 to show whether expected raw/processed pipeline artifacts exist locally.
 
 ## Quick smoke check after startup
@@ -64,6 +66,7 @@ to show whether expected raw/processed pipeline artifacts exist locally.
 1. Open the Explorer page and confirm the baseline/scenario summaries render.
 2. Click an organ or callout and confirm the drill-down updates.
 3. Open `#/data` and confirm the pipeline status page loads.
+4. Open `#/models` and confirm active model metadata is visible.
 
 ## Backend checks
 
@@ -167,7 +170,7 @@ npm run test:e2e
 This downloads raw datasets into `data/external/` and writes processed tables into `data/processed/`
 (both gitignored).
 
-If you skip this, the app still runs, but the UI's **Data integration** page will show "Missing" for the expected artifacts.
+If you skip this, the app still runs, but the UI's **Data Evidence** page will show "Missing" for the expected artifacts.
 
 These CLIs now default to the repo-root `data/` directory even if you run them from `frontend/` or
 another subdirectory.
