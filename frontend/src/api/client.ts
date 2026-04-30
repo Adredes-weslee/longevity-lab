@@ -6,9 +6,20 @@ import type {
 } from '../types'
 
 const API_PREFIX = '/api'
+const API_BASE_URL = normalizeApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
+
+function normalizeApiBaseUrl(value: string | undefined): string {
+  if (!value?.trim()) {
+    return ''
+  }
+  const withoutTrailingSlash = value.trim().replace(/\/+$/, '')
+  return withoutTrailingSlash.endsWith(API_PREFIX)
+    ? withoutTrailingSlash.slice(0, -API_PREFIX.length)
+    : withoutTrailingSlash
+}
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_PREFIX}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),

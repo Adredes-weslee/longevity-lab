@@ -97,18 +97,30 @@ npm run dev
 ```
 
 The Vite dev server proxies `/api` to `http://localhost:8000`.
+For deployed static frontends, set `VITE_API_BASE_URL` at build time to the backend origin without
+`/api`. For local frontend-only overrides, copy `frontend/.env.example` to `frontend/.env`.
 
 See `docs/quickstart.md` for common workflows (tests, lint, running both).
 
 ### Launch the dashboard
 
 - Explorer view: `http://localhost:5173/`
-- Data integration view: `http://localhost:5173/#/data`
+- Data Evidence view: `http://localhost:5173/#/data`
+- Model Cards view: `http://localhost:5173/#/models`
+- Scenario Lab view: `http://localhost:5173/#/lab`
 
 Use the Explorer page for the organ heatmap + drill-down flow. Current and what-if inputs stay
 visible side by side, and the scores update live as sliders move. Use the `Delta | Baseline |
 Scenario` toggle to switch the body view.
-Use the Data integration page to verify whether BRFSS/EPA raw and processed artifacts exist locally.
+Use the Data Evidence page to verify whether raw and processed artifacts exist locally. Use Model
+Cards to inspect active model metadata and Scenario Lab to summarize the current what-if comparison.
+
+## Deployment
+
+See `docs/deployment.md` for the free-tier deployment profile. The checked-in `render.yaml`
+configures a Render FastAPI service plus an optional Render static frontend. Vercel can also serve
+the static frontend from `frontend/` when `VITE_API_BASE_URL` points to the deployed API origin.
+Do not commit raw datasets or trained artifact bundles for deployment.
 
 ### Run all checks
 
@@ -237,7 +249,7 @@ are produced locally under `artifacts/models/` and are intentionally gitignored.
 ## Pipeline (download + build)
 
 This writes raw data to `data/external/` and derived tables to `data/processed/` (both gitignored).
-If you skip this, the app still runs, but the UI's **Data integration** page will show the expected artifacts as "Missing".
+If you skip this, the app still runs, but the UI's **Data Evidence** page will show the expected artifacts as "Missing".
 
 These CLIs default to the repo-root `data/` directory even if you run them from `frontend/` or
 another subdirectory.
@@ -273,3 +285,4 @@ curl.exe http://127.0.0.1:8000/api/pipeline/status?year=2023
 - Baseline implementation history: `docs/implementation_plan.md`
 - Git workflow: `docs/git_workflow.md`
 - Developer quickstart: `docs/quickstart.md`
+- Deployment profile: `docs/deployment.md`

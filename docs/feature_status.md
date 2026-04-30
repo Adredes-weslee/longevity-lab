@@ -26,7 +26,7 @@ Legend:
 - [DONE] Causal workbench prototype for sensitivity-tested, non-serving smoking-to-lung-disease estimates.
 - [DONE] UI information architecture with Explorer, Data Evidence, Model Cards, and Scenario Lab pages.
 - [DONE] Explorer UX upgrade for input deltas, accessible anatomy selection, explanation caveats, uncertainty copy, and color-blind-safe legends.
-- [TODO] Deployment packaging.
+- [DONE] Deployment packaging for Render API/static frontend and Vercel static frontend handoff.
 
 ## Current baseline
 
@@ -115,6 +115,7 @@ Legend:
 - [DONE] CI workflow (`.github/workflows/ci.yml`).
 - [DONE] One-command dev checks (`scripts/check_all.ps1`, `scripts/check_all.sh`).
 - [DONE] E2E smoke tests (`frontend/e2e/`).
+- [DONE] Free-tier deployment profile documented with Render Blueprint config and Vite API-origin support (`render.yaml`, `docs/deployment.md`, `frontend/vite.config.ts`, `frontend/.env.example`).
 - [TODO] One-command dev bootstrap for Windows and macOS.
 - [DONE] Artifact-backed runtime no longer requires Optuna just to load packaged bundles (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Dataset sources and provenance docs (`docs/datasets.md`, `docs/data_dictionary.md`).
@@ -125,5 +126,5 @@ Legend:
 1. Wire pollutant and socioeconomic context features into the benchmark harness.
 2. Extend typed explanation and uncertainty coverage as new artifact families are trained.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
-4. Package a realistic free-tier deployment path.
+4. Add one-command dev bootstrap for Windows and macOS.
 5. Finalize ethics and health disclaimer language across the UI and documentation.

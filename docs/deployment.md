@@ -1,0 +1,95 @@
+# Deployment
+
+This repo remains local-first. Deployment is a demo/smoke-test surface, not the canonical place to
+store raw datasets or trained model artifacts.
+
+## Recommended free-tier shape
+
+- **API:** Render web service running FastAPI in demo mode.
+- **Frontend:** Vercel static site or Render static site.
+- **Artifacts:** do not commit or bundle `data/external/`, `data/processed/`, or
+  `artifacts/models/`. Use `LONGEVITY_LAB_ENGINE=demo` for public demo deployments unless you add
+  an explicit trusted artifact retrieval step later.
+
+Relevant provider docs:
+
+- Render Blueprint spec: <https://render.com/docs/blueprint-spec>
+- Render FastAPI services: <https://render.com/docs/deploy-fastapi>
+- Render static sites: <https://render.com/docs/static-sites>
+- Vercel Vite deployments: <https://vercel.com/docs/frameworks/vite>
+- Vercel environment variables: <https://vercel.com/docs/environment-variables>
+
+## Render Blueprint
+
+`render.yaml` defines:
+
+- `longevity-lab-api`: a Python web service that installs the package and starts Uvicorn on
+  Render's `$PORT`.
+- `longevity-lab-frontend`: an optional static frontend that builds `frontend/dist` and rewrites
+  client-side routes to `index.html`.
+
+After creating the Blueprint:
+
+1. Set `LONGEVITY_LAB_CORS_ALLOW_ORIGINS` on the API to the deployed frontend origin, for example
+   `https://longevity-lab-frontend.onrender.com`.
+2. Set `VITE_API_BASE_URL` on the static frontend to the deployed API origin, for example
+   `https://longevity-lab-api.onrender.com`.
+3. Redeploy the static frontend after setting `VITE_API_BASE_URL`, because Vite embeds this value at
+   build time.
+4. Keep `LONGEVITY_LAB_ENGINE=demo` unless a trusted artifact download/build step is added.
+
+Render free instances can cold-start after inactivity. The first API call after idle may be slow.
+
+## Vercel frontend + Render API
+
+If using Vercel for the frontend:
+
+1. Create a Vercel project with root directory `frontend/`.
+2. Use the default Vite build: `npm run build`.
+3. Use output directory `dist`.
+4. Set `VITE_API_BASE_URL` to the Render API origin, without `/api`.
+5. Set `LONGEVITY_LAB_CORS_ALLOW_ORIGINS` on the Render API to the Vercel production origin and any
+   preview origins you intentionally support.
+
+The frontend client appends `/api` itself, so `VITE_API_BASE_URL=https://example.onrender.com` calls
+`https://example.onrender.com/api/...`.
+
+For local testing of a non-default API origin, copy `frontend/.env.example` to `frontend/.env` and
+set `VITE_API_BASE_URL` there before running `npm run build`.
+
+## Local deployment smoke checks
+
+Before pushing deployment config changes:
+
+```powershell
+pdm run pytest
+cd frontend
+npm run build
+```
+
+Optional local production preview:
+
+```powershell
+pdm run python -m uvicorn longevity_lab.api.main:app --host 127.0.0.1 --port 8000
+cd frontend
+npm run build
+npm run preview
+```
+
+Open `http://localhost:4173` and verify:
+
+- `/api/health` returns `{"status":"ok"}` through the configured API origin or proxy.
+- Explorer renders the runtime banner and scenario comparison.
+- Data Evidence shows local artifacts as ready or missing without failing the page.
+
+## Artifact strategy
+
+Current public deployment should use demo mode because free-tier services should not serve untracked
+large local artifacts. A future artifact-backed deployment should add all of the following before
+changing `LONGEVITY_LAB_ENGINE` to `artifact`:
+
+- a trusted artifact build or download step,
+- checksum/provenance verification,
+- storage that is not the git repo,
+- clear model-card metadata in the UI,
+- and a rollback path to demo mode.
