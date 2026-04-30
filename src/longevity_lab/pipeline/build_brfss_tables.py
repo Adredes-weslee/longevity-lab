@@ -1,4 +1,4 @@
-"""Build processed BRFSS tables (v1: brfss_person.parquet)."""
+"""Build processed BRFSS tables (v2: brfss_person.parquet)."""
 
 from __future__ import annotations
 
@@ -20,8 +20,46 @@ from longevity_lab.pipeline.common import (
 )
 from longevity_lab.pipeline.ingest import build_ingest_paths
 
-RAW_COLUMNS: tuple[str, ...] = (
+BRFSS_FEATURE_CONTRACT_VERSION = "brfss_v2"
+
+BRFSS_SCENARIO_FEATURES: tuple[str, ...] = (
+    "age",
+    "bmi",
+    "smoker",
+    "alcohol_servings_per_week",
+    "exercise_minutes_per_week",
+)
+
+BRFSS_ADJUSTMENT_FEATURES: tuple[str, ...] = (
+    "sex",
+    "race_ethnicity",
+    "has_healthcare_coverage",
+    "has_personal_doctor",
+    "cost_barrier_to_care",
+    "last_checkup_within_year",
+    "sleep_hours_per_night",
+    "physical_health_days",
+    "mental_health_days",
+)
+
+BRFSS_LABEL_FEATURE_EXCLUSIONS: dict[str, tuple[str, ...]] = {
+    "heart_disease": ("physical_health_days",),
+    "chronic_lung_disease": ("physical_health_days",),
+    "stroke": ("physical_health_days",),
+    "depression": ("mental_health_days",),
+    "diabetes": ("physical_health_days",),
+}
+
+BRFSS_REQUIRED_RAW_COLUMNS: tuple[str, ...] = (
     "_STATE",
+    "SEXVAR",
+    "_IMPRACE",
+    "PRIMINS1",
+    "PERSDOC3",
+    "MEDCOST1",
+    "CHECKUP1",
+    "PHYSHLTH",
+    "MENTHLTH",
     "_AGEG5YR",
     "_BMI5",
     "_SMOKER3",
@@ -34,6 +72,9 @@ RAW_COLUMNS: tuple[str, ...] = (
     "DIABETE4",
     "_LLCPWT",
 )
+
+BRFSS_OPTIONAL_RAW_COLUMNS: tuple[str, ...] = ("SLEPTIM1",)
+RAW_COLUMNS: tuple[str, ...] = BRFSS_REQUIRED_RAW_COLUMNS + BRFSS_OPTIONAL_RAW_COLUMNS
 
 AGE_MIDPOINT_BY_GROUP: dict[int, int] = {
     1: 21,
@@ -52,6 +93,20 @@ AGE_MIDPOINT_BY_GROUP: dict[int, int] = {
     14: -1,  # DK/Refused/Missing -> null
 }
 
+SEX_LABEL_BY_CODE: dict[int, str] = {
+    1: "male",
+    2: "female",
+}
+
+RACE_ETHNICITY_LABEL_BY_CODE: dict[int, str] = {
+    1: "white_non_hispanic",
+    2: "black_non_hispanic",
+    3: "asian_non_hispanic",
+    4: "aian_non_hispanic",
+    5: "hispanic",
+    6: "other_non_hispanic",
+}
+
 BRFSS_2023_SOURCES: list[str] = [
     "https://www.cdc.gov/brfss/annual_data/2023/files/LLCP2023XPT.zip",
     "https://www.cdc.gov/brfss/annual_data/2023/zip/codebook23_llcp-v2-508.zip",
@@ -59,8 +114,12 @@ BRFSS_2023_SOURCES: list[str] = [
 
 
 def decode_brfss_person(frame: pd.DataFrame, *, year: int) -> pd.DataFrame:
-    """Decode a BRFSS raw dataframe into the v1 brfss_person schema."""
-    require_columns(actual=frame.columns, required=list(RAW_COLUMNS), context="BRFSS decode")
+    """Decode a BRFSS raw dataframe into the v2 brfss_person schema."""
+    require_columns(
+        actual=frame.columns,
+        required=list(BRFSS_REQUIRED_RAW_COLUMNS),
+        context="BRFSS decode",
+    )
 
     output = pd.DataFrame(index=frame.index)
     output["year"] = year
@@ -69,6 +128,15 @@ def decode_brfss_person(frame: pd.DataFrame, *, year: int) -> pd.DataFrame:
     if state.isna().any():
         raise ValueError("BRFSS _STATE contains nulls; cannot build stable join keys.")
     output["state_fips"] = state.astype("Int64").astype(str).str.zfill(2)
+
+    output["sex"] = _decode_category(
+        pd.to_numeric(frame["SEXVAR"], errors="coerce"),
+        mapping=SEX_LABEL_BY_CODE,
+    )
+    output["race_ethnicity"] = _decode_category(
+        pd.to_numeric(frame["_IMPRACE"], errors="coerce"),
+        mapping=RACE_ETHNICITY_LABEL_BY_CODE,
+    )
 
     age_group = pd.to_numeric(frame["_AGEG5YR"], errors="coerce").astype("Int64")
     age_mid = age_group.map(AGE_MIDPOINT_BY_GROUP)
@@ -99,6 +167,35 @@ def decode_brfss_person(frame: pd.DataFrame, *, year: int) -> pd.DataFrame:
     exercise = pd.Series(np.rint(exercise), index=frame.index)
     output["exercise_minutes_per_week"] = exercise.astype("Int64")
 
+    output["has_healthcare_coverage"] = _decode_true_false(
+        pd.to_numeric(frame["PRIMINS1"], errors="coerce"),
+        true_values=frozenset(range(1, 11)),
+        false_values=frozenset({88}),
+    )
+    output["has_personal_doctor"] = _decode_true_false(
+        pd.to_numeric(frame["PERSDOC3"], errors="coerce"),
+        true_values=frozenset({1, 2}),
+        false_values=frozenset({3}),
+    )
+    output["cost_barrier_to_care"] = _decode_true_false(
+        pd.to_numeric(frame["MEDCOST1"], errors="coerce"),
+        true_values=frozenset({1}),
+        false_values=frozenset({2}),
+    )
+    output["last_checkup_within_year"] = _decode_true_false(
+        pd.to_numeric(frame["CHECKUP1"], errors="coerce"),
+        true_values=frozenset({1}),
+        false_values=frozenset({2, 3, 4, 8}),
+    )
+    output["physical_health_days"] = _decode_days(pd.to_numeric(frame["PHYSHLTH"], errors="coerce"))
+    output["mental_health_days"] = _decode_days(pd.to_numeric(frame["MENTHLTH"], errors="coerce"))
+    if "SLEPTIM1" in frame.columns:
+        output["sleep_hours_per_night"] = _decode_sleep_hours(
+            pd.to_numeric(frame["SLEPTIM1"], errors="coerce")
+        )
+    else:
+        output["sleep_hours_per_night"] = pd.Series(pd.NA, index=frame.index, dtype="Int64")
+
     output["label_heart_disease"] = _decode_yes_no_blank(
         pd.to_numeric(frame["_MICHD"], errors="coerce")
     )
@@ -118,6 +215,43 @@ def decode_brfss_person(frame: pd.DataFrame, *, year: int) -> pd.DataFrame:
     return output
 
 
+def _decode_category(values: pd.Series, *, mapping: dict[int, str]) -> pd.Series:
+    """Decode a numeric BRFSS categorical field into stable string labels."""
+    result = pd.Series(pd.NA, index=values.index, dtype="string")
+    for raw_value, label in mapping.items():
+        result = result.mask(values == raw_value, label)
+    return result
+
+
+def _decode_true_false(
+    values: pd.Series,
+    *,
+    true_values: frozenset[int],
+    false_values: frozenset[int],
+) -> pd.Series:
+    """Decode BRFSS categorical values into nullable booleans."""
+    result = pd.Series(pd.NA, index=values.index, dtype="boolean")
+    result = result.mask(values.isin(true_values), True)
+    result = result.mask(values.isin(false_values), False)
+    return result
+
+
+def _decode_days(values: pd.Series) -> pd.Series:
+    """Decode BRFSS poor-health-day fields with 88 as zero days."""
+    result = pd.Series(pd.NA, index=values.index, dtype="Int64")
+    valid_days = values.between(1, 30, inclusive="both")
+    result = result.mask(valid_days, values.where(valid_days).astype("Int64"))
+    result = result.mask(values == 88, 0)
+    return result
+
+
+def _decode_sleep_hours(values: pd.Series) -> pd.Series:
+    """Decode optional sleep hours when a supported BRFSS file contains SLEPTIM1."""
+    result = pd.Series(pd.NA, index=values.index, dtype="Int64")
+    valid_hours = values.between(0, 24, inclusive="both")
+    return result.mask(valid_hours, values.where(valid_hours).astype("Int64"))
+
+
 def _decode_yes_no_blank(values: pd.Series) -> pd.Series:
     """Decode 1->1, 2->0, else -> NA."""
     result = pd.Series(pd.NA, index=values.index, dtype="Int64")
@@ -135,7 +269,7 @@ def _decode_yes_no_unknown(values: pd.Series) -> pd.Series:
 
 
 def _decode_diabetes(values: pd.Series) -> pd.Series:
-    """Decode DIABETE4 into a v1 binary label (1=yes, 0=no)."""
+    """Decode DIABETE4 into a binary label (1=yes, 0=no)."""
     result = pd.Series(pd.NA, index=values.index, dtype="Int64")
     result = result.mask(values == 1, 1)
     result = result.mask(values.isin([2, 3, 4]), 0)
@@ -154,7 +288,7 @@ def build_brfss_tables(
     for year in years:
         if year != 2023:
             raise NotImplementedError(
-                f"BRFSS build is pinned to 2023 for v1. Unsupported year: {year}."
+                f"BRFSS build is pinned to 2023 for v2. Unsupported year: {year}."
             )
 
         raw_dir = paths.brfss_raw_dir(year)
@@ -187,11 +321,20 @@ def build_brfss_tables(
         required_cols = [
             "year",
             "state_fips",
+            "sex",
+            "race_ethnicity",
             "age",
             "bmi",
             "smoker",
             "alcohol_servings_per_week",
             "exercise_minutes_per_week",
+            "has_healthcare_coverage",
+            "has_personal_doctor",
+            "cost_barrier_to_care",
+            "last_checkup_within_year",
+            "sleep_hours_per_night",
+            "physical_health_days",
+            "mental_health_days",
             "label_heart_disease",
             "label_chronic_lung_disease",
             "label_stroke",
@@ -209,7 +352,7 @@ def build_brfss_tables(
         writer: pq.ParquetWriter | None = None
         try:
             for chunk in reader:
-                chunk = chunk.loc[:, list(RAW_COLUMNS)]
+                chunk = chunk.loc[:, [name for name in RAW_COLUMNS if name in chunk.columns]]
                 decoded_chunk = decode_brfss_person(chunk, year=year)
                 table = pa.Table.from_pandas(decoded_chunk, preserve_index=False)
                 if writer is None:
@@ -239,13 +382,22 @@ def build_brfss_tables(
             dataset_version=str(year),
             sources=BRFSS_2023_SOURCES,
             files=files,
-            extra={"rows": rows_written, "null_counts": null_counts},
+            extra={
+                "rows": rows_written,
+                "null_counts": null_counts,
+                "feature_contract_version": BRFSS_FEATURE_CONTRACT_VERSION,
+                "scenario_editable_features": list(BRFSS_SCENARIO_FEATURES),
+                "adjustment_features": list(BRFSS_ADJUSTMENT_FEATURES),
+                "label_feature_exclusions": {
+                    key: list(value) for key, value in BRFSS_LABEL_FEATURE_EXCLUSIONS.items()
+                },
+            },
         )
 
 
 def main(argv: list[str] | None = None) -> None:
     """CLI entrypoint."""
-    parser = argparse.ArgumentParser(description="Build processed BRFSS tables (v1).")
+    parser = argparse.ArgumentParser(description="Build processed BRFSS tables (v2).")
     add_common_pipeline_args(parser)
     args = parser.parse_args(argv)
     years = parse_years_from_args(args)

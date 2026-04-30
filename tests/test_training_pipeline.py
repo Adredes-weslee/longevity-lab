@@ -10,6 +10,7 @@ import pandas as pd  # type: ignore[import-untyped]
 from longevity_lab.api.schemas import FeatureProfile
 from longevity_lab.artifacts.store import ArtifactStore
 from longevity_lab.pipeline.modeling import (
+    FeaturePreprocessor,
     build_training_spec,
     evaluate_bundle,
     evaluate_bundle_slices,
@@ -25,16 +26,39 @@ def _write_training_frame(path: Path, *, rows: int = 400) -> None:
     alcohol = [idx % 21 for idx in range(rows)]
     exercise = [30 + (idx % 12) * 20 for idx in range(rows)]
     annual_aqi = [40 + (idx % 9) * 12 for idx in range(rows)]
+    sex = ["female" if idx % 2 == 0 else "male" for idx in range(rows)]
+    race = [
+        ["white_non_hispanic", "black_non_hispanic", "hispanic", "other_non_hispanic"][idx % 4]
+        for idx in range(rows)
+    ]
+    has_coverage: list[bool | None] = [(idx % 11) != 0 for idx in range(rows)]
+    has_coverage[3] = None
+    has_doctor = [(idx % 7) != 0 for idx in range(rows)]
+    cost_barrier = [(idx % 13) == 0 for idx in range(rows)]
+    recent_checkup = [(idx % 5) != 0 for idx in range(rows)]
+    sleep = [5 + (idx % 5) for idx in range(rows)]
+    physical_health_days = [idx % 31 for idx in range(rows)]
+    mental_health_days = [(idx * 2) % 31 for idx in range(rows)]
+    survey_weight = [1.0 + (idx % 9) * 0.25 for idx in range(rows)]
     frame = pd.DataFrame(
         {
             "year": [2023] * rows,
             "state_fips": ["13"] * rows,
+            "sex": sex,
+            "race_ethnicity": race,
             "age": age,
             "bmi": bmi,
             "smoker": smoker,
             "alcohol_servings_per_week": alcohol,
             "exercise_minutes_per_week": exercise,
             "annual_aqi": annual_aqi,
+            "has_healthcare_coverage": has_coverage,
+            "has_personal_doctor": has_doctor,
+            "cost_barrier_to_care": cost_barrier,
+            "last_checkup_within_year": recent_checkup,
+            "sleep_hours_per_night": sleep,
+            "physical_health_days": physical_health_days,
+            "mental_health_days": mental_health_days,
             "label_heart_disease": [
                 int(item_age > 60 or item_bmi > 32 or item_smoker)
                 for item_age, item_bmi, item_smoker in zip(age, bmi, smoker, strict=True)
@@ -55,21 +79,25 @@ def _write_training_frame(path: Path, *, rows: int = 400) -> None:
                 int(item_bmi > 31 or item_age > 58)
                 for item_bmi, item_age in zip(bmi, age, strict=True)
             ],
-            "survey_weight": [1.0] * rows,
+            "survey_weight": survey_weight,
         }
     )
     frame.loc[0, "bmi"] = None
     frame.loc[1, "annual_aqi"] = None
+    frame.loc[2, "race_ethnicity"] = None
+    frame.loc[4, "sleep_hours_per_night"] = None
     path.write_text(frame.to_csv(index=False), encoding="utf-8")
 
 
-def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> None:
-    """Training should write a loadable artifact bundle with per-condition outputs."""
-    input_path = tmp_path / "training.csv"
-    _write_training_frame(input_path)
-
-    raw_cfg = {
-        "bundle_id": "bundle-test",
+def _base_raw_cfg(
+    *,
+    tmp_path: Path,
+    input_path: Path,
+    bundle_id: str,
+    features: list[str] | None = None,
+) -> dict[str, object]:
+    return {
+        "bundle_id": bundle_id,
         "data": {
             "year": 2023,
             "base_dir": str(tmp_path / "data"),
@@ -82,7 +110,8 @@ def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> No
             "force_overwrite": False,
             "notes": "test bundle",
         },
-        "features": [
+        "features": features
+        or [
             "age",
             "bmi",
             "smoker",
@@ -105,10 +134,10 @@ def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> No
             "prediction_sample_rows": 2000,
         },
         "tuning": {
-            "enabled": True,
+            "enabled": False,
             "metric": "average_precision",
-            "n_trials": 2,
-            "timeout_seconds": 60,
+            "n_trials": 1,
+            "timeout_seconds": 30,
             "cv_folds": 3,
             "sample_size": 250,
         },
@@ -123,6 +152,98 @@ def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> No
                 "ccp_alpha": {"low": 0.00001, "high": 0.01},
             },
         },
+    }
+
+
+BRFSS_V2_FEATURES = [
+    "age",
+    "bmi",
+    "smoker",
+    "alcohol_servings_per_week",
+    "exercise_minutes_per_week",
+    "annual_aqi",
+    "sex",
+    "race_ethnicity",
+    "has_healthcare_coverage",
+    "has_personal_doctor",
+    "cost_barrier_to_care",
+    "last_checkup_within_year",
+    "sleep_hours_per_night",
+    "physical_health_days",
+    "mental_health_days",
+]
+
+BRFSS_V2_CONTRACT = {
+    "version": "brfss_v2",
+    "scenario_editable_features": [
+        "age",
+        "bmi",
+        "smoker",
+        "alcohol_servings_per_week",
+        "exercise_minutes_per_week",
+        "annual_aqi",
+    ],
+    "adjustment_features": [
+        "sex",
+        "race_ethnicity",
+        "has_healthcare_coverage",
+        "has_personal_doctor",
+        "cost_barrier_to_care",
+        "last_checkup_within_year",
+        "sleep_hours_per_night",
+        "physical_health_days",
+        "mental_health_days",
+    ],
+    "context_features": [],
+    "sample_weight_column": "survey_weight",
+    "label_feature_exclusions": {
+        "heart_disease": ["physical_health_days"],
+        "chronic_lung_disease": ["physical_health_days"],
+        "stroke": ["physical_health_days"],
+        "depression": ["mental_health_days"],
+        "diabetes": ["physical_health_days"],
+    },
+}
+
+
+def test_feature_preprocessor_encodes_v2_categorical_covariates() -> None:
+    """Feature preprocessing should one-hot encode categorical adjustment covariates."""
+    frame = pd.DataFrame(
+        {
+            "age": [40, 60],
+            "sex": ["female", "male"],
+            "race_ethnicity": ["hispanic", None],
+            "has_healthcare_coverage": [True, "False"],
+        }
+    )
+    preprocessor = FeaturePreprocessor(
+        feature_names=("age", "sex", "race_ethnicity", "has_healthcare_coverage")
+    )
+    transformed = preprocessor.fit_transform(frame)
+
+    assert "age" in transformed.columns
+    assert "has_healthcare_coverage" in transformed.columns
+    assert "sex_female" in transformed.columns
+    assert "sex_male" in transformed.columns
+    assert "race_ethnicity_hispanic" in transformed.columns
+    assert "race_ethnicity_missing" in transformed.columns
+    assert transformed.loc[0, "has_healthcare_coverage"] == 1.0
+    assert transformed.loc[1, "has_healthcare_coverage"] == 0.0
+
+
+def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> None:
+    """Training should write a loadable artifact bundle with per-condition outputs."""
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+
+    raw_cfg = _base_raw_cfg(tmp_path=tmp_path, input_path=input_path, bundle_id="bundle-test")
+    raw_cfg["tuning"] = {
+        "enabled": True,
+        "metric": "average_precision",
+        "n_trials": 2,
+        "timeout_seconds": 60,
+        "cv_folds": 3,
+        "sample_size": 250,
     }
     spec = build_training_spec(raw_cfg)
     result = train_bundle(spec)
@@ -154,6 +275,59 @@ def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> No
     )
     assert len(scores) == 5
     assert any(score.key_drivers for score in scores)
+
+
+def test_train_bundle_applies_brfss_v2_feature_contract(tmp_path: Path) -> None:
+    """Training should record v2 roles, use survey weights, and apply leakage exclusions."""
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+
+    raw_cfg = _base_raw_cfg(
+        tmp_path=tmp_path,
+        input_path=input_path,
+        bundle_id="bundle-v2",
+        features=BRFSS_V2_FEATURES,
+    )
+    raw_cfg["feature_contract"] = BRFSS_V2_CONTRACT
+    result = train_bundle(build_training_spec(raw_cfg))
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["features"] == BRFSS_V2_FEATURES
+
+    summary = json.loads(result.training_summary_path.read_text(encoding="utf-8"))
+    assert summary["feature_contract"]["version"] == "brfss_v2"
+    assert summary["feature_contract"]["sample_weight_column"] == "survey_weight"
+
+    by_condition = {item["condition_id"]: item for item in summary["conditions"]}
+    assert "physical_health_days" not in by_condition["heart_disease"]["features"]
+    assert "mental_health_days" not in by_condition["depression"]["features"]
+    assert "mental_health_days" in by_condition["heart_disease"]["features"]
+    assert "physical_health_days" in by_condition["depression"]["features"]
+
+    metrics_path = result.bundle_dir / "heart_disease_metrics.json"
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    assert metrics["sample_weight_column"] == "survey_weight"
+    assert metrics["weighted_rows_train"] > metrics["rows_train"]
+
+    predictions = pd.read_parquet(result.bundle_dir / "heart_disease_predictions.parquet")
+    assert "survey_weight" in predictions.columns
+
+    engine = ArtifactScenarioEngine(
+        store=ArtifactStore(tmp_path / "artifacts" / "models"),
+        bundle_id="bundle-v2",
+    )
+    scores = engine.evaluate(
+        FeatureProfile(
+            age=67,
+            bmi=35.0,
+            smoker=True,
+            alcohol_servings_per_week=18,
+            exercise_minutes_per_week=10,
+            annual_aqi=130,
+        )
+    )
+    assert len(scores) == 5
+    assert all(0.0 <= score.probability <= 1.0 for score in scores)
 
 
 def test_evaluate_bundle_returns_condition_summary(tmp_path: Path) -> None:

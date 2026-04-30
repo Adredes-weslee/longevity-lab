@@ -1,4 +1,4 @@
-"""Build integrated BRFSS + EPA tables (v1: integrated_person_year.parquet)."""
+"""Build integrated BRFSS + EPA tables for model training."""
 
 from __future__ import annotations
 
@@ -33,17 +33,38 @@ BRFSS_REQUIRED_COLUMNS: list[str] = [
     "survey_weight",
 ]
 
+BRFSS_V2_REQUIRED_COLUMNS: list[str] = [
+    "sex",
+    "race_ethnicity",
+    "has_healthcare_coverage",
+    "has_personal_doctor",
+    "cost_barrier_to_care",
+    "last_checkup_within_year",
+    "sleep_hours_per_night",
+    "physical_health_days",
+    "mental_health_days",
+]
+
 EPA_REQUIRED_COLUMNS: list[str] = ["year", "state_fips", "annual_aqi"]
 
 INTEGRATED_COLUMNS: list[str] = [
     "year",
     "state_fips",
+    "sex",
+    "race_ethnicity",
     "age",
     "bmi",
     "smoker",
     "alcohol_servings_per_week",
     "exercise_minutes_per_week",
     "annual_aqi",
+    "has_healthcare_coverage",
+    "has_personal_doctor",
+    "cost_barrier_to_care",
+    "last_checkup_within_year",
+    "sleep_hours_per_night",
+    "physical_health_days",
+    "mental_health_days",
     "label_heart_disease",
     "label_chronic_lung_disease",
     "label_stroke",
@@ -66,8 +87,12 @@ def integrate_brfss_epa(
     *,
     allow_missing_aqi: bool,
 ) -> pd.DataFrame:
-    """Join BRFSS person rows with EPA state-year AQI (v1: state-year join)."""
-    require_columns(actual=brfss_person.columns, required=BRFSS_REQUIRED_COLUMNS, context="BRFSS")
+    """Join BRFSS v2 person rows with EPA state-year AQI."""
+    require_columns(
+        actual=brfss_person.columns,
+        required=BRFSS_REQUIRED_COLUMNS + BRFSS_V2_REQUIRED_COLUMNS,
+        context="BRFSS",
+    )
     require_columns(actual=epa_state_year.columns, required=EPA_REQUIRED_COLUMNS, context="EPA")
 
     joined = brfss_person.merge(
@@ -210,7 +235,7 @@ def build_integrated_tables(
 def main(argv: list[str] | None = None) -> None:
     """CLI entrypoint."""
     parser = argparse.ArgumentParser(
-        description="Build integrated BRFSS + EPA tables (v1 state-year join)."
+        description="Build integrated BRFSS + EPA training tables using a state-year join."
     )
     add_common_pipeline_args(parser)
     parser.add_argument(

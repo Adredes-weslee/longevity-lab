@@ -19,6 +19,16 @@ def generate_integrated_sample(*, year: int, rows: int, seed: int) -> pd.DataFra
     """Return a tiny synthetic integrated_person_year-like table."""
     rng = np.random.default_rng(seed)
     state_choices = np.array(["01", "06", "12", "36", "48"], dtype=object)
+    sex_choices = np.array(["female", "male"], dtype=object)
+    race_choices = np.array(
+        [
+            "white_non_hispanic",
+            "black_non_hispanic",
+            "hispanic",
+            "other_non_hispanic",
+        ],
+        dtype=object,
+    )
 
     ages = rng.integers(low=18, high=91, size=rows)
     bmi = rng.uniform(low=18.0, high=40.0, size=rows).round(1)
@@ -26,25 +36,36 @@ def generate_integrated_sample(*, year: int, rows: int, seed: int) -> pd.DataFra
     alcohol = rng.integers(low=0, high=21, size=rows)
     exercise = rng.integers(low=0, high=601, size=rows)
     annual_aqi = rng.integers(low=25, high=151, size=rows)
+    physical_health_days = rng.integers(low=0, high=31, size=rows)
+    mental_health_days = rng.integers(low=0, high=31, size=rows)
 
     labels = {
-        "label_heart_disease": (rng.random(size=rows) < 0.08).astype(int),
-        "label_chronic_lung_disease": (rng.random(size=rows) < 0.06).astype(int),
-        "label_stroke": (rng.random(size=rows) < 0.03).astype(int),
-        "label_depression": (rng.random(size=rows) < 0.15).astype(int),
-        "label_diabetes": (rng.random(size=rows) < 0.12).astype(int),
+        "label_heart_disease": ((ages > 68) | (bmi > 34.0) | smoker).astype(int),
+        "label_chronic_lung_disease": (smoker | (annual_aqi > 125)).astype(int),
+        "label_stroke": ((ages > 78) | (annual_aqi > 140)).astype(int),
+        "label_depression": ((mental_health_days > 18) | (exercise < 90)).astype(int),
+        "label_diabetes": ((bmi > 31.0) | (ages > 70)).astype(int),
     }
 
     frame = pd.DataFrame(
         {
             "year": year,
             "state_fips": rng.choice(state_choices, size=rows),
+            "sex": rng.choice(sex_choices, size=rows),
+            "race_ethnicity": rng.choice(race_choices, size=rows),
             "age": ages,
             "bmi": bmi,
             "smoker": smoker,
             "alcohol_servings_per_week": alcohol,
             "exercise_minutes_per_week": exercise,
             "annual_aqi": annual_aqi,
+            "has_healthcare_coverage": rng.random(size=rows) >= 0.08,
+            "has_personal_doctor": rng.random(size=rows) >= 0.18,
+            "cost_barrier_to_care": rng.random(size=rows) < 0.12,
+            "last_checkup_within_year": rng.random(size=rows) >= 0.22,
+            "sleep_hours_per_night": rng.integers(low=3, high=11, size=rows),
+            "physical_health_days": physical_health_days,
+            "mental_health_days": mental_health_days,
             **labels,
             "survey_weight": rng.uniform(low=0.1, high=100.0, size=rows).round(4),
         }

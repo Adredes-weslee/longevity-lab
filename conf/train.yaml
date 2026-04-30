@@ -30,6 +30,48 @@ features:
   - alcohol_servings_per_week
   - exercise_minutes_per_week
   - annual_aqi
+  - sex
+  - race_ethnicity
+  - has_healthcare_coverage
+  - has_personal_doctor
+  - cost_barrier_to_care
+  - last_checkup_within_year
+  - sleep_hours_per_night
+  - physical_health_days
+  - mental_health_days
+
+feature_contract:
+  version: brfss_v2
+  scenario_editable_features:
+    - age
+    - bmi
+    - smoker
+    - alcohol_servings_per_week
+    - exercise_minutes_per_week
+    - annual_aqi
+  adjustment_features:
+    - sex
+    - race_ethnicity
+    - has_healthcare_coverage
+    - has_personal_doctor
+    - cost_barrier_to_care
+    - last_checkup_within_year
+    - sleep_hours_per_night
+    - physical_health_days
+    - mental_health_days
+  context_features: []
+  sample_weight_column: survey_weight
+  label_feature_exclusions:
+    heart_disease:
+      - physical_health_days
+    chronic_lung_disease:
+      - physical_health_days
+    stroke:
+      - physical_health_days
+    depression:
+      - mental_health_days
+    diabetes:
+      - physical_health_days
 
 conditions:
   heart_disease: label_heart_disease
