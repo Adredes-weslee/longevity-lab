@@ -58,6 +58,40 @@ Notes:
   observation percentages, and EPA completeness indicators. The local pipeline filters it to PM2.5 (`88101`) and ozone (`44201`).
 - Registry source IDs: `epa_airdata_annual_aqi_by_county`, `epa_airdata_annual_conc_by_monitor`.
 
+### Census ACS 5-year API - curated context variables
+
+- Developer page: `https://www.census.gov/data/developers/data-sets/acs-5year.html`
+- API endpoint template: `https://api.census.gov/data/{year}/acs/acs5`
+- Current local registry support: ACS 5-year releases 2017-2024 for the curated variable set.
+
+Expected local paths (gitignored):
+
+- `data/external/acs/acs5/<year>/acs5_state_context.json`
+- `data/external/acs/acs5/<year>/acs5_county_context.json`
+
+Curated feature families:
+
+- Poverty, median household income, bachelor's degree or higher, uninsured population, disability, broadband subscription, and total population for state aggregation weights.
+- The raw downloads include the ACS estimate variables and corresponding MOE variables needed to record `*_moe_available` flags in processed outputs.
+- The downloader splits ACS API calls into chunks under the Census API variable limit, then merges them into the expected local JSON files.
+- Registry source ID: `census_acs5_api_context`.
+
+### CDC/ATSDR SVI - U.S. county CSV
+
+- Download page: `https://svi.cdc.gov/dataDownloads/data-download.html`
+- CSV URL template: `https://svi.cdc.gov/Documents/Data/<year>/csv/states_counties/SVI_<year>_US_county.csv`
+- Current local registry support: 2014, 2016, 2018, 2020, and 2022 for the selected SVI percentile fields.
+
+Expected local path (gitignored):
+
+- `data/external/svi/<year>/SVI_<year>_US_county.csv`
+
+Notes:
+
+- The pipeline uses the U.S. county CSV so county percentiles are ranked against counties nationally.
+- SVI percentile fields should not be compared as time-series measures across SVI releases; CDC/ATSDR ranks each release within its own year.
+- Registry source ID: `cdc_atsdr_svi_us_county_csv`.
+
 ## Download commands (Windows)
 
 Preferred (uses our scripts so provenance is recorded consistently):
@@ -65,6 +99,8 @@ Preferred (uses our scripts so provenance is recorded consistently):
 ```powershell
 pdm run python -m longevity_lab.pipeline.download_brfss --year 2023
 pdm run python -m longevity_lab.pipeline.download_epa_airdata --year 2023
+pdm run python -m longevity_lab.pipeline.download_acs --year 2022
+pdm run python -m longevity_lab.pipeline.download_svi --year 2022
 ```
 
 Recommended first-time full local build:
@@ -87,6 +123,7 @@ The pipeline CLIs default to the repo-root `data/` directory even if you invoke 
 ```powershell
 pdm run python -m longevity_lab.pipeline.build_brfss_tables --year 2023
 pdm run python -m longevity_lab.pipeline.build_epa_tables --year 2023
+pdm run python -m longevity_lab.pipeline.build_context_tables --year 2022
 pdm run python -m longevity_lab.pipeline.build_integrated_tables --year 2023
 pdm run python -m longevity_lab.pipeline.build_duckdb_views
 ```

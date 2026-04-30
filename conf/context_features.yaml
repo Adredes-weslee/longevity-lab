@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "description": "Curated ACS 5-year and CDC/ATSDR SVI context features. These fields are geography context only and are not scenario-editable user inputs.",
+  "acs": {
+    "source": "Census ACS 5-year detailed tables",
+    "features": [
+      {
+        "name": "acs_total_population",
+        "display_name": "ACS total population",
+        "kind": "count",
+        "estimate_variables": ["B01003_001E"],
+        "moe_variables": ["B01003_001M"]
+      },
+      {
+        "name": "acs_poverty_percent",
+        "display_name": "Population below poverty level",
+        "kind": "percent_ratio",
+        "numerator_variables": ["B17001_002E"],
+        "denominator_variable": "B17001_001E",
+        "moe_variables": ["B17001_002M", "B17001_001M"]
+      },
+      {
+        "name": "acs_median_household_income",
+        "display_name": "Median household income",
+        "kind": "estimate",
+        "estimate_variables": ["B19013_001E"],
+        "moe_variables": ["B19013_001M"],
+        "units": "dollars"
+      },
+      {
+        "name": "acs_bachelors_degree_or_higher_percent",
+        "display_name": "Adults with bachelor's degree or higher",
+        "kind": "percent_ratio",
+        "numerator_variables": ["B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"],
+        "denominator_variable": "B15003_001E",
+        "moe_variables": ["B15003_022M", "B15003_023M", "B15003_024M", "B15003_025M", "B15003_001M"]
+      },
+      {
+        "name": "acs_uninsured_percent",
+        "display_name": "Population without health insurance",
+        "kind": "percent_ratio",
+        "numerator_variables": ["B27010_017E", "B27010_033E", "B27010_050E", "B27010_066E"],
+        "denominator_variable": "B27010_001E",
+        "moe_variables": ["B27010_017M", "B27010_033M", "B27010_050M", "B27010_066M", "B27010_001M"]
+      },
+      {
+        "name": "acs_disability_percent",
+        "display_name": "Civilian noninstitutionalized population with disability",
+        "kind": "percent_ratio",
+        "numerator_variables": [
+          "B18101_004E",
+          "B18101_007E",
+          "B18101_010E",
+          "B18101_013E",
+          "B18101_016E",
+          "B18101_019E",
+          "B18101_023E",
+          "B18101_026E",
+          "B18101_029E",
+          "B18101_032E",
+          "B18101_035E",
+          "B18101_038E"
+        ],
+        "denominator_variable": "B18101_001E",
+        "moe_variables": [
+          "B18101_004M",
+          "B18101_007M",
+          "B18101_010M",
+          "B18101_013M",
+          "B18101_016M",
+          "B18101_019M",
+          "B18101_023M",
+          "B18101_026M",
+          "B18101_029M",
+          "B18101_032M",
+          "B18101_035M",
+          "B18101_038M",
+          "B18101_001M"
+        ]
+      },
+      {
+        "name": "acs_broadband_percent",
+        "display_name": "Households with broadband subscription",
+        "kind": "percent_ratio",
+        "numerator_variables": ["B28002_004E"],
+        "denominator_variable": "B28002_001E",
+        "moe_variables": ["B28002_004M", "B28002_001M"]
+      }
+    ]
+  },
+  "svi": {
+    "source": "CDC/ATSDR SVI U.S. county CSV",
+    "features": [
+      {
+        "name": "svi_overall_percentile",
+        "display_name": "SVI overall percentile",
+        "source_column": "RPL_THEMES"
+      },
+      {
+        "name": "svi_theme1_socioeconomic_percentile",
+        "display_name": "SVI Theme 1 socioeconomic status percentile",
+        "source_column": "RPL_THEME1"
+      },
+      {
+        "name": "svi_theme2_household_characteristics_percentile",
+        "display_name": "SVI Theme 2 household characteristics percentile",
+        "source_column": "RPL_THEME2"
+      },
+      {
+        "name": "svi_theme3_racial_ethnic_minority_status_percentile",
+        "display_name": "SVI Theme 3 racial and ethnic minority status percentile",
+        "source_column": "RPL_THEME3"
+      },
+      {
+        "name": "svi_theme4_housing_transportation_percentile",
+        "display_name": "SVI Theme 4 housing type and transportation percentile",
+        "source_column": "RPL_THEME4"
+      }
+    ],
+    "missing_sentinel": -999
+  }
+}

@@ -5,7 +5,7 @@ processed features/labels consumed by modeling and the API.
 
 It is the "human-readable contract" that complements `docs/schema_contracts.md`.
 
-Status: **v2 pinned to BRFSS 2023 + EPA AirData 2023** (update this doc when the pipeline changes).
+Status: **v2 pinned to BRFSS 2023 + EPA AirData 2023, with ACS/SVI context tables added** (update this doc when the pipeline changes).
 Public source metadata is versioned in `conf/data_sources.yaml` and copied into download
 provenance JSON under `source_registry`.
 
@@ -35,6 +35,22 @@ provenance JSON under `source_registry`.
 
 ## Feature contract (API + training roles)
 
+### Census ACS 5-year curated context variables
+
+- Files:
+  - `data/external/acs/acs5/<year>/acs5_state_context.json`
+  - `data/external/acs/acs5/<year>/acs5_county_context.json`
+- Registry source ID: `census_acs5_api_context`
+- Current configured years: ACS 5-year releases 2017-2024 for the curated variable set.
+
+### CDC/ATSDR SVI U.S. county CSV
+
+- File: `data/external/svi/<year>/SVI_<year>_US_county.csv`
+- Registry source ID: `cdc_atsdr_svi_us_county_csv`
+- Current configured years: 2014, 2016, 2018, 2020, and 2022 for the selected percentile fields.
+
+## Feature contract (API + training roles)
+
 Scenario-editable inputs remain backward-compatible with the original API and frontend controls.
 Adjustment/context covariates are available for model training and artifact inference but are not
 required from the frontend.
@@ -59,6 +75,29 @@ required from the frontend.
 | `physical_health_days` | adjustment with exclusions | int | poor physical health days in past 30 | excluded for physical chronic-condition labels |
 | `mental_health_days` | adjustment with exclusions | int | poor mental health days in past 30 | excluded for depression label |
 | `survey_weight` | sample weight | float | BRFSS final weight | `_LLCPWT`; used as sample weights, not as a predictor |
+
+## Context feature contract (not scenario-editable)
+
+Context fields are geography-level covariates for modeling, stratification, and provenance displays. They are not user-editable scenario inputs.
+
+Configured fields live in `conf/context_features.yaml`.
+
+| Feature | Type | Units/Meaning | Source/Transform |
+|---|---:|---|---|
+| `acs_total_population` | int | persons | ACS `B01003_001E`; used for state SVI aggregation weights |
+| `acs_poverty_percent` | float | percent | `100 * B17001_002E / B17001_001E` |
+| `acs_median_household_income` | float | dollars | ACS `B19013_001E` |
+| `acs_bachelors_degree_or_higher_percent` | float | percent | `100 * sum(B15003_022E..B15003_025E) / B15003_001E` |
+| `acs_uninsured_percent` | float | percent | `100 * sum(B27010_017E, B27010_033E, B27010_050E, B27010_066E) / B27010_001E` |
+| `acs_disability_percent` | float | percent | `100 * summed B18101 disability cells / B18101_001E` |
+| `acs_broadband_percent` | float | percent | `100 * B28002_004E / B28002_001E` |
+| `svi_overall_percentile` | float | percentile rank 0-1 | SVI `RPL_THEMES`; `-999` -> null |
+| `svi_theme1_socioeconomic_percentile` | float | percentile rank 0-1 | SVI `RPL_THEME1`; `-999` -> null |
+| `svi_theme2_household_characteristics_percentile` | float | percentile rank 0-1 | SVI `RPL_THEME2`; `-999` -> null |
+| `svi_theme3_racial_ethnic_minority_status_percentile` | float | percentile rank 0-1 | SVI `RPL_THEME3`; `-999` -> null |
+| `svi_theme4_housing_transportation_percentile` | float | percentile rank 0-1 | SVI `RPL_THEME4`; `-999` -> null |
+
+For every ACS feature above, processed tables also include a boolean `<feature>_moe_available` column. These flags record whether the raw ACS MOE variables required for that feature were present and non-null; the current PR does not derive aggregate MOE values.
 
 ## Label contract (conditions)
 
@@ -238,6 +277,33 @@ Join caveat:
 - `annual_aqi` may be null for documented EPA coverage gaps in BRFSS territories (currently Guam,
   `state_fips=66` for 2023). This is expected and preserved in provenance.
 
+### `context_county_year` (one row per county-year)
+
+Path (gitignored):
+
+- `data/processed/context/context_county_year.parquet`
+
+Required columns:
+
+- Join keys and labels: `year`, `state_fips`, `county_fips`, `geography_name`
+- Context feature columns listed in the context feature contract above
+- ACS MOE availability flags: `<acs_feature>_moe_available`
+
+### `context_state_year` (one row per state-year)
+
+Path (gitignored):
+
+- `data/processed/context/context_state_year.parquet`
+
+Required columns:
+
+- Join keys and labels: `year`, `state_fips`, `geography_name`
+- ACS state-level context feature columns derived directly from ACS state API rows
+- SVI columns aggregated from county rows as population-weighted means using `acs_total_population`
+- ACS MOE availability flags: `<acs_feature>_moe_available`
+
+State-level SVI values are compact descriptive context only. They are not CDC/ATSDR state-specific SVI ranks.
+
 ## Join strategy (must be documented and tested)
 
 V2 joins by **state-year**:
@@ -252,6 +318,14 @@ Rationale:
 
 ## Provenance format (v2, implemented)
 
+ACS/SVI context tables are built separately:
+
+- County context key: (`county_fips`, `year`)
+- State context key: (`state_fips`, `year`)
+- Current BRFSS person rows can only join context by (`state_fips`, `year`) unless a future BRFSS contract exposes county identifiers.
+
+## Provenance format (v2, implemented)
+
 Pipeline commands emit a machine-readable provenance JSON under `data/processed/provenance/`
 (gitignored). Filenames are stable and keyed by dataset and year(s):
 
@@ -261,6 +335,10 @@ Pipeline commands emit a machine-readable provenance JSON under `data/processed/
 - `epa_airdata_annual_aqi_state_year_<years>.json` (`build_epa_tables`, where `<years>` is
   `2021_2022_2023` for `--years 2021,2022,2023`)
 - `integrated_person_year_<year>.json` (`build_integrated_tables`)
+- `census_acs5_state_context_raw_<year>.json` (`download_acs`)
+- `census_acs5_county_context_raw_<year>.json` (`download_acs`)
+- `cdc_atsdr_svi_us_county_raw_<year>.json` (`download_svi`)
+- `context_tables_<years>.json` (`build_context_tables`)
 
 Payload fields (see `src/longevity_lab/pipeline/common.py`):
 
