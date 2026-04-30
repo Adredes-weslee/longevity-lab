@@ -41,11 +41,20 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
     page.getByText('Green means improved and red means worsened relative to current'),
   ).toBeVisible()
 
-  await page.getByRole('button', { name: 'Data integration' }).click()
+  await page.getByRole('button', { name: 'Data evidence' }).click()
+  await expect(page.getByTestId('data-evidence-page')).toBeVisible()
   await expect(page.getByTestId('pipeline-status')).toBeVisible()
   await expect(
     page.locator('[data-testid="pipeline-status"] .pipeline-status-list li').first(),
   ).toBeVisible()
+
+  await page.getByRole('button', { name: 'Model cards' }).click()
+  await expect(page.getByTestId('model-cards-page')).toBeVisible()
+  await expect(page.getByText('Active scoring contract')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Scenario lab' }).click()
+  await expect(page.getByTestId('scenario-lab-page')).toBeVisible()
+  await expect(page.getByText('Current what-if comparison')).toBeVisible()
 })
 
 test('clamps invalid numeric input to the supported feature range', async ({ page }) => {
@@ -155,7 +164,10 @@ test('shows CDC-backed guidance when a selected organ is in the high-risk band',
   await expect(
     page.getByTestId('overview-whatif').locator('.metric-value'),
   ).toHaveText(/\d/, { timeout: 15000 })
-  await expect(page.getByTestId('overview-whatif').locator('.metric-value')).toHaveText('44.1')
+  await expect(page.getByTestId('overview-whatif').locator('.metric-value')).toHaveText(
+    '44.1',
+    { timeout: 15000 },
+  )
 
   await page.getByTestId('organ-callout-lungs').click()
   await expect(page.getByTestId('health-guidance')).toBeVisible()

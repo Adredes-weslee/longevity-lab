@@ -1,52 +1,42 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
+import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 
 import { compareScenarios, fetchBootstrap, fetchPipelineStatus } from './api/client'
-import { BodyHeatmap } from './components/body-heatmap'
-import { ConditionInspector } from './components/condition-inspector'
-import { PipelineStatusPanel } from './components/pipeline-status'
-import { ScenarioForm } from './components/scenario-form'
+import { DataEvidencePage } from './pages/DataEvidencePage'
+import { ExplorerPage } from './pages/ExplorerPage'
+import { ModelCardsPage } from './pages/ModelCardsPage'
+import { ScenarioLabPage } from './pages/ScenarioLabPage'
 import { useScenario } from './state/scenario-context'
 import type {
-  FeatureProfile,
   HeatmapMode,
   MetadataBootstrapResponse,
   PipelineStatusResponse,
   ScenarioCompareResponse,
 } from './types'
 
-type AppView = 'explorer' | 'data'
+type AppView = 'explorer' | 'data' | 'models' | 'lab'
+
+const navItems: Array<{ label: string; view: AppView }> = [
+  { label: 'Explorer', view: 'explorer' },
+  { label: 'Data evidence', view: 'data' },
+  { label: 'Model cards', view: 'models' },
+  { label: 'Scenario lab', view: 'lab' },
+]
 
 function getViewFromHash(hash: string): AppView {
-  return hash === '#/data' ? 'data' : 'explorer'
-}
-
-function changedFeatureCount(
-  baseline: FeatureProfile,
-  candidate: FeatureProfile,
-): number {
-  let count = 0
-  for (const field of Object.keys(baseline) as Array<keyof typeof baseline>) {
-    if (baseline[field] !== candidate[field]) {
-      count += 1
-    }
+  if (hash === '#/data') {
+    return 'data'
   }
-  return count
+  if (hash === '#/models') {
+    return 'models'
+  }
+  if (hash === '#/lab') {
+    return 'lab'
+  }
+  return 'explorer'
 }
 
-function formatContractMetadata(metadata: MetadataBootstrapResponse): string {
-  const model = metadata.model_metadata
-  const dataVintage = model.data_vintage ?? 'not declared'
-  const explanationMethods = model.explanation_methods.length
-    ? model.explanation_methods.join(', ')
-    : 'none declared'
-  const uncertainty = model.uncertainty_available
-    ? `uncertainty: ${model.uncertainty_methods.join(', ')}`
-    : 'uncertainty: unavailable'
-  const geography = model.contextual_geography.available
-    ? `geography: ${model.contextual_geography.levels.join(', ')}`
-    : 'geography: none'
-
-  return `API ${metadata.contract_version}; data vintage ${dataVintage}; explanations: ${explanationMethods}; ${uncertainty}; ${geography}.`
+function hashForView(view: AppView): string {
+  return view === 'explorer' ? '/explorer' : `/${view}`
 }
 
 function App(): JSX.Element {
@@ -78,18 +68,15 @@ function App(): JSX.Element {
     }
   }, [])
 
-  const runComparison = useCallback(async (
-    baseline: FeatureProfile,
-    candidate: FeatureProfile,
-  ): Promise<void> => {
+  const runComparison = useCallback(async (): Promise<void> => {
     const nextSequence = requestSequence.current + 1
     requestSequence.current = nextSequence
     setBusy(true)
     setErrorMessage(null)
     try {
       const nextComparison = await compareScenarios({
-        baseline,
-        candidate,
+        baseline: state.baseline,
+        candidate: state.candidate,
       })
       if (requestSequence.current !== nextSequence) {
         return
@@ -113,20 +100,7 @@ function App(): JSX.Element {
         setBusy(false)
       }
     }
-  }, [dispatch, state.selectedOrganId])
-
-  useEffect(() => {
-    void loadBootstrap()
-  }, [loadBootstrap])
-
-  useEffect(() => {
-    function handleHashChange(): void {
-      setView(getViewFromHash(window.location.hash))
-    }
-
-    window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [])
+  }, [dispatch, state.baseline, state.candidate, state.selectedOrganId])
 
   const loadPipelineStatus = useCallback(async (): Promise<void> => {
     setPipelineLoading(true)
@@ -144,6 +118,19 @@ function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
+    void loadBootstrap()
+  }, [loadBootstrap])
+
+  useEffect(() => {
+    function handleHashChange(): void {
+      setView(getViewFromHash(window.location.hash))
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  useEffect(() => {
     if (view === 'data') {
       void loadPipelineStatus()
     }
@@ -154,178 +141,69 @@ function App(): JSX.Element {
       return
     }
     const timeoutId = window.setTimeout(() => {
-      void runComparison(state.baseline, state.candidate)
+      void runComparison()
     }, 140)
     return () => window.clearTimeout(timeoutId)
-  }, [bootstrap, runComparison, state.baseline, state.candidate])
-
-  const scenarioRisk = comparison?.candidate.summary_score ?? null
-  const baselineRisk = comparison?.baseline.summary_score ?? null
-  const riskDelta =
-    scenarioRisk != null && baselineRisk != null ? scenarioRisk - baselineRisk : null
-  const highlightedOrgans = useMemo(() => {
-    if (!comparison) {
-      return []
-    }
-    return [...comparison.candidate.organs]
-      .sort((left, right) => right.score - left.score)
-      .slice(0, 4)
-  }, [comparison])
-  const activeChangeCount = changedFeatureCount(state.baseline, state.candidate)
+  }, [bootstrap, runComparison])
 
   function navigate(nextView: AppView): void {
-    window.location.hash = nextView === 'data' ? '/data' : '/explorer'
+    window.location.hash = hashForView(nextView)
   }
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Lifestyle risk communication explorer</p>
+          <p className="eyebrow">Lifestyle risk communication platform</p>
           <h1>Longevity Lab</h1>
           <p className="hero-copy">
-            Explore how lifestyle and environment shift organ-level risk, then inspect the
-            drivers behind each change.
+            Explore how lifestyle and environment shift organ-level risk, inspect model
+            provenance, and verify the data evidence behind the local workflow.
           </p>
         </div>
         <nav className="topbar-nav" aria-label="Primary">
-          <button
-            className={view === 'explorer' ? 'nav-pill active' : 'nav-pill'}
-            onClick={() => navigate('explorer')}
-            type="button"
-          >
-            Explorer
-          </button>
-          <button
-            className={view === 'data' ? 'nav-pill active' : 'nav-pill'}
-            onClick={() => navigate('data')}
-            type="button"
-          >
-            Data integration
-          </button>
+          {navItems.map((item) => (
+            <button
+              className={view === item.view ? 'nav-pill active' : 'nav-pill'}
+              key={item.view}
+              onClick={() => navigate(item.view)}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
       </header>
 
       {errorMessage ? <p className="error-banner">{errorMessage}</p> : null}
 
       {bootstrap ? (
-        view === 'explorer' ? (
-          <>
-            <section
-              className={`runtime-banner ${bootstrap.runtime.engine_mode}`}
-              data-testid="runtime-banner"
-            >
-              <span>
-                {bootstrap.runtime.engine_mode === 'artifact'
-                  ? 'Artifact-backed scoring'
-                  : 'Demo scoring'}
-              </span>
-              <p>
-                {bootstrap.runtime.message}
-                {bootstrap.runtime.artifact_bundle_id
-                  ? ` Bundle: ${bootstrap.runtime.artifact_bundle_id}.`
-                  : ''}
-              </p>
-              <p className="runtime-contract" data-testid="contract-metadata">
-                {formatContractMetadata(bootstrap)}
-              </p>
-            </section>
-
-            <section className="overview-strip">
-              <section className="overview-card primary" data-testid="overview-whatif">
-                <p className="section-kicker">What-if score</p>
-                <strong className="metric-value">
-                  {scenarioRisk != null ? scenarioRisk.toFixed(1) : '--'}
-                </strong>
-                <p className="metric-copy">
-                  {baselineRisk != null && riskDelta != null
-                    ? `Current ${baselineRisk.toFixed(1)} | ${riskDelta >= 0 ? '+' : ''}${riskDelta.toFixed(1)} vs current`
-                    : 'Move either profile to update the score live.'}
-                </p>
-              </section>
-              <section className="overview-card" data-testid="overview-regions">
-                <p className="section-kicker">Most affected regions</p>
-                <div className="chip-row">
-                  {highlightedOrgans.length ? (
-                    highlightedOrgans.map((organ) => (
-                      <button
-                        className="impact-chip"
-                        key={organ.organ_id}
-                        onClick={() => dispatch({ type: 'selectOrgan', organId: organ.organ_id })}
-                        type="button"
-                      >
-                        {organ.label}
-                      </button>
-                    ))
-                  ) : (
-                    <span className="muted">No organ scores yet.</span>
-                  )}
-                </div>
-              </section>
-              <section className="overview-card" data-testid="overview-changes">
-                <p className="section-kicker">Changed inputs</p>
-                <strong className="metric-value small">{activeChangeCount}</strong>
-                <p className="metric-copy">Lifestyle fields differ between current and what-if.</p>
-              </section>
-            </section>
-
-            <section className="explorer-layout">
-              <div className="explorer-side-column">
-                <section className="panel explorer-disclaimer" data-testid="explorer-disclaimer">
-                  <div className="panel-header compact">
-                    <h2>Educational use only</h2>
-                    <p>
-                      Compare lifestyle scenarios here, but do not treat these scores as medical
-                      advice or diagnosis.
-                    </p>
-                  </div>
-                </section>
-
-                <ScenarioForm
-                  busy={busy}
-                  features={bootstrap.features}
-                />
-              </div>
-
-              <div className="explorer-main">
-                <BodyHeatmap
-                  comparison={comparison}
-                  mode={heatmapMode}
-                  onChangeMode={setHeatmapMode}
-                  onSelectOrgan={(organId) => dispatch({ type: 'selectOrgan', organId })}
-                  organs={bootstrap.organs}
-                  selectedOrganId={state.selectedOrganId}
-                />
-              </div>
-
-              <ConditionInspector
-                comparison={comparison}
-                conditions={bootstrap.conditions}
-                mode={heatmapMode}
-                organs={bootstrap.organs}
-                selectedOrganId={state.selectedOrganId}
-              />
-            </section>
-          </>
-        ) : (
-          <section className="data-page">
-            <section className="panel data-page-intro">
-              <div className="panel-header">
-                <h2>Data integration</h2>
-                <p>
-                  Keep pipeline health separate from the explorer so users can focus on the body
-                  view, then switch here when you need to verify raw and processed assets.
-                </p>
-              </div>
-            </section>
-            <PipelineStatusPanel
+        <>
+          {view === 'explorer' ? (
+            <ExplorerPage
+              bootstrap={bootstrap}
+              busy={busy}
+              comparison={comparison}
+              heatmapMode={heatmapMode}
+              onChangeHeatmapMode={setHeatmapMode}
+            />
+          ) : null}
+          {view === 'data' ? (
+            <DataEvidencePage
+              bootstrap={bootstrap}
               error={pipelineError}
               loading={pipelineLoading}
               onRetry={() => void loadPipelineStatus()}
               status={pipelineStatus}
             />
-          </section>
-        )
+          ) : null}
+          {view === 'models' ? (
+            <ModelCardsPage bootstrap={bootstrap} comparison={comparison} />
+          ) : null}
+          {view === 'lab' ? (
+            <ScenarioLabPage comparison={comparison} loading={busy} />
+          ) : null}
+        </>
       ) : (
         <section className="panel">
           <div className="panel-header">
