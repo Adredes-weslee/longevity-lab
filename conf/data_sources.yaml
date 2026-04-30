@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "source_id": "cdc_brfss_llcp_xpt",
+      "title": "CDC BRFSS LLCP annual SAS transport microdata",
+      "official_url": "https://www.cdc.gov/brfss/annual_data/annual_{year}.html",
+      "download_url_template": "https://www.cdc.gov/brfss/annual_data/{year}/files/LLCP{year}XPT.zip",
+      "year_support": {"mode": "explicit", "years": [2023]},
+      "geography": "respondent-level records with state FIPS",
+      "expected_file_pattern": "LLCP{year}.XPT",
+      "checksum_policy": "record sha256 after local download; CDC does not publish stable checksums for this asset",
+      "license_note": "Public U.S. government public-health survey data; follow CDC BRFSS documentation and citation guidance.",
+      "local_landing_path": "external/brfss/{year}/"
+    },
+    {
+      "source_id": "cdc_brfss_llcp_codebook",
+      "title": "CDC BRFSS LLCP annual codebook",
+      "official_url": "https://www.cdc.gov/brfss/annual_data/annual_{year}.html",
+      "download_url_template": "https://www.cdc.gov/brfss/annual_data/{year}/zip/codebook{yy}_llcp-v2-508.zip",
+      "year_support": {"mode": "explicit", "years": [2023]},
+      "geography": "data dictionary for BRFSS respondent-level fields",
+      "expected_file_pattern": "USCODE{yy}_LLCP_*.HTML",
+      "checksum_policy": "record sha256 after local download; CDC does not publish stable checksums for this asset",
+      "license_note": "Public CDC documentation; cite the CDC BRFSS annual data documentation page.",
+      "local_landing_path": "external/brfss/{year}/codebook/"
+    },
+    {
+      "source_id": "epa_airdata_annual_aqi_by_county",
+      "title": "EPA AirData annual AQI by county",
+      "official_url": "https://aqs.epa.gov/aqsweb/airdata/download_files.html#Annual",
+      "download_url_template": "https://aqs.epa.gov/aqsweb/airdata/annual_aqi_by_county_{year}.zip",
+      "year_support": {"mode": "range", "start": 1980, "end": 2025},
+      "geography": "county-year summaries with state and county names",
+      "expected_file_pattern": "annual_aqi_by_county_{year}.csv",
+      "checksum_policy": "record sha256 after local download; EPA AirData does not publish per-file checksums here",
+      "license_note": "Public EPA AirData download; review EPA data terms and attribution guidance.",
+      "local_landing_path": "external/epa_airdata/annual_aqi_by_county_{year}/"
+    }
+  ]
+}

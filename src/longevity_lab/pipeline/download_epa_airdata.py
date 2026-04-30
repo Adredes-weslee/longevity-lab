@@ -11,13 +11,17 @@ from longevity_lab.pipeline.common import (
     download_file,
     extract_zip,
     parse_years_from_args,
-    write_provenance_json,
 )
 from longevity_lab.pipeline.ingest import build_ingest_paths
+from longevity_lab.pipeline.provenance import write_registry_provenance_json
+from longevity_lab.pipeline.sources import load_data_source_registry
+
+_EPA_ANNUAL_AQI_SOURCE_ID = "epa_airdata_annual_aqi_by_county"
 
 
 def _annual_aqi_by_county_url(year: int) -> str:
-    return f"https://aqs.epa.gov/aqsweb/airdata/annual_aqi_by_county_{year}.zip"
+    registry = load_data_source_registry()
+    return registry.require(_EPA_ANNUAL_AQI_SOURCE_ID).download_url(year=year)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -45,10 +49,12 @@ def main(argv: list[str] | None = None) -> None:
             for item in extracted:
                 if item.is_file():
                     files.append(collect_file_provenance(item, root=paths.base_dir))
-        write_provenance_json(
+        write_registry_provenance_json(
             provenance_path,
             dataset_name="epa_airdata_annual_aqi_by_county",
             dataset_version=str(year),
+            source_ids=[_EPA_ANNUAL_AQI_SOURCE_ID],
+            year=year,
             sources=[url],
             files=files,
             dry_run=args.dry_run,

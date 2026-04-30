@@ -6,6 +6,8 @@ processed features/labels consumed by modeling and the API.
 It is the "human-readable contract" that complements `docs/schema_contracts.md`.
 
 Status: **v1 pinned to BRFSS 2023 + EPA AirData 2023** (update this doc when the pipeline changes).
+Public source metadata is versioned in `conf/data_sources.yaml` and copied into download
+provenance JSON under `source_registry`.
 
 ## Conventions
 
@@ -20,11 +22,13 @@ Status: **v1 pinned to BRFSS 2023 + EPA AirData 2023** (update this doc when the
 
 - File: `data/external/brfss/2023/LLCP2023.XPT`
 - Codebook: `data/external/brfss/2023/codebook/USCODE23_LLCP_*.HTML` (filename varies by CDC release)
+- Registry source IDs: `cdc_brfss_llcp_xpt`, `cdc_brfss_llcp_codebook`
 
 ### EPA AirData 2023 Annual AQI by county
 
 - File: `data/external/epa_airdata/annual_aqi_by_county_2023/annual_aqi_by_county_2023.csv`
 - Note: this file provides `State` + `County` names but **no FIPS codes**.
+- Registry source ID: `epa_airdata_annual_aqi_by_county`
 
 ## Feature contract (must match API)
 
@@ -177,6 +181,9 @@ Payload fields (see `src/longevity_lab/pipeline/common.py`):
   - `sha256`
   - `url` (optional; present for downloaded files)
 - plus dataset-specific extras (e.g., row counts, null counts, dropped rows) at the top level.
+- `source_registry` for registry-backed download steps, including source IDs, official URLs,
+  concrete download URLs, expected file patterns, checksum policy, license notes, geography, and
+  local landing paths.
 
 Note: provenance JSON is written under `data/processed/` and is therefore gitignored. Future report
 scripts should copy or summarize the relevant provenance into generated report outputs.

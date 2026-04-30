@@ -11,20 +11,21 @@ from longevity_lab.pipeline.common import (
     download_file,
     extract_zip,
     parse_years_from_args,
-    write_provenance_json,
 )
 from longevity_lab.pipeline.ingest import build_ingest_paths
+from longevity_lab.pipeline.provenance import write_registry_provenance_json
+from longevity_lab.pipeline.sources import load_data_source_registry
+
+_BRFSS_MICRODATA_SOURCE_ID = "cdc_brfss_llcp_xpt"
+_BRFSS_CODEBOOK_SOURCE_ID = "cdc_brfss_llcp_codebook"
 
 
 def _brfss_urls(year: int) -> tuple[str, str]:
     """Return (microdata_zip_url, codebook_zip_url) for a supported year."""
-    if year != 2023:
-        raise NotImplementedError(
-            f"BRFSS download is pinned to 2023 for v1. Unsupported year: {year}."
-        )
-    microdata = "https://www.cdc.gov/brfss/annual_data/2023/files/LLCP2023XPT.zip"
-    codebook = "https://www.cdc.gov/brfss/annual_data/2023/zip/codebook23_llcp-v2-508.zip"
-    return microdata, codebook
+    registry = load_data_source_registry()
+    microdata = registry.require(_BRFSS_MICRODATA_SOURCE_ID).download_url(year=year)
+    codebook = registry.require(_BRFSS_CODEBOOK_SOURCE_ID).download_url(year=year)
+    return (microdata, codebook)
 
 
 def _ensure_canonical_xpt_name(raw_dir: Path, *, year: int) -> Path:
@@ -83,10 +84,12 @@ def download_brfss(
 
         provenance_path = paths.provenance_brfss_raw(year)
         if dry_run:
-            write_provenance_json(
+            write_registry_provenance_json(
                 provenance_path,
                 dataset_name="brfss_raw",
                 dataset_version=str(year),
+                source_ids=[_BRFSS_MICRODATA_SOURCE_ID, _BRFSS_CODEBOOK_SOURCE_ID],
+                year=year,
                 sources=[microdata_url, codebook_url],
                 files=[],
                 dry_run=True,
@@ -100,10 +103,12 @@ def download_brfss(
             collect_file_provenance(expected_xpt, root=base_dir),
             collect_file_provenance(codebook_zip, url=codebook_url, root=base_dir),
         ]
-        write_provenance_json(
+        write_registry_provenance_json(
             provenance_path,
             dataset_name="brfss_raw",
             dataset_version=str(year),
+            source_ids=[_BRFSS_MICRODATA_SOURCE_ID, _BRFSS_CODEBOOK_SOURCE_ID],
+            year=year,
             sources=[microdata_url, codebook_url],
             files=files,
         )

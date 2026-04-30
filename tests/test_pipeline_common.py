@@ -16,6 +16,8 @@ from longevity_lab.pipeline.common import (
     sha256_file,
     write_provenance_json,
 )
+from longevity_lab.pipeline.provenance import write_registry_provenance_json
+from longevity_lab.pipeline.sources import load_data_source_registry
 
 
 def test_parse_years_csv() -> None:
@@ -172,3 +174,35 @@ def test_write_provenance_json_serializes_slotted_dataclasses(tmp_path: Path) ->
             "url": "https://example.com/file.bin",
         }
     ]
+
+
+def test_write_registry_provenance_json_embeds_registry_metadata(tmp_path: Path) -> None:
+    """Registry-backed provenance should preserve the existing shape and add source details."""
+    root = tmp_path / "root"
+    root.mkdir()
+    file_path = root / "file.bin"
+    file_path.write_bytes(b"\x00\x01")
+    item = collect_file_provenance(
+        file_path,
+        url="https://aqs.epa.gov/aqsweb/airdata/annual_aqi_by_county_2023.zip",
+        root=root,
+    )
+    out_path = tmp_path / "prov.json"
+
+    write_registry_provenance_json(
+        out_path,
+        dataset_name="epa_airdata_annual_aqi_by_county",
+        dataset_version="2023",
+        source_ids=["epa_airdata_annual_aqi_by_county"],
+        year=2023,
+        sources=["https://aqs.epa.gov/aqsweb/airdata/annual_aqi_by_county_2023.zip"],
+        files=[item],
+        registry=load_data_source_registry(),
+    )
+
+    payload = json.loads(out_path.read_text(encoding="utf-8"))
+    assert payload["dataset_name"] == "epa_airdata_annual_aqi_by_county"
+    assert payload["files"][0]["sha256"] == item.sha256
+    source_record = payload["source_registry"]["sources"][0]
+    assert source_record["source_id"] == "epa_airdata_annual_aqi_by_county"
+    assert source_record["expected_file_pattern"] == "annual_aqi_by_county_2023.csv"
