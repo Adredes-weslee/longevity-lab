@@ -21,6 +21,7 @@ def test_data_source_registry_loads_default_sources() -> None:
         "cdc_brfss_llcp_xpt",
         "cdc_brfss_llcp_codebook",
         "epa_airdata_annual_aqi_by_county",
+        "epa_airdata_annual_conc_by_monitor",
     }
 
 
@@ -31,10 +32,12 @@ def test_data_source_registry_formats_year_templates() -> None:
     brfss = registry.require("cdc_brfss_llcp_xpt")
     codebook = registry.require("cdc_brfss_llcp_codebook")
     epa = registry.require("epa_airdata_annual_aqi_by_county")
+    epa_concentration = registry.require("epa_airdata_annual_conc_by_monitor")
 
     assert brfss.download_url(year=2023).endswith("/2023/files/LLCP2023XPT.zip")
     assert codebook.download_url(year=2023).endswith("/2023/zip/codebook23_llcp-v2-508.zip")
     assert epa.download_url(year=2023).endswith("/annual_aqi_by_county_2023.zip")
+    assert epa_concentration.download_url(year=2023).endswith("/annual_conc_by_monitor_2023.zip")
     assert brfss.landing_path(year=2023) == "external/brfss/2023/"
 
 
@@ -104,6 +107,25 @@ def test_registry_provenance_extra_contains_source_metadata() -> None:
     assert source_record["local_landing_path"] == (
         "external/epa_airdata/annual_aqi_by_county_2023/"
     )
+
+
+def test_registry_provenance_extra_contains_epa_concentration_metadata() -> None:
+    """EPA annual concentration downloads should have registry-backed provenance."""
+    registry = load_data_source_registry()
+
+    extra = registry_provenance_extra(
+        registry=registry,
+        source_ids=[
+            "epa_airdata_annual_aqi_by_county",
+            "epa_airdata_annual_conc_by_monitor",
+        ],
+        year=2023,
+    )
+
+    indexed = {source["source_id"]: source for source in extra["source_registry"]["sources"]}
+    concentration = indexed["epa_airdata_annual_conc_by_monitor"]
+    assert concentration["download_url"].endswith("annual_conc_by_monitor_2023.zip")
+    assert concentration["expected_file_pattern"] == "annual_conc_by_monitor_2023.csv"
 
 
 def test_data_source_registry_model_rejects_unknown_fields() -> None:

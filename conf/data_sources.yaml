@@ -36,6 +36,18 @@
       "checksum_policy": "record sha256 after local download; EPA AirData does not publish per-file checksums here",
       "license_note": "Public EPA AirData download; review EPA data terms and attribution guidance.",
       "local_landing_path": "external/epa_airdata/annual_aqi_by_county_{year}/"
+    },
+    {
+      "source_id": "epa_airdata_annual_conc_by_monitor",
+      "title": "EPA AirData annual concentration by monitor",
+      "official_url": "https://aqs.epa.gov/aqsweb/airdata/download_files.html#Annual",
+      "download_url_template": "https://aqs.epa.gov/aqsweb/airdata/annual_conc_by_monitor_{year}.zip",
+      "year_support": {"mode": "range", "start": 1980, "end": 2025},
+      "geography": "monitor-year summaries with state and county FIPS",
+      "expected_file_pattern": "annual_conc_by_monitor_{year}.csv",
+      "checksum_policy": "record sha256 after local download; EPA AirData does not publish per-file checksums here",
+      "license_note": "Public EPA AirData download; review EPA data terms and attribution guidance.",
+      "local_landing_path": "external/epa_airdata/annual_conc_by_monitor_{year}/"
     }
   ]
 }

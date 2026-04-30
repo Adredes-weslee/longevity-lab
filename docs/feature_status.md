@@ -14,7 +14,7 @@ Legend:
 - [DONE] Artifact-first runtime default when a valid local bundle exists.
 - [DONE] Data source registry and provenance schema for current public sources.
 - [DONE] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
-- [TODO] EPA pollutant-specific features beyond annual AQI.
+- [DONE] EPA pollutant-specific features beyond annual AQI.
 - [TODO] ACS/SVI contextual social-determinants features.
 - [TODO] CDC PLACES contextual validation layer.
 - [TODO] Scripted EDA/report generation to replace notebooks as canonical outputs.
@@ -41,8 +41,8 @@ Legend:
 - [DONE] Dataset directory layout and typed path builder (`src/longevity_lab/pipeline/ingest.py`).
 - [DONE] BRFSS download script with provenance (`src/longevity_lab/pipeline/download_brfss.py`).
 - [DONE] BRFSS decode and Parquet build for v2 scenario/editable, adjustment, label, and survey-weight columns (`src/longevity_lab/pipeline/build_brfss_tables.py`).
-- [DONE] EPA AirData annual AQI download and preprocessing (`src/longevity_lab/pipeline/download_epa_airdata.py`, `src/longevity_lab/pipeline/build_epa_tables.py`).
-- [DONE] BRFSS/EPA state-year join (`src/longevity_lab/pipeline/build_integrated_tables.py`).
+- [DONE] EPA AirData annual AQI, PM2.5, and ozone download and preprocessing (`src/longevity_lab/pipeline/download_epa_airdata.py`, `src/longevity_lab/pipeline/build_epa_tables.py`).
+- [DONE] BRFSS/EPA state-year join with backwards-compatible `annual_aqi`, BRFSS v2 covariates, and quality-gated pollutant features (`src/longevity_lab/pipeline/build_integrated_tables.py`).
 - [DONE] Integrated person-year tables preserve BRFSS v2 covariates for default training (`src/longevity_lab/pipeline/build_integrated_tables.py`).
 - [DONE] Expected EPA territory coverage gaps handled without breaking integrated builds (`src/longevity_lab/pipeline/build_integrated_tables.py`).
 - [DONE] Small sample slice committed in `data/sample/` for dev/testing only.
@@ -108,6 +108,6 @@ Legend:
 
 1. Replace notebook-derived analysis with scripted reports.
 2. Add reproducible model benchmarking and model-card outputs.
-3. Add pollutant-specific EPA and socioeconomic context tables.
+3. Add socioeconomic context tables.
 4. Implement the non-serving causal workbench.
 5. Start the UI information architecture upgrade.

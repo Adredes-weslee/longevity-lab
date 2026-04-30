@@ -37,21 +37,26 @@ Notes:
 - We use the **CDC release** instead of third-party mirrors to avoid external credentials and keep provenance clear.
 - Registry source IDs: `cdc_brfss_llcp_xpt`, `cdc_brfss_llcp_codebook`.
 
-### EPA AirData - Annual AQI by county (2023)
+### EPA AirData - Annual AQI and annual concentration summaries (2023)
 
 - Download page: `https://aqs.epa.gov/aqsweb/airdata/download_files.html#Annual`
 - Zip (county-year): `https://aqs.epa.gov/aqsweb/airdata/annual_aqi_by_county_2023.zip`
+- Zip (monitor-year annual concentration): `https://aqs.epa.gov/aqsweb/airdata/annual_conc_by_monitor_2023.zip`
 
 Expected local paths (gitignored):
 
 - `data/external/epa_airdata/annual_aqi_by_county_2023.zip`
 - `data/external/epa_airdata/annual_aqi_by_county_2023/annual_aqi_by_county_2023.csv`
+- `data/external/epa_airdata/annual_conc_by_monitor_2023.zip`
+- `data/external/epa_airdata/annual_conc_by_monitor_2023/annual_conc_by_monitor_2023.csv`
 
 Notes:
 
 - The raw file contains `State` and `County` names but **no FIPS codes**. Our v1 join is therefore **state-year**:
   we map `State` name -> `state_fips` and aggregate county rows to `annual_aqi_state_year` (see `docs/data_dictionary.md`).
-- Registry source ID: `epa_airdata_annual_aqi_by_county`.
+- The annual concentration file contains monitor-year records with FIPS codes, parameter codes, observation counts,
+  observation percentages, and EPA completeness indicators. The local pipeline filters it to PM2.5 (`88101`) and ozone (`44201`).
+- Registry source IDs: `epa_airdata_annual_aqi_by_county`, `epa_airdata_annual_conc_by_monitor`.
 
 ## Download commands (Windows)
 
@@ -66,14 +71,14 @@ Recommended first-time full local build:
 
 1. Download BRFSS + EPA raw files
 2. Build BRFSS processed tables
-3. Build EPA processed tables
+3. Build EPA processed county-year and state-year tables
 4. Build the integrated person-year table
 5. Build DuckDB views
 6. Verify in the dashboard Data integration page or `GET /api/pipeline/status`
 
 ## Build processed tables (after download)
 
-These scripts convert raw downloads into the v1 processed Parquet contracts under `data/processed/`
+These scripts convert raw downloads into processed Parquet contracts under `data/processed/`
 and optionally build a local DuckDB file with stable views.
 
 The pipeline CLIs default to the repo-root `data/` directory even if you invoke them from
@@ -88,6 +93,9 @@ pdm run python -m longevity_lab.pipeline.build_duckdb_views
 
 Note: EPA 2023 does not include a Guam state row. The integrated build keeps those BRFSS rows with
 `annual_aqi = null` by default and still raises for unexpected missing joins.
+PM2.5 and ozone exposure means are added only when EPA monitor rows pass quality checks:
+`Completeness Indicator == Y`, observation percent at least 75, positive observation count, and non-null annual mean.
+Incomplete pollutant rows still contribute monitor/completeness flags but not exposure means.
 
 Tip: the UI includes a separate **Data integration** page (calls `GET /api/pipeline/status`) to show whether
 these raw/processed artifacts exist locally.
@@ -109,7 +117,7 @@ curl.exe -L --fail --retry 3 --retry-delay 2 --ssl-no-revoke `
 Expand-Archive -Path data\external\brfss\2023\codebook23_llcp-v2-508.zip -DestinationPath data\external\brfss\2023\codebook -Force
 ```
 
-EPA AirData (AQI by county) 2023:
+EPA AirData (AQI by county and annual concentration by monitor) 2023:
 
 ```powershell
 New-Item -ItemType Directory -Force -Path data\external\epa_airdata | Out-Null
@@ -117,4 +125,9 @@ curl.exe -L --fail --retry 3 --retry-delay 2 --ssl-no-revoke `
   -o data\external\epa_airdata\annual_aqi_by_county_2023.zip `
   https://aqs.epa.gov/aqsweb/airdata/annual_aqi_by_county_2023.zip
 Expand-Archive -Path data\external\epa_airdata\annual_aqi_by_county_2023.zip -DestinationPath data\external\epa_airdata\annual_aqi_by_county_2023 -Force
+
+curl.exe -L --fail --retry 3 --retry-delay 2 --ssl-no-revoke `
+  -o data\external\epa_airdata\annual_conc_by_monitor_2023.zip `
+  https://aqs.epa.gov/aqsweb/airdata/annual_conc_by_monitor_2023.zip
+Expand-Archive -Path data\external\epa_airdata\annual_conc_by_monitor_2023.zip -DestinationPath data\external\epa_airdata\annual_conc_by_monitor_2023 -Force
 ```
