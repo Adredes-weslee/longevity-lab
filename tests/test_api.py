@@ -238,10 +238,25 @@ def test_metadata_bootstrap(client: TestClient) -> None:
     response = client.get("/api/metadata/bootstrap")
     assert response.status_code == 200
     payload = response.json()
+    assert payload["contract_version"] == "v2"
     assert payload["organs"]
     assert payload["conditions"]
     assert payload["runtime"]["engine_mode"] == "demo"
     assert payload["runtime"]["engine_source"] == "fallback"
+    model_metadata = payload["model_metadata"]
+    assert model_metadata["model_mode"] == "demo"
+    assert model_metadata["artifact_id"] is None
+    assert model_metadata["data_vintage"] == "demo"
+    assert model_metadata["dataset_name"] is None
+    assert model_metadata["dataset_version"] is None
+    assert model_metadata["explanation_methods"] == ["demo"]
+    assert model_metadata["uncertainty_available"] is False
+    assert model_metadata["uncertainty_methods"] == []
+    assert model_metadata["contextual_geography"] == {
+        "available": False,
+        "levels": [],
+        "source": None,
+    }
     assert {item["field"] for item in payload["features"]} == {
         "age",
         "bmi",
@@ -261,10 +276,26 @@ def test_metadata_bootstrap_auto_selects_artifact_bundle(
     for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
         response = test_client.get("/api/metadata/bootstrap")
         assert response.status_code == 200
-        runtime = response.json()["runtime"]
+        payload = response.json()
+        runtime = payload["runtime"]
         assert runtime["engine_mode"] == "artifact"
         assert runtime["engine_source"] == "auto"
         assert runtime["artifact_bundle_id"] == bundle_id
+        model_metadata = payload["model_metadata"]
+        assert model_metadata["model_mode"] == "artifact"
+        assert model_metadata["artifact_id"] == bundle_id
+        assert model_metadata["data_vintage"] == "test"
+        assert model_metadata["dataset_name"] == "brfss"
+        assert model_metadata["dataset_version"] == "test"
+        assert model_metadata["dataset_retrieved_at"] is None
+        assert model_metadata["explanation_methods"] == ["tree_path"]
+        assert model_metadata["uncertainty_available"] is False
+        assert model_metadata["uncertainty_methods"] == []
+        assert model_metadata["contextual_geography"] == {
+            "available": True,
+            "levels": ["state"],
+            "source": "artifact_features",
+        }
 
 
 def test_metadata_bootstrap_explicit_demo_ignores_artifact_bundle(
@@ -360,6 +391,24 @@ def test_scenario_compare_auto_fallback_stays_usable_for_corrupt_bundle(
         body = response.json()
         assert body["baseline"]["conditions"]
         assert body["candidate"]["conditions"]
+
+
+def test_scenario_compare_auto_selected_artifact_reports_model_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Scenario compare should expose the same v2 model metadata as bootstrap."""
+    bundle_id = _write_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.post("/api/scenario/compare", json=_compare_payload())
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["contract_version"] == "v2"
+        assert payload["model_metadata"]["model_mode"] == "artifact"
+        assert payload["model_metadata"]["artifact_id"] == bundle_id
+        assert payload["model_metadata"]["data_vintage"] == "test"
+        assert payload["model_metadata"]["explanation_methods"] == ["tree_path"]
+        assert payload["model_metadata"]["contextual_geography"]["levels"] == ["state"]
 
 
 def test_metadata_bootstrap_auto_falls_back_on_wrong_object_bundle(
@@ -491,6 +540,13 @@ def test_scenario_compare(client: TestClient) -> None:
     response = client.post("/api/scenario/compare", json=_compare_payload())
     assert response.status_code == 200
     body = response.json()
+    assert body["contract_version"] == "v2"
+    assert body["model_metadata"]["model_mode"] == "demo"
+    assert body["model_metadata"]["artifact_id"] is None
+    assert body["model_metadata"]["data_vintage"] == "demo"
+    assert body["model_metadata"]["explanation_methods"] == ["demo"]
+    assert body["model_metadata"]["uncertainty_available"] is False
+    assert body["model_metadata"]["contextual_geography"]["available"] is False
     assert body["baseline"]["conditions"]
     assert body["candidate"]["conditions"]
     assert body["organ_deltas"]

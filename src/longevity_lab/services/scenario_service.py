@@ -8,6 +8,7 @@ from longevity_lab.api.schemas import (
     ConditionScoreResponse,
     ExplanationRecordResponse,
     FeatureProfile,
+    ModelMetadataResponse,
     OrganDeltaResponse,
     OrganSummaryResponse,
     RiskBand,
@@ -16,6 +17,7 @@ from longevity_lab.api.schemas import (
     UncertaintySummaryResponse,
 )
 from longevity_lab.domain.catalog import CONDITIONS, ORGANS
+from longevity_lab.services.contract_metadata import build_demo_model_metadata
 from longevity_lab.services.engine_types import ConditionScore, ScenarioEngine
 from longevity_lab.services.explanations import demo_explanation_records
 
@@ -108,9 +110,14 @@ class DemoScenarioEngine:
 class ScenarioService:
     """Scenario evaluation orchestration."""
 
-    def __init__(self, engine: ScenarioEngine) -> None:
+    def __init__(
+        self,
+        engine: ScenarioEngine,
+        model_metadata: ModelMetadataResponse | None = None,
+    ) -> None:
         """Store the scenario engine implementation."""
         self._engine = engine
+        self._model_metadata = model_metadata or build_demo_model_metadata()
 
     def compare(
         self,
@@ -144,6 +151,7 @@ class ScenarioService:
             baseline=baseline_eval,
             candidate=candidate_eval,
             organ_deltas=organ_deltas,
+            model_metadata=self._model_metadata,
         )
 
     def _evaluate(self, profile: FeatureProfile) -> ScenarioEvaluationResponse:
