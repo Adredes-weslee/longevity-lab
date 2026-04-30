@@ -14,6 +14,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 ExplanationMethod = Literal["demo", "tree_path", "shap"]
+UncertaintyMethod = Literal["none", "calibration_interval"]
 
 
 class DatasetInfo(BaseModel):
@@ -37,6 +38,8 @@ class ConditionArtifact(BaseModel):
     explanation_path: str | None = None
     metrics_path: str | None = None
     explanation_method: ExplanationMethod = "tree_path"
+    uncertainty_method: UncertaintyMethod = "none"
+    uncertainty_path: str | None = None
     notes: str | None = None
 
 

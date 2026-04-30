@@ -1,5 +1,8 @@
 export type RiskBand = 'green' | 'amber' | 'red'
 export type HeatmapMode = 'delta' | 'baseline' | 'scenario'
+export type ExplanationDirection = 'increases' | 'decreases' | 'neutral'
+export type ExplanationMethod = 'demo' | 'tree_path' | 'shap'
+export type UncertaintyMethod = 'calibration_interval'
 
 export interface FeatureProfile {
   age: number
@@ -55,6 +58,25 @@ export interface ConditionScoreResponse {
   probability: number
   band: RiskBand
   key_drivers: string[]
+  explanations: ExplanationRecordResponse[]
+  uncertainty: UncertaintySummaryResponse | null
+}
+
+export interface ExplanationRecordResponse {
+  feature: string
+  display_name: string
+  direction: ExplanationDirection
+  magnitude: number
+  method: ExplanationMethod
+  caveat: string
+}
+
+export interface UncertaintySummaryResponse {
+  method: UncertaintyMethod
+  lower: number
+  upper: number
+  confidence_level: number | null
+  caveat: string
 }
 
 export interface OrganSummaryResponse {

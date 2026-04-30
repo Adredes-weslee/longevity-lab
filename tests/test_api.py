@@ -494,6 +494,19 @@ def test_scenario_compare(client: TestClient) -> None:
     assert body["baseline"]["conditions"]
     assert body["candidate"]["conditions"]
     assert body["organ_deltas"]
+    condition = body["baseline"]["conditions"][0]
+    assert "explanations" in condition
+    assert "uncertainty" in condition
+    assert condition["explanations"]
+    assert condition["uncertainty"] is None
+    assert set(condition["explanations"][0]) == {
+        "feature",
+        "display_name",
+        "direction",
+        "magnitude",
+        "method",
+        "caveat",
+    }
 
 
 def test_scenario_compare_missing_baseline_fields_uses_defaults(client: TestClient) -> None:

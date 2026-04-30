@@ -20,7 +20,7 @@ Legend:
 - [DONE] Scripted EDA/report generation to replace notebooks as canonical outputs.
 - [DONE] Modeling benchmark harness for logistic/tree baselines and feature ablations.
 - [DONE] Calibrated gradient-boosted model family in the benchmark grid.
-- [TODO] Typed explanation, uncertainty, and model-card surfaces.
+- [DONE] Typed explanation and manifest-declared uncertainty surfaces.
 - [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
 - [DONE] Causal workbench prototype for sensitivity-tested, non-serving smoking-to-lung-disease estimates.
 - [TODO] UI information architecture, Explorer upgrade, and deployment packaging.
@@ -70,7 +70,7 @@ Legend:
 - [DONE] Benchmark harness compares calibrated histogram gradient boosting and optional XGBoost candidates against the decision-tree baseline, recording skipped XGBoost rows when the optional dependency is unavailable (`src/longevity_lab/pipeline/benchmarks.py`, `conf/model/hist_gradient_boosting.yaml`, `conf/model/xgboost.yaml`).
 - [DONE] Training config separates scenario-editable features from BRFSS adjustment/context covariates and applies survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Artifact manifest schema, bundle loader, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
-- [DONE] Explanation outputs aligned to saved explanation trees (`src/longevity_lab/services/artifact_engine.py`).
+- [DONE] Explanation outputs aligned to saved explanation trees, optional SHAP artifacts, and manifest-declared uncertainty intervals (`src/longevity_lab/services/artifact_engine.py`, `src/longevity_lab/services/explanations.py`, `src/longevity_lab/services/uncertainty.py`).
 
 ### Causal inference
 
@@ -118,7 +118,7 @@ Legend:
 ## Highest-ROI next tasks
 
 1. Wire pollutant and socioeconomic context features into the benchmark harness.
-2. Implement typed explanation and uncertainty surfaces for tree ensembles.
+2. Wire typed explanation and uncertainty copy into the upgraded Explorer UI.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
 4. Start the UI information architecture upgrade.
 5. Finalize ethics and health disclaimer language across the UI and documentation.

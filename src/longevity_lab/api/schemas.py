@@ -5,6 +5,9 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 RiskBand = Literal["green", "amber", "red"]
+ExplanationDirection = Literal["increases", "decreases", "neutral"]
+ExplanationMethod = Literal["demo", "tree_path", "shap"]
+UncertaintyMethod = Literal["calibration_interval"]
 
 
 class HealthResponse(BaseModel):
@@ -88,6 +91,31 @@ class MetadataBootstrapResponse(BaseModel):
     runtime: RuntimeMetadataResponse
 
 
+class ExplanationRecordResponse(BaseModel):
+    """Typed model-derived explanation for a condition score."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    feature: str
+    display_name: str
+    direction: ExplanationDirection
+    magnitude: float
+    method: ExplanationMethod
+    caveat: str
+
+
+class UncertaintySummaryResponse(BaseModel):
+    """Artifact-declared calibrated uncertainty interval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: UncertaintyMethod
+    lower: float
+    upper: float
+    confidence_level: float | None = None
+    caveat: str
+
+
 class ConditionScoreResponse(BaseModel):
     """Predicted condition probability."""
 
@@ -99,6 +127,8 @@ class ConditionScoreResponse(BaseModel):
     probability: float
     band: RiskBand
     key_drivers: list[str]
+    explanations: list[ExplanationRecordResponse] = Field(default_factory=list)
+    uncertainty: UncertaintySummaryResponse | None = None
 
 
 class OrganSummaryResponse(BaseModel):
