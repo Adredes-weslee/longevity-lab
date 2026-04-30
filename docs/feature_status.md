@@ -19,7 +19,7 @@ Legend:
 - [DONE] CDC PLACES contextual validation layer.
 - [DONE] Scripted EDA/report generation to replace notebooks as canonical outputs.
 - [DONE] Modeling benchmark harness for logistic/tree baselines and feature ablations.
-- [TODO] Calibrated gradient-boosted model family.
+- [DONE] Calibrated gradient-boosted model family in the benchmark grid.
 - [TODO] Typed explanation, uncertainty, and model-card surfaces.
 - [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
 - [DONE] Causal workbench prototype for sensitivity-tested, non-serving smoking-to-lung-disease estimates.
@@ -67,6 +67,7 @@ Legend:
 - [DONE] Evaluation script and metrics report scaffold (`src/longevity_lab/pipeline/evaluate.py`).
 - [DONE] Subgroup/slice analysis export for trained bundles (`src/longevity_lab/pipeline/evaluate.py`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Reproducible benchmark harness writes metrics, calibration curves, subgroup metrics, and model-card-ready manifests (`src/longevity_lab/pipeline/benchmarks.py`, `conf/benchmark.yaml`).
+- [DONE] Benchmark harness compares calibrated histogram gradient boosting and optional XGBoost candidates against the decision-tree baseline, recording skipped XGBoost rows when the optional dependency is unavailable (`src/longevity_lab/pipeline/benchmarks.py`, `conf/model/hist_gradient_boosting.yaml`, `conf/model/xgboost.yaml`).
 - [DONE] Training config separates scenario-editable features from BRFSS adjustment/context covariates and applies survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Artifact manifest schema, bundle loader, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
 - [DONE] Explanation outputs aligned to saved explanation trees (`src/longevity_lab/services/artifact_engine.py`).
@@ -116,8 +117,8 @@ Legend:
 
 ## Highest-ROI next tasks
 
-1. Add calibrated gradient-boosted model candidates to the benchmark grid.
-2. Wire pollutant and socioeconomic context features into the benchmark harness.
+1. Wire pollutant and socioeconomic context features into the benchmark harness.
+2. Implement typed explanation and uncertainty surfaces for tree ensembles.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
 4. Start the UI information architecture upgrade.
 5. Finalize ethics and health disclaimer language across the UI and documentation.

@@ -7,7 +7,7 @@ import datetime as dt
 import json
 import shutil
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -21,6 +21,7 @@ from sklearn.tree import DecisionTreeClassifier  # type: ignore[import-untyped]
 
 from longevity_lab.pipeline.modeling import (
     FeaturePreprocessor,
+    OptionalModelDependencyError,
     SampleWeightPipeline,
     TrainingSpec,
     _binary_metrics,
@@ -35,9 +36,16 @@ from longevity_lab.pipeline.modeling import (
     _sample_weights_for_training,
     build_training_spec,
     load_training_frame,
+    make_hist_gradient_boosting_pipeline,
+    make_xgboost_pipeline,
 )
 
-BenchmarkModelKind = Literal["logistic_regression", "decision_tree"]
+BenchmarkModelKind = Literal[
+    "logistic_regression",
+    "decision_tree",
+    "hist_gradient_boosting",
+    "xgboost",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +55,8 @@ class BenchmarkModelSpec:
     model_id: str
     kind: BenchmarkModelKind
     params: dict[str, Any]
+    class_imbalance_strategy: str | None = None
+    monotonic_constraints: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +123,14 @@ def build_benchmark_spec(raw_cfg: dict[str, Any]) -> BenchmarkSpec:
             model_id=str(item["model_id"]),
             kind=cast(BenchmarkModelKind, str(item["kind"])),
             params=dict(cast(dict[str, Any], item.get("params", {}))),
+            class_imbalance_strategy=(
+                str(item["class_imbalance_strategy"])
+                if item.get("class_imbalance_strategy")
+                else None
+            ),
+            monotonic_constraints=_parse_monotonic_constraints(
+                cast(dict[str, Any], item.get("monotonic_constraints", {}))
+            ),
         )
         for item in cast(Sequence[dict[str, Any]], raw_cfg["models"])
     )
@@ -143,6 +161,19 @@ def build_benchmark_spec(raw_cfg: dict[str, Any]) -> BenchmarkSpec:
         min_slice_rows=int(raw_cfg.get("subgroups", {}).get("min_rows", 200)),
         calibration_bins=int(raw_cfg.get("calibration", {}).get("bins", 10)),
     )
+
+
+def _parse_monotonic_constraints(raw_constraints: dict[str, Any]) -> dict[str, int]:
+    constraints: dict[str, int] = {}
+    for feature_name, direction in raw_constraints.items():
+        value = int(direction)
+        if value not in {-1, 0, 1}:
+            raise ValueError(
+                f"Monotonic constraint for {feature_name!r} must be -1, 0, or 1 "
+                f"(got {direction!r})."
+            )
+        constraints[str(feature_name)] = value
+    return constraints
 
 
 def run_benchmark(spec: BenchmarkSpec) -> BenchmarkResult:
@@ -302,14 +333,39 @@ def _fit_and_score_model(
     w_train = weights.iloc[train_idx].reset_index(drop=True) if weights is not None else None
     w_test = weights.iloc[test_idx].reset_index(drop=True) if weights is not None else None
 
-    model = _fit_calibrated_benchmark_model(
-        x_train,
-        y_train,
-        sample_weight=w_train,
-        feature_names=feature_names,
+    calibration_folds = _safe_cv_folds(y_train, requested_folds=spec.training_spec.calibration_cv)
+    metadata_fields = _model_run_metadata(
         model_spec=model_spec,
         spec=spec,
+        calibration_folds=calibration_folds,
     )
+    try:
+        model = _fit_calibrated_benchmark_model(
+            x_train,
+            y_train,
+            sample_weight=w_train,
+            feature_names=feature_names,
+            model_spec=model_spec,
+            spec=spec,
+            calibration_folds=calibration_folds,
+        )
+    except OptionalModelDependencyError as exc:
+        return {
+            "metrics": _skipped_metrics_row(
+                condition_id=condition_id,
+                label_column=label_column,
+                model_spec=model_spec,
+                ablation=ablation,
+                feature_names=feature_names,
+                rows_train=len(x_train),
+                rows_test=len(x_test),
+                positive_rate_test=_weighted_positive_rate(y_test, sample_weight=w_test),
+                skip_reason=str(exc),
+                metadata_fields=metadata_fields,
+            ),
+            "calibration": [],
+            "subgroups": [],
+        }
     probabilities = _predict_positive_class(model, x_test)
     metrics = _binary_metrics(y_test, probabilities, sample_weight=w_test)
     metrics_row: dict[str, Any] = {
@@ -324,6 +380,9 @@ def _fit_and_score_model(
         "rows_train": len(x_train),
         "rows_test": len(x_test),
         "positive_rate_test": _weighted_positive_rate(y_test, sample_weight=w_test),
+        "status": "ok",
+        "skip_reason": None,
+        **metadata_fields,
         **{f"test_{key}": value for key, value in metrics.items()},
     }
     prediction_frame = feature_frame.iloc[test_idx].reset_index(drop=True).copy()
@@ -354,6 +413,67 @@ def _fit_and_score_model(
     }
 
 
+def _skipped_metrics_row(
+    *,
+    condition_id: str,
+    label_column: str,
+    model_spec: BenchmarkModelSpec,
+    ablation: BenchmarkAblationSpec,
+    feature_names: tuple[str, ...],
+    rows_train: int,
+    rows_test: int,
+    positive_rate_test: float,
+    skip_reason: str,
+    metadata_fields: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "condition_id": condition_id,
+        "label_column": label_column,
+        "model_id": model_spec.model_id,
+        "model_kind": model_spec.kind,
+        "variant_id": ablation.variant_id,
+        "variant_display_name": ablation.display_name,
+        "features": list(feature_names),
+        "n_features": len(feature_names),
+        "rows_train": rows_train,
+        "rows_test": rows_test,
+        "positive_rate_test": positive_rate_test,
+        "status": "skipped",
+        "skip_reason": skip_reason,
+        **metadata_fields,
+        "test_average_precision": None,
+        "test_roc_auc": None,
+        "test_brier_score": None,
+    }
+
+
+def _model_run_metadata(
+    *,
+    model_spec: BenchmarkModelSpec,
+    spec: BenchmarkSpec,
+    calibration_folds: int,
+) -> dict[str, Any]:
+    return {
+        "calibration_method": spec.training_spec.calibration_method,
+        "calibration_cv_folds": calibration_folds,
+        "class_imbalance_strategy": _class_imbalance_strategy(model_spec),
+        "monotonic_constraints": dict(model_spec.monotonic_constraints),
+    }
+
+
+def _class_imbalance_strategy(model_spec: BenchmarkModelSpec) -> str:
+    if model_spec.class_imbalance_strategy:
+        return model_spec.class_imbalance_strategy
+    if model_spec.kind == "xgboost":
+        return "scale_pos_weight"
+    class_weight = model_spec.params.get("class_weight")
+    if class_weight == "balanced":
+        return "class_weight_balanced"
+    if class_weight is not None:
+        return "class_weight_custom"
+    return "none"
+
+
 def _fit_calibrated_benchmark_model(
     x_train: pd.DataFrame,
     y_train: pd.Series,
@@ -362,20 +482,22 @@ def _fit_calibrated_benchmark_model(
     feature_names: tuple[str, ...],
     model_spec: BenchmarkModelSpec,
     spec: BenchmarkSpec,
+    calibration_folds: int,
 ) -> CalibratedClassifierCV | Pipeline:
     base_pipeline = _make_benchmark_pipeline(
         feature_names=feature_names,
         model_spec=model_spec,
         random_state=spec.training_spec.random_state,
+        y_train=y_train,
+        sample_weight=sample_weight,
     )
-    folds = _safe_cv_folds(y_train, requested_folds=spec.training_spec.calibration_cv)
-    if folds < 2:
+    if calibration_folds < 2:
         base_pipeline.fit(x_train, y_train, sample_weight=sample_weight)
         return base_pipeline
     calibrated = CalibratedClassifierCV(
         estimator=base_pipeline,
         method=spec.training_spec.calibration_method,
-        cv=folds,
+        cv=calibration_folds,
     )
     calibrated.fit(x_train, y_train, sample_weight=sample_weight)
     return calibrated
@@ -386,6 +508,8 @@ def _make_benchmark_pipeline(
     feature_names: tuple[str, ...],
     model_spec: BenchmarkModelSpec,
     random_state: int,
+    y_train: pd.Series,
+    sample_weight: pd.Series | None,
 ) -> SampleWeightPipeline:
     params = dict(model_spec.params)
     if model_spec.kind == "logistic_regression":
@@ -397,6 +521,23 @@ def _make_benchmark_pipeline(
         params.setdefault("class_weight", "balanced")
         params.setdefault("random_state", random_state)
         model = DecisionTreeClassifier(**params)
+    elif model_spec.kind == "hist_gradient_boosting":
+        model_params = dict(params)
+        model_params.setdefault("class_weight", "balanced")
+        return make_hist_gradient_boosting_pipeline(
+            feature_names=feature_names,
+            params=model_params,
+            monotonic_constraints=model_spec.monotonic_constraints,
+            random_state=random_state,
+        )
+    elif model_spec.kind == "xgboost":
+        return make_xgboost_pipeline(
+            feature_names=feature_names,
+            params=params,
+            monotonic_constraints=model_spec.monotonic_constraints,
+            random_state=random_state,
+            class_balance_scale=_class_balance_scale(y_train, sample_weight=sample_weight),
+        )
     else:
         raise ValueError(f"Unsupported benchmark model kind: {model_spec.kind}")
     return SampleWeightPipeline(
@@ -405,6 +546,19 @@ def _make_benchmark_pipeline(
             ("model", model),
         ]
     )
+
+
+def _class_balance_scale(labels: pd.Series, *, sample_weight: pd.Series | None) -> float | None:
+    y = labels.astype(int).reset_index(drop=True)
+    if sample_weight is None:
+        weights = pd.Series(np.ones(len(y)), index=y.index)
+    else:
+        weights = pd.to_numeric(sample_weight, errors="coerce").fillna(0.0).reset_index(drop=True)
+    positive_weight = float(weights.loc[y == 1].sum())
+    negative_weight = float(weights.loc[y == 0].sum())
+    if positive_weight <= 0.0 or negative_weight <= 0.0:
+        return None
+    return negative_weight / positive_weight
 
 
 def _weighted_positive_rate(labels: pd.Series, *, sample_weight: pd.Series | None) -> float:
@@ -595,12 +749,9 @@ def _model_card_manifest(metrics_rows: Sequence[dict[str, Any]]) -> dict[str, An
         grouped.setdefault(str(row["condition_id"]), []).append(row)
     condition_cards = []
     for condition_id, rows in sorted(grouped.items()):
-        best = max(
-            rows,
-            key=lambda item: (
-                item["test_average_precision"] if item["test_average_precision"] is not None else -1
-            ),
-        )
+        baseline = _decision_tree_baseline_row(rows)
+        scored_rows = [row for row in rows if row.get("test_average_precision") is not None]
+        best = max(scored_rows or rows, key=lambda item: _metric_sort_value(item))
         condition_cards.append(
             {
                 "condition_id": condition_id,
@@ -611,6 +762,20 @@ def _model_card_manifest(metrics_rows: Sequence[dict[str, Any]]) -> dict[str, An
                 "test_roc_auc": best["test_roc_auc"],
                 "test_brier_score": best["test_brier_score"],
                 "candidate_count": len(rows),
+                "decision_tree_baseline_model_id": (
+                    str(baseline["model_id"]) if baseline is not None else None
+                ),
+                "decision_tree_baseline_variant_id": (
+                    str(baseline["variant_id"]) if baseline is not None else None
+                ),
+                "best_delta_vs_decision_tree_baseline": _metric_delta(
+                    best,
+                    baseline,
+                    metric_name="test_average_precision",
+                ),
+                "benchmark_candidates": [
+                    _model_card_candidate(row, baseline=baseline) for row in rows
+                ],
             }
         )
     return {
@@ -618,6 +783,58 @@ def _model_card_manifest(metrics_rows: Sequence[dict[str, Any]]) -> dict[str, An
         "created_at": dt.datetime.now(dt.UTC).isoformat(),
         "condition_cards": condition_cards,
     }
+
+
+def _metric_sort_value(row: dict[str, Any]) -> float:
+    value = row.get("test_average_precision")
+    return float(value) if value is not None else -1.0
+
+
+def _decision_tree_baseline_row(rows: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    decision_tree_rows = [row for row in rows if row.get("model_kind") == "decision_tree"]
+    for row in decision_tree_rows:
+        if row.get("variant_id") == "all_features":
+            return row
+    return decision_tree_rows[0] if decision_tree_rows else None
+
+
+def _model_card_candidate(
+    row: dict[str, Any],
+    *,
+    baseline: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "model_id": row["model_id"],
+        "model_kind": row["model_kind"],
+        "variant_id": row["variant_id"],
+        "status": row.get("status", "ok"),
+        "skip_reason": row.get("skip_reason"),
+        "test_average_precision": row.get("test_average_precision"),
+        "test_roc_auc": row.get("test_roc_auc"),
+        "test_brier_score": row.get("test_brier_score"),
+        "delta_vs_decision_tree_baseline": _metric_delta(
+            row,
+            baseline,
+            metric_name="test_average_precision",
+        ),
+        "class_imbalance_strategy": row.get("class_imbalance_strategy"),
+        "monotonic_constraints": row.get("monotonic_constraints", {}),
+    }
+
+
+def _metric_delta(
+    row: dict[str, Any],
+    baseline: dict[str, Any] | None,
+    *,
+    metric_name: str,
+) -> float | None:
+    if baseline is None:
+        return None
+    value = row.get(metric_name)
+    baseline_value = baseline.get(metric_name)
+    if value is None or baseline_value is None:
+        return None
+    return float(value) - float(baseline_value)
 
 
 def _json_dumps(payload: object) -> str:

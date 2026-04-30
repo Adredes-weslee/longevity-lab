@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 import pandas as pd  # type: ignore[import-untyped]
+from pytest import MonkeyPatch
 
+import longevity_lab.pipeline.modeling as modeling_module
 from longevity_lab.pipeline.benchmarks import build_benchmark_spec, run_benchmark
 
 
@@ -201,6 +204,99 @@ def test_run_benchmark_writes_metrics_manifests_and_subgroups(tmp_path: Path) ->
     assert "mean_predicted_probability_no_aqi" not in subgroups.columns
     model_cards = json.loads(result.model_card_manifest_path.read_text(encoding="utf-8"))
     assert len(model_cards["condition_cards"]) == 2
+
+
+def test_benchmark_includes_calibrated_hist_gradient_boosting_metadata(
+    tmp_path: Path,
+) -> None:
+    """Histogram GBDT candidates should run through calibration and model cards."""
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+    config = _benchmark_config(tmp_path, input_path)
+    models = cast(list[dict[str, object]], config["models"])
+    config["models"] = [
+        *models,
+        {
+            "model_id": "hgb_candidate",
+            "kind": "hist_gradient_boosting",
+            "class_imbalance_strategy": "class_weight_balanced",
+            "params": {
+                "max_iter": 12,
+                "learning_rate": 0.08,
+                "max_leaf_nodes": 7,
+                "class_weight": "balanced",
+            },
+            "monotonic_constraints": {
+                "age": 1,
+                "bmi": 1,
+                "exercise_minutes_per_week": -1,
+                "annual_aqi": 1,
+            },
+        },
+    ]
+
+    result = run_benchmark(build_benchmark_spec(config))
+    metrics = json.loads(result.metrics_path.read_text(encoding="utf-8"))
+    hgb_rows = [row for row in metrics if row["model_id"] == "hgb_candidate"]
+
+    assert hgb_rows
+    assert {row["status"] for row in hgb_rows} == {"ok"}
+    assert all(row["model_kind"] == "hist_gradient_boosting" for row in hgb_rows)
+    assert all(row["test_average_precision"] is not None for row in hgb_rows)
+    assert all(row["calibration_method"] == "sigmoid" for row in hgb_rows)
+    assert all(row["class_imbalance_strategy"] == "class_weight_balanced" for row in hgb_rows)
+    assert all(row["monotonic_constraints"]["age"] == 1 for row in hgb_rows)
+
+    model_cards = json.loads(result.model_card_manifest_path.read_text(encoding="utf-8"))
+    heart_card = next(
+        card for card in model_cards["condition_cards"] if card["condition_id"] == "heart_disease"
+    )
+    assert heart_card["decision_tree_baseline_model_id"] == "tree_baseline"
+    assert "best_delta_vs_decision_tree_baseline" in heart_card
+    assert any(
+        candidate["model_id"] == "hgb_candidate"
+        and candidate["delta_vs_decision_tree_baseline"] is not None
+        for candidate in heart_card["benchmark_candidates"]
+    )
+
+
+def test_benchmark_skips_optional_xgboost_when_dependency_unavailable(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """XGBoost should be optional and emit a clear skipped benchmark row."""
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+    config = _benchmark_config(tmp_path, input_path)
+    models = cast(list[dict[str, object]], config["models"])
+    config["models"] = [
+        *models,
+        {
+            "model_id": "xgboost_candidate",
+            "kind": "xgboost",
+            "class_imbalance_strategy": "scale_pos_weight",
+            "params": {"n_estimators": 4, "max_depth": 2, "learning_rate": 0.1},
+            "monotonic_constraints": {"age": 1, "bmi": 1},
+        },
+    ]
+
+    def _raise_missing_xgboost() -> object:
+        raise modeling_module.OptionalModelDependencyError(
+            "XGBoost support requires the optional train dependency."
+        )
+
+    monkeypatch.setattr(modeling_module, "_import_xgboost_classifier", _raise_missing_xgboost)
+
+    result = run_benchmark(build_benchmark_spec(config))
+    metrics = json.loads(result.metrics_path.read_text(encoding="utf-8"))
+    xgb_rows = [row for row in metrics if row["model_id"] == "xgboost_candidate"]
+
+    assert xgb_rows
+    assert {row["status"] for row in xgb_rows} == {"skipped"}
+    assert all(row["test_average_precision"] is None for row in xgb_rows)
+    assert all("optional train dependency" in row["skip_reason"] for row in xgb_rows)
+    calibration = json.loads(result.calibration_path.read_text(encoding="utf-8"))
+    assert all(row["model_id"] != "xgboost_candidate" for row in calibration)
 
 
 def test_benchmark_ablation_uses_condition_specific_feature_exclusions(tmp_path: Path) -> None:
