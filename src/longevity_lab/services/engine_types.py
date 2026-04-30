@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from longevity_lab.api.schemas import FeatureProfile
+from longevity_lab.services.explanations import ExplanationRecord
+from longevity_lab.services.uncertainty import UncertaintySummary
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +19,8 @@ class ConditionScore:
     organ_id: str
     probability: float
     key_drivers: list[str]
+    explanations: list[ExplanationRecord] = field(default_factory=list)
+    uncertainty: UncertaintySummary | None = None
 
 
 class ScenarioEngine(Protocol):

@@ -6,6 +6,7 @@ loads trained per-condition pipelines and returns condition probabilities.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from longevity_lab.api.schemas import FeatureProfile
 from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
 from longevity_lab.domain.catalog import CONDITIONS
 from longevity_lab.services.engine_types import ConditionScore, ScenarioEngine
+from longevity_lab.services.explanations import build_explanation_records
+from longevity_lab.services.uncertainty import build_uncertainty_summary
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +29,7 @@ class LoadedConditionModel:
     condition_id: str
     pipeline: object
     explanation_pipeline: object | None = None
+    uncertainty_payload: dict[str, object] | None = None
 
 
 class ArtifactScenarioEngine(ScenarioEngine):
@@ -66,10 +70,16 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 condition_id=condition.condition_id,
             )
             meta = self._by_condition[condition.condition_id]
-            key_drivers = self._derive_key_drivers(
-                loaded_model=model,
+            explanations = build_explanation_records(
                 frame=frame,
-                explanation_method=condition.explanation_method,
+                method=condition.explanation_method,
+                explanation_artifact=model.explanation_pipeline,
+            )
+            key_drivers = [record.display_name for record in explanations]
+            uncertainty = build_uncertainty_summary(
+                probability=probability,
+                method=condition.uncertainty_method,
+                payload=model.uncertainty_payload,
             )
             results.append(
                 ConditionScore(
@@ -78,6 +88,8 @@ class ArtifactScenarioEngine(ScenarioEngine):
                     organ_id=meta.organ_id,
                     probability=probability,
                     key_drivers=key_drivers,
+                    explanations=explanations,
+                    uncertainty=uncertainty,
                 )
             )
         return results
@@ -136,75 +148,41 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 condition_id=condition.condition_id,
                 pipeline=joblib.load(pipeline_path),
                 explanation_pipeline=explanation_pipeline,
+                uncertainty_payload=ArtifactScenarioEngine._load_uncertainty_payload(
+                    bundle=bundle,
+                    condition_id=condition.condition_id,
+                    uncertainty_method=condition.uncertainty_method,
+                    uncertainty_path=condition.uncertainty_path,
+                ),
             )
         return models
 
     @staticmethod
-    def _derive_key_drivers(
+    def _load_uncertainty_payload(
         *,
-        loaded_model: LoadedConditionModel,
-        frame: pd.DataFrame,
-        explanation_method: str,
-    ) -> list[str]:
-        """Return model-derived key drivers when an explanation path is available."""
-        if explanation_method != "tree_path":
-            return []
-        pipeline = loaded_model.explanation_pipeline
-        if pipeline is None or not hasattr(pipeline, "named_steps"):
-            return []
-
-        named_steps = pipeline.named_steps  # type: ignore[attr-defined]
-        preprocess = named_steps.get("preprocess")
-        model = named_steps.get("model")
-        if preprocess is None or model is None:
-            return []
-        if (
-            not hasattr(model, "decision_path")
-            or not hasattr(model, "tree_")
-            or not hasattr(model, "apply")
-        ):
-            return []
-
-        transformed = preprocess.transform(frame)
-        if isinstance(transformed, pd.DataFrame):
-            feature_names = list(transformed.columns)
-            decision_input = transformed
-        else:
-            decision_input = np.asarray(transformed)
-            if hasattr(preprocess, "get_feature_names_out"):
-                feature_names = list(preprocess.get_feature_names_out())
-            elif hasattr(model, "feature_names_in_"):
-                feature_names = list(model.feature_names_in_)  # type: ignore[attr-defined]
-            else:
-                feature_names = [f"feature_{idx}" for idx in range(decision_input.shape[1])]
-
-        node_indicator = model.decision_path(decision_input)
-        leaf_id = int(model.apply(decision_input)[0])
-        node_indices = node_indicator.indices[node_indicator.indptr[0] : node_indicator.indptr[1]]
-        labels: list[str] = []
-        for node_id in node_indices:
-            if int(node_id) == leaf_id:
-                continue
-            feature_idx = int(model.tree_.feature[node_id])
-            if feature_idx < 0 or feature_idx >= len(feature_names):
-                continue
-            label = ArtifactScenarioEngine._feature_label(feature_names[feature_idx])
-            if label not in labels:
-                labels.append(label)
-        return labels[:3]
-
-    @staticmethod
-    def _feature_label(feature_name: str) -> str:
-        """Map a feature column to a UI-friendly label."""
-        labels = {
-            "age": "Age",
-            "bmi": "BMI",
-            "smoker": "Smoking",
-            "alcohol_servings_per_week": "Alcohol servings / week",
-            "exercise_minutes_per_week": "Exercise minutes / week",
-            "annual_aqi": "Annual AQI",
-        }
-        return labels.get(feature_name, feature_name.replace("_", " ").title())
+        bundle: ArtifactBundle,
+        condition_id: str,
+        uncertainty_method: str,
+        uncertainty_path: str | None,
+    ) -> dict[str, object] | None:
+        if uncertainty_path is None:
+            if uncertainty_method != "none":
+                raise ValueError(
+                    f"Condition {condition_id} declares uncertainty_method={uncertainty_method!r} "
+                    "but has no uncertainty_path."
+                )
+            return None
+        path = ArtifactScenarioEngine._safe_bundle_path(
+            bundle.path,
+            uncertainty_path,
+            label=f"uncertainty_path for {condition_id}",
+        )
+        if not path.exists():
+            raise FileNotFoundError(f"Missing uncertainty artifact for {condition_id}: {path}")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"Uncertainty artifact for {condition_id} must be a JSON object.")
+        return payload
 
     @staticmethod
     def _safe_bundle_path(bundle_dir: Path, relative_path: str, *, label: str) -> Path:

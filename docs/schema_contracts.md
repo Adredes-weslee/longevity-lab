@@ -68,6 +68,25 @@ original editable fields, including `annual_aqi`. Non-editable BRFSS v2 covariat
 in public scenario payloads; artifact inference fills them from persisted preprocessing defaults so
 direct clients cannot create scenario deltas by changing adjustment fields.
 
+## Scenario response explanations and uncertainty
+
+`POST /api/scenario/compare` condition responses include:
+
+- `key_drivers`: backwards-compatible display labels for the top explanation items.
+- `explanations`: typed records with `feature`, `display_name`, `direction`, `magnitude`,
+  `method`, and `caveat`.
+- `uncertainty`: `null` unless the artifact manifest declares `uncertainty_method`.
+
+Explanation methods must match the artifact:
+
+- `demo`: heuristic demo-mode contribution, not a trained-model explanation.
+- `tree_path`: decision-tree split path from the saved explanation artifact.
+- `shap`: TreeSHAP attribution from a tree-ensemble explanation artifact when the optional SHAP
+  runtime is installed.
+
+Uncertainty intervals are artifact-declared calibration summaries for communication, not clinical
+confidence intervals for an individual.
+
 ## DuckDB (optional convenience)
 
 DuckDB outputs are also gitignored. If used, the canonical DB file is:

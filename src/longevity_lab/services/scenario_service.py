@@ -2,18 +2,22 @@
 
 from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import asdict
 
 from longevity_lab.api.schemas import (
     ConditionScoreResponse,
+    ExplanationRecordResponse,
     FeatureProfile,
     OrganDeltaResponse,
     OrganSummaryResponse,
     RiskBand,
     ScenarioCompareResponse,
     ScenarioEvaluationResponse,
+    UncertaintySummaryResponse,
 )
 from longevity_lab.domain.catalog import CONDITIONS, ORGANS
 from longevity_lab.services.engine_types import ConditionScore, ScenarioEngine
+from longevity_lab.services.explanations import demo_explanation_records
 
 
 class DemoScenarioEngine:
@@ -86,10 +90,8 @@ class DemoScenarioEngine:
                 if name in factors
             }
             probability = min(max(factors["base"] + sum(contributions.values()), 0.01), 0.95)
-            sorted_drivers = sorted(contributions.items(), key=lambda item: item[1], reverse=True)
-            key_drivers = [self._driver_label(name) for name, value in sorted_drivers if value > 0][
-                :3
-            ]
+            explanations = demo_explanation_records(contributions)
+            key_drivers = [record.display_name for record in explanations]
             results.append(
                 ConditionScore(
                     condition_id=condition_id,
@@ -97,22 +99,10 @@ class DemoScenarioEngine:
                     organ_id=condition.organ_id,
                     probability=probability,
                     key_drivers=key_drivers,
+                    explanations=explanations,
                 )
             )
         return results
-
-    @staticmethod
-    def _driver_label(raw_name: str) -> str:
-        """Map an internal factor key to a readable label."""
-        labels = {
-            "age": "Age profile",
-            "bmi": "BMI",
-            "smoker": "Smoking",
-            "alcohol": "Alcohol use",
-            "exercise": "Low exercise",
-            "aqi": "Air quality",
-        }
-        return labels[raw_name]
 
 
 class ScenarioService:
@@ -170,6 +160,14 @@ class ScenarioService:
                     probability=probability,
                     band=self._band(probability),
                     key_drivers=item.key_drivers,
+                    explanations=[
+                        ExplanationRecordResponse(**asdict(record)) for record in item.explanations
+                    ],
+                    uncertainty=(
+                        UncertaintySummaryResponse(**asdict(item.uncertainty))
+                        if item.uncertainty
+                        else None
+                    ),
                 )
             )
 
