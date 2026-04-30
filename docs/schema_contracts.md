@@ -68,6 +68,26 @@ original editable fields, including `annual_aqi`. Non-editable BRFSS v2 covariat
 in public scenario payloads; artifact inference fills them from persisted preprocessing defaults so
 direct clients cannot create scenario deltas by changing adjustment fields.
 
+## API contract v2
+
+`GET /api/metadata/bootstrap` and `POST /api/scenario/compare` include
+`contract_version: "v2"` and a shared `model_metadata` object. These fields are additive so v1-style
+clients that read the original organs, conditions, runtime, and scenario scores can continue to work.
+
+`model_metadata` exposes:
+
+- `model_mode`: `demo` or `artifact`, matching the active scorer.
+- `artifact_id`: the selected local bundle id when artifact-backed scoring is active.
+- `data_vintage`, `dataset_name`, `dataset_version`, and `dataset_retrieved_at`: provenance copied
+  from the active artifact manifest, or explicit demo values when no artifact is active.
+- `explanation_methods`: explanation methods whose artifact paths are present in the active bundle.
+  A condition can still return an empty `explanations` list when no qualifying rule-path split or
+  attribution is available for the current row.
+- `uncertainty_available` and `uncertainty_methods`: whether calibrated uncertainty summaries are
+  available from the active artifact bundle.
+- `contextual_geography`: the geographic context levels inferred from artifact features, such as
+  state-level AQI or county-level ACS/SVI/PLACES context.
+
 ## Scenario response explanations and uncertainty
 
 `POST /api/scenario/compare` condition responses include:

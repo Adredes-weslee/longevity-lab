@@ -1,8 +1,10 @@
 export type RiskBand = 'green' | 'amber' | 'red'
+export type ApiContractVersion = 'v2'
 export type HeatmapMode = 'delta' | 'baseline' | 'scenario'
 export type ExplanationDirection = 'increases' | 'decreases' | 'neutral'
 export type ExplanationMethod = 'demo' | 'tree_path' | 'shap'
 export type UncertaintyMethod = 'calibration_interval'
+export type GeographyLevel = 'state' | 'county' | 'tract' | 'zcta'
 
 export interface FeatureProfile {
   age: number
@@ -38,10 +40,12 @@ export interface ConditionDefinition {
 }
 
 export interface MetadataBootstrapResponse {
+  contract_version: ApiContractVersion
   features: FeatureDefinition[]
   organs: OrganDefinition[]
   conditions: ConditionDefinition[]
   runtime: RuntimeMetadataResponse
+  model_metadata: ModelMetadataResponse
 }
 
 export interface RuntimeMetadataResponse {
@@ -49,6 +53,25 @@ export interface RuntimeMetadataResponse {
   engine_source: 'explicit' | 'auto' | 'fallback'
   artifact_bundle_id: string | null
   message: string
+}
+
+export interface ContextualGeographyMetadataResponse {
+  available: boolean
+  levels: GeographyLevel[]
+  source: string | null
+}
+
+export interface ModelMetadataResponse {
+  model_mode: 'demo' | 'artifact'
+  artifact_id: string | null
+  data_vintage: string | null
+  dataset_name: string | null
+  dataset_version: string | null
+  dataset_retrieved_at: string | null
+  explanation_methods: ExplanationMethod[]
+  uncertainty_available: boolean
+  uncertainty_methods: UncertaintyMethod[]
+  contextual_geography: ContextualGeographyMetadataResponse
 }
 
 export interface ConditionScoreResponse {
@@ -109,9 +132,11 @@ export interface ScenarioCompareRequest {
 }
 
 export interface ScenarioCompareResponse {
+  contract_version: ApiContractVersion
   baseline: ScenarioEvaluationResponse
   candidate: ScenarioEvaluationResponse
   organ_deltas: OrganDeltaResponse[]
+  model_metadata: ModelMetadataResponse
 }
 
 export interface PipelineArtifactStatus {

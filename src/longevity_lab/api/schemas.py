@@ -4,10 +4,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+ApiContractVersion = Literal["v2"]
 RiskBand = Literal["green", "amber", "red"]
 ExplanationDirection = Literal["increases", "decreases", "neutral"]
 ExplanationMethod = Literal["demo", "tree_path", "shap"]
 UncertaintyMethod = Literal["calibration_interval"]
+GeographyLevel = Literal["state", "county", "tract", "zcta"]
+
+API_CONTRACT_VERSION: ApiContractVersion = "v2"
 
 
 class HealthResponse(BaseModel):
@@ -80,15 +84,44 @@ class RuntimeMetadataResponse(BaseModel):
     message: str
 
 
+class ContextualGeographyMetadataResponse(BaseModel):
+    """Contextual geography availability in the active scoring contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    available: bool
+    levels: list[GeographyLevel] = Field(default_factory=list)
+    source: str | None = None
+
+
+class ModelMetadataResponse(BaseModel):
+    """Versioned model/provenance metadata shared by bootstrap and scoring responses."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    model_mode: Literal["demo", "artifact"]
+    artifact_id: str | None = None
+    data_vintage: str | None = None
+    dataset_name: str | None = None
+    dataset_version: str | None = None
+    dataset_retrieved_at: str | None = None
+    explanation_methods: list[ExplanationMethod]
+    uncertainty_available: bool
+    uncertainty_methods: list[UncertaintyMethod] = Field(default_factory=list)
+    contextual_geography: ContextualGeographyMetadataResponse
+
+
 class MetadataBootstrapResponse(BaseModel):
     """Bootstrap metadata for the frontend."""
 
     model_config = ConfigDict(extra="forbid")
 
+    contract_version: ApiContractVersion = API_CONTRACT_VERSION
     features: list[FeatureDefinition]
     organs: list[OrganDefinitionResponse]
     conditions: list[ConditionDefinitionResponse]
     runtime: RuntimeMetadataResponse
+    model_metadata: ModelMetadataResponse
 
 
 class ExplanationRecordResponse(BaseModel):
@@ -181,9 +214,11 @@ class ScenarioCompareResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    contract_version: ApiContractVersion = API_CONTRACT_VERSION
     baseline: ScenarioEvaluationResponse
     candidate: ScenarioEvaluationResponse
     organ_deltas: list[OrganDeltaResponse]
+    model_metadata: ModelMetadataResponse
 
 
 class PipelineArtifactStatus(BaseModel):

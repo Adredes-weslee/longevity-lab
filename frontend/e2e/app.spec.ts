@@ -11,6 +11,8 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await expect(page.getByTestId('explorer-disclaimer')).toContainText(
     'Educational use only',
   )
+  await expect(page.getByTestId('contract-metadata')).toContainText('API v2')
+  await expect(page.getByTestId('contract-metadata')).toContainText('explanations:')
   await expect(page.getByTestId('pipeline-status')).toHaveCount(0)
 
   await expect(page.getByTestId('overview-whatif')).toBeVisible()

@@ -33,6 +33,22 @@ function changedFeatureCount(
   return count
 }
 
+function formatContractMetadata(metadata: MetadataBootstrapResponse): string {
+  const model = metadata.model_metadata
+  const dataVintage = model.data_vintage ?? 'not declared'
+  const explanationMethods = model.explanation_methods.length
+    ? model.explanation_methods.join(', ')
+    : 'none declared'
+  const uncertainty = model.uncertainty_available
+    ? `uncertainty: ${model.uncertainty_methods.join(', ')}`
+    : 'uncertainty: unavailable'
+  const geography = model.contextual_geography.available
+    ? `geography: ${model.contextual_geography.levels.join(', ')}`
+    : 'geography: none'
+
+  return `API ${metadata.contract_version}; data vintage ${dataVintage}; explanations: ${explanationMethods}; ${uncertainty}; ${geography}.`
+}
+
 function App(): JSX.Element {
   const { state, dispatch } = useScenario()
   const [bootstrap, setBootstrap] = useState<MetadataBootstrapResponse | null>(null)
@@ -209,6 +225,9 @@ function App(): JSX.Element {
                 {bootstrap.runtime.artifact_bundle_id
                   ? ` Bundle: ${bootstrap.runtime.artifact_bundle_id}.`
                   : ''}
+              </p>
+              <p className="runtime-contract" data-testid="contract-metadata">
+                {formatContractMetadata(bootstrap)}
               </p>
             </section>
 

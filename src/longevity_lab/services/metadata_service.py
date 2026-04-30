@@ -4,16 +4,22 @@ from longevity_lab.api.schemas import (
     ConditionDefinitionResponse,
     FeatureDefinition,
     MetadataBootstrapResponse,
+    ModelMetadataResponse,
     OrganDefinitionResponse,
     RuntimeMetadataResponse,
 )
 from longevity_lab.domain.catalog import CONDITIONS, ORGANS
+from longevity_lab.services.contract_metadata import build_demo_model_metadata
 
 
 class MetadataService:
     """Provide static metadata to the UI and pipeline."""
 
-    def __init__(self, runtime: RuntimeMetadataResponse | None = None) -> None:
+    def __init__(
+        self,
+        runtime: RuntimeMetadataResponse | None = None,
+        model_metadata: ModelMetadataResponse | None = None,
+    ) -> None:
         """Store runtime metadata that should be visible to the UI."""
         self._runtime = runtime or RuntimeMetadataResponse(
             engine_mode="demo",
@@ -21,6 +27,7 @@ class MetadataService:
             artifact_bundle_id=None,
             message="Demo scoring mode is active.",
         )
+        self._model_metadata = model_metadata or build_demo_model_metadata()
 
     def get_bootstrap(self) -> MetadataBootstrapResponse:
         """Return the bootstrap payload for the frontend."""
@@ -91,4 +98,5 @@ class MetadataService:
             organs=organs,
             conditions=conditions,
             runtime=self._runtime,
+            model_metadata=self._model_metadata,
         )

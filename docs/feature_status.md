@@ -21,6 +21,7 @@ Legend:
 - [DONE] Modeling benchmark harness for logistic/tree baselines and feature ablations.
 - [DONE] Calibrated gradient-boosted model family in the benchmark grid.
 - [DONE] Typed explanation and manifest-declared uncertainty surfaces.
+- [DONE] API contract v2 metadata for model provenance, explanation methods, uncertainty availability, and contextual geography.
 - [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
 - [DONE] Causal workbench prototype for sensitivity-tested, non-serving smoking-to-lung-disease estimates.
 - [TODO] UI information architecture, Explorer upgrade, and deployment packaging.
@@ -87,6 +88,7 @@ Legend:
 - [DONE] Pipeline status endpoint (`GET /api/pipeline/status`) (`src/longevity_lab/api/routes/pipeline.py`).
 - [DONE] Service layer and engine abstraction (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Artifact-backed engine path (`src/longevity_lab/services/artifact_engine.py`).
+- [DONE] Versioned v2 response metadata shares active model mode, artifact id, data vintage, explanation methods, uncertainty availability, and inferred contextual geography across bootstrap and scenario compare responses (`src/longevity_lab/services/contract_metadata.py`).
 - [DONE] Input validation and safe defaults for missing features.
 - [DONE] Structured logging and request IDs.
 
