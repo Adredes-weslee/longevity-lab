@@ -24,11 +24,14 @@ provenance JSON under `source_registry`.
 - Codebook: `data/external/brfss/2023/codebook/USCODE23_LLCP_*.HTML` (filename varies by CDC release)
 - Registry source IDs: `cdc_brfss_llcp_xpt`, `cdc_brfss_llcp_codebook`
 
-### EPA AirData 2023 Annual AQI by county
+### EPA AirData 2023 Annual AQI by county and annual concentration by monitor
 
 - File: `data/external/epa_airdata/annual_aqi_by_county_2023/annual_aqi_by_county_2023.csv`
+- File: `data/external/epa_airdata/annual_conc_by_monitor_2023/annual_conc_by_monitor_2023.csv`
 - Note: this file provides `State` + `County` names but **no FIPS codes**.
-- Registry source ID: `epa_airdata_annual_aqi_by_county`
+- Note: the annual concentration file provides state/county FIPS plus monitor-level records; local processing filters
+  PM2.5 (`Parameter Code == 88101`) and ozone (`Parameter Code == 44201`).
+- Registry source IDs: `epa_airdata_annual_aqi_by_county`, `epa_airdata_annual_conc_by_monitor`
 
 ## Feature contract (API + training roles)
 
@@ -44,6 +47,8 @@ required from the frontend.
 | `alcohol_servings_per_week` | scenario-editable | int | drinks/week (rounded) | `_DRNKWK2` has 2 implied decimals (e.g., 1400=14.00); use `round(_DRNKWK2 / 100)`, clamp 0-70 |
 | `exercise_minutes_per_week` | scenario-editable | int | minutes/week | from `PA3MIN_`, clamp 0-2000; round before Int64 cast |
 | `annual_aqi` | scenario-editable | int | AQI 0-500 | derived from EPA `Median AQI`, aggregated to state-year |
+| `pm25_mean` | context | float | micrograms/cubic meter | PM2.5 annual mean from complete EPA annual concentration monitor rows; nullable |
+| `ozone_mean` | context | float | parts per million | Ozone annual mean from complete EPA annual concentration monitor rows; nullable |
 | `sex` | adjustment | string | male/female | `SEXVAR`; nullable for unsupported/missing values |
 | `race_ethnicity` | adjustment | string | imputed race/ethnicity category | `_IMPRACE`; nullable for unsupported/missing values |
 | `has_healthcare_coverage` | adjustment | bool | any current coverage | from `PRIMINS1` |
@@ -150,24 +155,66 @@ Leakage exclusions:
 - `survey_weight` is used only as a sample weight in training/evaluation and is not included in the
   model feature matrix.
 
+### `epa_county_year` (one row per county-year where EPA AQI or pollutant data exist)
+
+Path (gitignored):
+
+- `data/processed/epa_airdata/epa_county_year.parquet`
+
+Required columns (EPA pollutant expansion):
+
+| Column | Type | Nullable | Source | Transform | Notes |
+|---|---|---:|---|---|---|
+| `year` | int | no | EPA | parse | |
+| `state_fips` | string | no | EPA | map `State` name or use `State Code` | |
+| `county_fips` | string | yes | EPA annual concentration | `State Code` + `County Code` | AQI-only counties can be null because annual AQI lacks FIPS |
+| `county_name` | string | yes | EPA | passthrough | used to align AQI rows to monitor rows when FIPS is unavailable |
+| `annual_aqi` | int | yes | EPA annual AQI | county `Median AQI`, clamped 0-500 | |
+| `aqi_days_with_aqi` | int | yes | EPA annual AQI | `Days with AQI` | |
+| `aqi_observation_complete` | bool | no | EPA annual AQI | true when `Days with AQI >= 274` | 75% of a non-leap year |
+| `pm25_mean` | float | yes | EPA annual concentration | observation-count-weighted `Arithmetic Mean` | only from quality-passing PM2.5 monitors |
+| `pm25_monitor_count` | int | no | EPA annual concentration | unique complete PM2.5 monitors | 0 when no quality-passing monitors |
+| `pm25_observation_percent` | float | yes | EPA annual concentration | observation-count-weighted percent | null when incomplete |
+| `pm25_observation_complete` | bool | no | EPA annual concentration | true when at least one PM2.5 monitor passes quality checks | |
+| `ozone_mean` | float | yes | EPA annual concentration | observation-count-weighted `Arithmetic Mean` | only from quality-passing ozone monitors |
+| `ozone_monitor_count` | int | no | EPA annual concentration | unique complete ozone monitors | 0 when no quality-passing monitors |
+| `ozone_observation_percent` | float | yes | EPA annual concentration | observation-count-weighted percent | null when incomplete |
+| `ozone_observation_complete` | bool | no | EPA annual concentration | true when at least one ozone monitor passes quality checks | |
+
+Pollutant monitor quality checks:
+
+- `Completeness Indicator == "Y"`
+- `Observation Percent >= 75`
+- `Observation Count > 0`
+- `Arithmetic Mean` is non-null
+
 ### `epa_aqi_state_year` (one row per state-year)
 
 Path (gitignored):
 
 - `data/processed/epa_airdata/annual_aqi_state_year.parquet`
 
-Required columns (v2-compatible EPA context):
+Required columns (EPA pollutant expansion):
 
 | Column | Type | Nullable | Source | Transform | Notes |
 |---|---|---:|---|---|---|
 | `year` | int | no | EPA | parse | |
 | `state_fips` | string | no | EPA | map `State` name -> FIPS | static mapping table (50 states + DC + territories as needed) |
-| `annual_aqi` | int | no | EPA | aggregate + clamp | `round(weighted_mean(county['Median AQI'], weights='Days with AQI'))`, clamp 0-500 |
+| `annual_aqi` | int | no | EPA | aggregate + clamp | v1 = `round(weighted_mean(county['Median AQI'], weights='Days with AQI'))`, clamp 0-500 |
+| `pm25_mean` | float | yes | `epa_county_year` | monitor-count-weighted state mean | null when no complete PM2.5 counties |
+| `pm25_monitor_count` | int | no | `epa_county_year` | sum of complete PM2.5 monitors | |
+| `pm25_observation_percent` | float | yes | `epa_county_year` | monitor-count-weighted state percent | |
+| `pm25_observation_complete` | bool | no | `epa_county_year` | true when monitor count > 0 | |
+| `ozone_mean` | float | yes | `epa_county_year` | monitor-count-weighted state mean | null when no complete ozone counties |
+| `ozone_monitor_count` | int | no | `epa_county_year` | sum of complete ozone monitors | |
+| `ozone_observation_percent` | float | yes | `epa_county_year` | monitor-count-weighted state percent | |
+| `ozone_observation_complete` | bool | no | `epa_county_year` | true when monitor count > 0 | |
 
 Notes:
 
 - EPA raw file has no FIPS. We compute `state_fips` by mapping `State` name to its FIPS code.
 - We aggregate from county rows to state-year because BRFSS 2023 does not expose county identifiers.
+- `annual_aqi` is retained with the same name and state-year semantics for backwards compatibility.
 - EPA 2023 does not include a Guam state row. The integrated table therefore keeps BRFSS Guam rows
   with `annual_aqi = null` by default while still failing on unexpected missing joins.
 
@@ -181,6 +228,9 @@ This is the modeling table. It must include:
 
 - `brfss_person` required columns
 - plus the integrated `annual_aqi`
+- plus quality-gated pollutant columns when present in the EPA state-year table:
+  `pm25_mean`, `pm25_monitor_count`, `pm25_observation_percent`, `pm25_observation_complete`,
+  `ozone_mean`, `ozone_monitor_count`, `ozone_observation_percent`, `ozone_observation_complete`
 - plus stable join keys used
 
 Join caveat:

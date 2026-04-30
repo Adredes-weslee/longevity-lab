@@ -46,6 +46,17 @@ BRFSS_V2_REQUIRED_COLUMNS: list[str] = [
 ]
 
 EPA_REQUIRED_COLUMNS: list[str] = ["year", "state_fips", "annual_aqi"]
+EPA_OPTIONAL_COLUMNS: list[str] = [
+    "pm25_mean",
+    "pm25_monitor_count",
+    "pm25_observation_percent",
+    "pm25_observation_complete",
+    "ozone_mean",
+    "ozone_monitor_count",
+    "ozone_observation_percent",
+    "ozone_observation_complete",
+]
+POLLUTANT_PREFIXES: tuple[str, ...] = ("pm25", "ozone")
 
 INTEGRATED_COLUMNS: list[str] = [
     "year",
@@ -58,6 +69,7 @@ INTEGRATED_COLUMNS: list[str] = [
     "alcohol_servings_per_week",
     "exercise_minutes_per_week",
     "annual_aqi",
+    *EPA_OPTIONAL_COLUMNS,
     "has_healthcare_coverage",
     "has_personal_doctor",
     "cost_barrier_to_care",
@@ -81,6 +93,31 @@ EXPECTED_MISSING_EPA_STATE_LABELS: dict[str, str] = {
 }
 
 
+def _available_epa_columns(epa_state_year: pd.DataFrame) -> list[str]:
+    """Return required and optional EPA columns that exist in this processed table."""
+    return [*EPA_REQUIRED_COLUMNS, *[col for col in EPA_OPTIONAL_COLUMNS if col in epa_state_year]]
+
+
+def _quality_gate_pollutant_features(joined: pd.DataFrame) -> pd.DataFrame:
+    """Mask pollutant values unless their EPA observation-completeness flag is true."""
+    out = joined.copy()
+    for prefix in POLLUTANT_PREFIXES:
+        mean_col = f"{prefix}_mean"
+        count_col = f"{prefix}_monitor_count"
+        percent_col = f"{prefix}_observation_percent"
+        complete_col = f"{prefix}_observation_complete"
+        pollutant_cols = [mean_col, count_col, percent_col, complete_col]
+        if not all(col in out.columns for col in pollutant_cols):
+            continue
+
+        complete = out[complete_col].fillna(False).astype(bool)
+        out[complete_col] = complete
+        out[count_col] = pd.to_numeric(out[count_col], errors="coerce").fillna(0).astype("Int64")
+        out[mean_col] = pd.to_numeric(out[mean_col], errors="coerce").where(complete)
+        out[percent_col] = pd.to_numeric(out[percent_col], errors="coerce").where(complete)
+    return out
+
+
 def integrate_brfss_epa(
     brfss_person: pd.DataFrame,
     epa_state_year: pd.DataFrame,
@@ -94,9 +131,10 @@ def integrate_brfss_epa(
         context="BRFSS",
     )
     require_columns(actual=epa_state_year.columns, required=EPA_REQUIRED_COLUMNS, context="EPA")
+    epa_columns = _available_epa_columns(epa_state_year)
 
     joined = brfss_person.merge(
-        epa_state_year.loc[:, EPA_REQUIRED_COLUMNS],
+        epa_state_year.loc[:, epa_columns],
         on=["year", "state_fips"],
         how="left",
         validate="many_to_one",
@@ -105,6 +143,7 @@ def integrate_brfss_epa(
     joined["annual_aqi"] = joined["annual_aqi"].where(
         (joined["annual_aqi"] >= 0) & (joined["annual_aqi"] <= 500)
     )
+    joined = _quality_gate_pollutant_features(joined)
 
     missing = int(joined["annual_aqi"].isna().sum())
     if missing and not allow_missing_aqi:
@@ -124,7 +163,8 @@ def integrate_brfss_epa(
                 "If this is expected (e.g., territories), re-run with --allow-missing-aqi."
             )
 
-    return joined.loc[:, INTEGRATED_COLUMNS]
+    integrated_columns = [col for col in INTEGRATED_COLUMNS if col in joined.columns]
+    return joined.loc[:, integrated_columns]
 
 
 def expected_missing_state_labels(frame: pd.DataFrame) -> list[str]:
