@@ -1,0 +1,41 @@
+temp/
+.codex/
+AGENTS.md
+.worktrees/
+legacy_artifacts/
+.pdm-python
+notes/
+.tmp_clone*/
+.precommit_tmp*/
+
+# Python
+.venv/
+__pypackages__/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+*.pyo
+.env
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/playwright-report/
+frontend/test-results/
+frontend/data/
+dist/
+
+# Local data and model artifacts
+data/external/
+data/processed/
+artifacts/models/
+*.duckdb
+*.parquet
+
+# Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

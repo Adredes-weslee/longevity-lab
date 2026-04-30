@@ -1,0 +1,25 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+        # Workaround for environments that block running unsigned *.exe entrypoints on Windows.
+        entry: python -m pre_commit_hooks.check_merge_conflict
+      - id: end-of-file-fixer
+        entry: python -m pre_commit_hooks.end_of_file_fixer
+      - id: trailing-whitespace
+        entry: python -m pre_commit_hooks.trailing_whitespace_fixer
+      - id: check-yaml
+        entry: python -m pre_commit_hooks.check_yaml
+      - id: check-toml
+        entry: python -m pre_commit_hooks.check_toml
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+        entry: python -m pre_commit_hooks.check_added_large_files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.6
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format

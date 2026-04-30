@@ -1,0 +1,22 @@
+defaults:
+  - _self_
+
+name: decision_tree
+criterion: gini
+class_weight: balanced
+search_space:
+  max_depth:
+    low: 2
+    high: 8
+  min_samples_split:
+    low: 10
+    high: 300
+  min_samples_leaf:
+    low: 5
+    high: 120
+  max_leaf_nodes:
+    low: 4
+    high: 80
+  ccp_alpha:
+    low: 0.00001
+    high: 0.01

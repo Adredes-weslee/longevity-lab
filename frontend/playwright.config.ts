@@ -1,0 +1,30 @@
+import { defineConfig } from '@playwright/test'
+
+const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5173'
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  retries: process.env.CI ? 1 : 0,
+  use: {
+    baseURL,
+    headless: true,
+    trace: 'on-first-retry',
+  },
+  webServer: [
+    {
+      command:
+        'pdm run python -m uvicorn longevity_lab.api.main:app --host 127.0.0.1 --port 8000',
+      url: 'http://127.0.0.1:8000/api/health',
+      cwd: '..',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: 'npm run dev -- --host 127.0.0.1 --port 5173',
+      url: baseURL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+  ],
+})

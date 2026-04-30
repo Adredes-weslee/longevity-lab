@@ -1,0 +1,15 @@
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false
+
+artifacts:
+  base_dir: artifacts/models
+  bundle_id: null
+  output_path: null
+  slice_output_path: null
+
+evaluation:
+  min_slice_rows: 200

@@ -1,0 +1,54 @@
+defaults:
+  - model: decision_tree
+  - _self_
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false
+
+bundle_id: null
+
+data:
+  year: 2023
+  base_dir: data
+  input_path: null
+  sample_path: data/sample/integrated_person_year_sample.csv
+  use_sample_if_missing: true
+
+artifacts:
+  base_dir: artifacts/models
+  force_overwrite: false
+  notes: "Tree baseline bundle with calibrated probability outputs."
+
+features:
+  - age
+  - bmi
+  - smoker
+  - alcohol_servings_per_week
+  - exercise_minutes_per_week
+  - annual_aqi
+
+conditions:
+  heart_disease: label_heart_disease
+  chronic_lung_disease: label_chronic_lung_disease
+  stroke: label_stroke
+  depression: label_depression
+  diabetes: label_diabetes
+
+training:
+  random_state: 42
+  test_size: 0.2
+  calibration_method: sigmoid
+  calibration_cv: 3
+  prediction_sample_rows: 5000
+
+tuning:
+  enabled: true
+  metric: average_precision
+  n_trials: 12
+  timeout_seconds: 600
+  cv_folds: 3
+  sample_size: 50000
