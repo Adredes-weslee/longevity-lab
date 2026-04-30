@@ -7,15 +7,17 @@ import json
 import re
 import shutil
 import subprocess
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import joblib  # type: ignore[import-untyped]
 import numpy as np  # type: ignore[import-untyped]
 import pandas as pd  # type: ignore[import-untyped]
 from sklearn.base import BaseEstimator, TransformerMixin  # type: ignore[import-untyped]
 from sklearn.calibration import CalibratedClassifierCV  # type: ignore[import-untyped]
+from sklearn.ensemble import HistGradientBoostingClassifier  # type: ignore[import-untyped]
 from sklearn.metrics import (  # type: ignore[import-untyped]
     average_precision_score,
     brier_score_loss,
@@ -39,6 +41,20 @@ from longevity_lab.pipeline.ingest import build_ingest_paths
 
 if TYPE_CHECKING:
     from optuna.trial import Trial  # type: ignore[import-untyped]
+
+
+class SupportsMonotonicEstimator(Protocol):
+    """Estimator methods needed for late-bound monotonic constraints."""
+
+    def get_params(self, deep: bool = True) -> dict[str, object]:
+        """Return estimator parameters."""
+
+    def set_params(self, **params: object) -> SupportsMonotonicEstimator:
+        """Set estimator parameters."""
+
+    def fit(self, x: pd.DataFrame, y: object = None, **params: object) -> object:
+        """Fit the estimator."""
+
 
 FEATURE_LABELS: dict[str, str] = {
     "age": "Age",
@@ -189,6 +205,59 @@ class SampleWeightPipeline(Pipeline):
         return cast(SampleWeightPipeline, super().fit(x, y, **params))
 
 
+class OptionalModelDependencyError(RuntimeError):
+    """Raised when an optional model family dependency is not installed."""
+
+
+class MonotonicConstraintPipeline(SampleWeightPipeline):
+    """Two-step pipeline that derives estimator monotonic constraints after preprocessing."""
+
+    def __init__(
+        self,
+        steps: list[tuple[str, object]],
+        *,
+        monotonic_constraints: Mapping[str, int] | None = None,
+        memory: object | None = None,
+        verbose: bool = False,
+    ) -> None:
+        """Store raw-feature constraints for cloneable sklearn calibration wrappers."""
+        self.monotonic_constraints = monotonic_constraints
+        super().__init__(steps=steps, memory=memory, verbose=verbose)
+
+    def fit(
+        self,
+        x: pd.DataFrame,
+        y: pd.Series | None = None,
+        sample_weight: pd.Series | np.ndarray | None = None,
+        **params: object,
+    ) -> MonotonicConstraintPipeline:
+        """Fit preprocessing first so raw constraints can map to transformed columns."""
+        if not self.monotonic_constraints:
+            return cast(
+                MonotonicConstraintPipeline,
+                super().fit(x, y, sample_weight=sample_weight, **params),
+            )
+        if len(self.steps) != 2 or self.steps[0][0] != "preprocess" or self.steps[1][0] != "model":
+            raise ValueError("MonotonicConstraintPipeline expects preprocess and model steps.")
+
+        preprocess_params, model_params = _split_pipeline_fit_params(params)
+        preprocessor = cast(FeaturePreprocessor, self.named_steps["preprocess"])
+        if preprocess_params:
+            preprocessor.set_params(**preprocess_params)
+        transformed = preprocessor.fit_transform(x, y)
+
+        model = cast(SupportsMonotonicEstimator, self.named_steps["model"])
+        constraints = monotonic_constraint_vector(
+            tuple(str(name) for name in preprocessor.get_feature_names_out()),
+            self.monotonic_constraints,
+        )
+        _set_estimator_monotonic_constraints(model, constraints)
+        if sample_weight is not None and "sample_weight" not in model_params:
+            model_params["sample_weight"] = sample_weight
+        model.fit(transformed, y, **model_params)
+        return self
+
+
 class FeaturePreprocessor(BaseEstimator, TransformerMixin):
     """Select, impute, and encode the stable training feature contract."""
 
@@ -301,6 +370,135 @@ class FeaturePreprocessor(BaseEstimator, TransformerMixin):
             else:
                 names.append(feature_name)
         return tuple(names)
+
+
+def make_hist_gradient_boosting_pipeline(
+    *,
+    feature_names: tuple[str, ...],
+    params: Mapping[str, Any],
+    monotonic_constraints: Mapping[str, int] | None,
+    random_state: int,
+) -> SampleWeightPipeline:
+    """Build a calibrated-benchmark-ready histogram GBDT pipeline."""
+    model_params = dict(params)
+    model_params.setdefault("random_state", random_state)
+    model_params.setdefault("class_weight", "balanced")
+    model = HistGradientBoostingClassifier(**model_params)
+    return _make_tabular_model_pipeline(
+        feature_names=feature_names,
+        model=model,
+        monotonic_constraints=monotonic_constraints,
+    )
+
+
+def make_xgboost_pipeline(
+    *,
+    feature_names: tuple[str, ...],
+    params: Mapping[str, Any],
+    monotonic_constraints: Mapping[str, int] | None,
+    random_state: int,
+    class_balance_scale: float | None,
+) -> SampleWeightPipeline:
+    """Build an optional XGBoost pipeline without importing xgboost at module import time."""
+    xgb_classifier = _import_xgboost_classifier()
+    model_params = dict(params)
+    model_params.setdefault("objective", "binary:logistic")
+    model_params.setdefault("eval_metric", "logloss")
+    model_params.setdefault("tree_method", "hist")
+    model_params.setdefault("random_state", random_state)
+    model_params.setdefault("n_jobs", 1)
+    if class_balance_scale is not None:
+        model_params.setdefault("scale_pos_weight", class_balance_scale)
+    model = xgb_classifier(**model_params)
+    return _make_tabular_model_pipeline(
+        feature_names=feature_names,
+        model=model,
+        monotonic_constraints=monotonic_constraints,
+    )
+
+
+def monotonic_constraint_vector(
+    transformed_feature_names: Sequence[str],
+    monotonic_constraints: Mapping[str, int] | None,
+) -> tuple[int, ...]:
+    """Map raw-feature monotonic constraints to transformed estimator columns."""
+    if not monotonic_constraints:
+        return tuple(0 for _ in transformed_feature_names)
+    validated = _validate_monotonic_constraints(monotonic_constraints)
+    return tuple(validated.get(feature_name, 0) for feature_name in transformed_feature_names)
+
+
+def _make_tabular_model_pipeline(
+    *,
+    feature_names: tuple[str, ...],
+    model: object,
+    monotonic_constraints: Mapping[str, int] | None,
+) -> SampleWeightPipeline:
+    steps: list[tuple[str, object]] = [
+        ("preprocess", FeaturePreprocessor(feature_names=feature_names)),
+        ("model", model),
+    ]
+    if monotonic_constraints:
+        return MonotonicConstraintPipeline(
+            steps=steps,
+            monotonic_constraints=_validate_monotonic_constraints(monotonic_constraints),
+        )
+    return SampleWeightPipeline(steps=steps)
+
+
+def _validate_monotonic_constraints(
+    monotonic_constraints: Mapping[str, int],
+) -> dict[str, int]:
+    validated: dict[str, int] = {}
+    for feature_name, direction in monotonic_constraints.items():
+        normalized = int(direction)
+        if normalized not in {-1, 0, 1}:
+            raise ValueError(
+                f"Monotonic constraint for {feature_name!r} must be -1, 0, or 1 "
+                f"(got {direction!r})."
+            )
+        validated[str(feature_name)] = normalized
+    return validated
+
+
+def _split_pipeline_fit_params(
+    params: Mapping[str, object],
+) -> tuple[dict[str, object], dict[str, object]]:
+    preprocess_params: dict[str, object] = {}
+    model_params: dict[str, object] = {}
+    for name, value in params.items():
+        if name.startswith("preprocess__"):
+            preprocess_params[name.removeprefix("preprocess__")] = value
+        elif name.startswith("model__"):
+            model_params[name.removeprefix("model__")] = value
+        else:
+            model_params[name] = value
+    return preprocess_params, model_params
+
+
+def _set_estimator_monotonic_constraints(
+    model: SupportsMonotonicEstimator,
+    constraints: tuple[int, ...],
+) -> None:
+    params = model.get_params(deep=False)
+    if "monotonic_cst" in params:
+        model.set_params(monotonic_cst=list(constraints))
+        return
+    if "monotone_constraints" in params:
+        model.set_params(monotone_constraints=constraints)
+        return
+    raise ValueError(f"Estimator {type(model).__name__} does not support monotonic constraints.")
+
+
+def _import_xgboost_classifier() -> type[BaseEstimator]:
+    try:
+        from xgboost import XGBClassifier  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise OptionalModelDependencyError(
+            "XGBoost support requires the optional train dependency. "
+            "Install it with `pdm install -G train`."
+        ) from exc
+    return cast(type[BaseEstimator], XGBClassifier)
 
 
 def build_training_spec(raw_cfg: dict[str, Any]) -> TrainingSpec:

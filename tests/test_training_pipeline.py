@@ -14,6 +14,7 @@ from longevity_lab.pipeline.modeling import (
     build_training_spec,
     evaluate_bundle,
     evaluate_bundle_slices,
+    make_hist_gradient_boosting_pipeline,
     train_bundle,
 )
 from longevity_lab.services.artifact_engine import ArtifactScenarioEngine
@@ -229,6 +230,36 @@ def test_feature_preprocessor_encodes_v2_categorical_covariates() -> None:
     assert "race_ethnicity_missing" in transformed.columns
     assert transformed.loc[0, "has_healthcare_coverage"] == 1.0
     assert transformed.loc[1, "has_healthcare_coverage"] == 0.0
+
+
+def test_hist_gradient_boosting_pipeline_applies_monotonic_constraints() -> None:
+    """HGB pipelines should map raw-feature monotonic constraints after preprocessing."""
+    frame = pd.DataFrame(
+        {
+            "age": [25, 45, 65, 75, 35, 55],
+            "bmi": [22.0, 26.0, 34.0, 36.0, 24.0, 31.0],
+            "exercise_minutes_per_week": [220, 150, 20, 0, 180, 40],
+            "sex": ["female", "male", "female", "male", "female", "male"],
+        }
+    )
+    labels = pd.Series([0, 0, 1, 1, 0, 1])
+    pipeline = make_hist_gradient_boosting_pipeline(
+        feature_names=("age", "bmi", "exercise_minutes_per_week", "sex"),
+        params={"max_iter": 5, "min_samples_leaf": 2, "class_weight": "balanced"},
+        monotonic_constraints={"age": 1, "bmi": 1, "exercise_minutes_per_week": -1},
+        random_state=3,
+    )
+
+    pipeline.fit(frame, labels, sample_weight=pd.Series([1.0, 1.0, 2.0, 2.0, 1.0, 2.0]))
+
+    transformed_features = list(pipeline.named_steps["preprocess"].get_feature_names_out())
+    model = pipeline.named_steps["model"]
+    assert list(model.monotonic_cst) == [  # type: ignore[attr-defined]
+        1 if name in {"age", "bmi"} else -1 if name == "exercise_minutes_per_week" else 0
+        for name in transformed_features
+    ]
+    probabilities = pipeline.predict_proba(frame)
+    assert probabilities.shape == (6, 2)
 
 
 def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> None:

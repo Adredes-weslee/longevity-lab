@@ -27,10 +27,21 @@ Outputs are written under `reports/benchmarks/<benchmark_id>/` and are intention
 - `metrics.json`: per-condition model and ablation metrics.
 - `calibration_curves.json`: binned observed-vs-predicted calibration points.
 - `subgroup_metrics.parquet`: slice metrics by age, BMI, smoking, AQI, and exercise tiers.
-- `model_card_manifest.json`: model-card-ready condition summaries selected by average precision.
+- `model_card_manifest.json`: model-card-ready condition summaries selected by average precision,
+  including each candidate's delta against the all-feature decision-tree baseline.
 
 ## Comparisons
 
-The first benchmark grid includes logistic regression and decision-tree baselines plus ablations for
-dropping `annual_aqi` and using only scenario-editable features. Gradient-boosted models are deferred
-to the next PR so the baseline comparison remains dependency-light and easy to audit.
+The benchmark grid includes logistic regression, the calibrated decision-tree baseline,
+`HistGradientBoostingClassifier`, and optional XGBoost candidates plus ablations for dropping
+`annual_aqi` and using only scenario-editable features. All candidates use the same
+`FeaturePreprocessor` pipeline and the same train/test split per condition.
+
+Histogram gradient boosting uses scikit-learn's `class_weight="balanced"` by default and can apply
+configured monotonic constraints after preprocessing. Constraints are recorded by raw feature name in
+the benchmark metrics and model-card manifest; one-hot categorical outputs are left unconstrained.
+
+XGBoost is declared only in the optional `train` dependency group. The benchmark harness does not
+import it at module import time. If an XGBoost candidate is configured but the package is not
+installed, `metrics.json` records a `status: "skipped"` row with a clear `skip_reason`; calibration
+curves and subgroup rows are omitted for that skipped candidate.
