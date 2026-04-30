@@ -22,7 +22,7 @@ Legend:
 - [TODO] Calibrated gradient-boosted model family.
 - [TODO] Typed explanation, uncertainty, and model-card surfaces.
 - [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
-- [TODO] Causal workbench for sensitivity-tested, non-serving causal estimates.
+- [DONE] Causal workbench prototype for sensitivity-tested, non-serving smoking-to-lung-disease estimates.
 - [TODO] UI information architecture, Explorer upgrade, and deployment packaging.
 
 ## Current baseline
@@ -76,7 +76,8 @@ Legend:
 - [DONE] Spec-only causal questions documented for smoking, physical activity, BMI, and alcohol (`docs/causal_inference.md`).
 - [DONE] Machine-readable causal question registry with populations, treatments, outcomes, estimands, confounders, exclusions, DAG assumptions, negative controls, and sensitivity checks (`conf/causal/questions.yaml`).
 - [DONE] Predictive risk and causal estimates are documented as separate surfaces; Explorer scenario deltas must not be described as causal effects.
-- [TODO] Implement a non-serving causal workbench that materializes DAGs, runs diagnostics, estimates effects, and writes assumption-bound reports.
+- [DONE] Non-serving smoking-to-chronic-lung-disease workbench prepares an analysis table, records DAG assumptions, runs overlap/balance diagnostics, estimates a weighted logistic g-computation risk difference, runs local refutations, and writes JSON/Markdown reports under gitignored `data/processed/reports/causal/` (`src/longevity_lab/causal/`, `conf/causal/smoking_lung.yaml`).
+- [TODO] Extend causal workbench coverage to additional PR11 questions and richer heterogeneous-effect experiments after the benchmark/model-card track stabilizes.
 
 ### Backend/API
 
@@ -117,6 +118,6 @@ Legend:
 
 1. Add calibrated gradient-boosted model candidates to the benchmark grid.
 2. Wire pollutant and socioeconomic context features into the benchmark harness.
-3. Implement the non-serving causal workbench.
+3. Extend the non-serving causal workbench beyond the smoking prototype.
 4. Start the UI information architecture upgrade.
 5. Finalize ethics and health disclaimer language across the UI and documentation.

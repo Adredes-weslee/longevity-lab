@@ -1,6 +1,6 @@
 # Causal Inference Specification
 
-Status: PR 11 spec-only. This document defines causal questions and assumptions before any estimator, report script, API field, or UI surface is implemented.
+Status: PR 11 defines the causal question registry. PR 12 adds a non-serving smoking-to-chronic-lung-disease workbench prototype that writes local reports only.
 
 ## Purpose and Boundary
 
@@ -311,3 +311,42 @@ Before implementing estimators, PR 12 should:
 - Run at least one doubly robust or double machine learning estimator only after diagnostics pass.
 - Run the named negative controls and sensitivity checks.
 - Write a report that keeps causal estimates out of the API and Explorer UI.
+
+## PR 12 Smoking Workbench Prototype
+
+The first implemented workbench question is `smoking_chronic_lung_disease`, configured in
+`conf/causal/smoking_lung.yaml`. It uses the processed `integrated_person_year` or `brfss_person`
+contract fields already documented in `docs/data_dictionary.md`:
+
+- Treatment: `smoker` as current smoker versus not current smoker.
+- Outcome: `label_chronic_lung_disease`.
+- Weights: `survey_weight`, with missing or non-positive weights imputed to the analysis-sample
+  median and reported.
+- Primary adjustment set: age, sex, race/ethnicity, BMI, alcohol servings per week, exercise
+  minutes per week, annual AQI, healthcare coverage, personal doctor, cost barrier, recent checkup,
+  state, and survey year.
+- Excluded fields include `physical_health_days`, direct lung-disease components, respiratory
+  symptom fields, model outputs, and healthcare utilization caused by lung disease.
+
+Run the prototype locally with:
+
+```powershell
+pdm run python -m longevity_lab.causal.reports --config conf/causal/smoking_lung.yaml
+```
+
+By default, the script reads `data/processed/integrated/2023/integrated_person_year.parquet` when
+present and falls back to the tiny checked-in sample only for development. Pass `--input-path` to
+point at a specific CSV or Parquet table. Reports are written under
+`data/processed/reports/causal/smoking_lung/`, which is gitignored through `data/processed/`.
+
+The current estimator is intentionally transparent and dependency-light:
+
+- Adjustment diagnostics include exclusion counts, covariate missingness, sample-weight imputation,
+  propensity-score overlap, and top standardized mean differences.
+- The primary estimate uses weighted logistic-regression g-computation for the average treatment
+  effect on the risk-difference scale, with risk ratio and odds ratio as secondary scales.
+- Refutation checks include a fixed-seed permuted-treatment placebo, subset refit, random
+  common-cause refit, and propensity-overlap-trimmed refit.
+
+This is an exploratory, assumption-bound analysis. It is not exposed through FastAPI, not displayed
+in the React UI, and does not alter Explorer scenario deltas.

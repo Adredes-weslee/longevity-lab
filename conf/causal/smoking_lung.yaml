@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "question_id": "smoking_chronic_lung_disease",
+  "title": "Current smoking and diagnosed chronic lung disease",
+  "source_question_registry": "conf/causal/questions.yaml",
+  "data": {
+    "year": 2023,
+    "base_dir": "data",
+    "input_path": null,
+    "sample_path": "data/sample/integrated_person_year_sample.csv",
+    "use_sample_if_missing": true
+  },
+  "treatment": {
+    "name": "current_smoking",
+    "contrast": "current smoker versus not current smoker",
+    "coding_notes": [
+      "Uses the processed BRFSS v2 `smoker` field derived from `_SMOKER3`.",
+      "Former smokers remain in the not-current-smoker reference for the primary contrast."
+    ]
+  },
+  "outcome": {
+    "name": "diagnosed_chronic_lung_disease",
+    "label_field": "label_chronic_lung_disease",
+    "timing": "prevalent diagnosed condition, not incident disease"
+  },
+  "estimand": {
+    "type": "average_treatment_effect",
+    "target_population": "eligible BRFSS adults represented by survey weights",
+    "primary_scale": "risk_difference",
+    "secondary_scales": ["risk_ratio", "odds_ratio"]
+  },
+  "columns": {
+    "treatment": "smoker",
+    "outcome": "label_chronic_lung_disease",
+    "sample_weight": "survey_weight",
+    "required": [
+      "year",
+      "state_fips",
+      "sex",
+      "race_ethnicity",
+      "age",
+      "bmi",
+      "smoker",
+      "alcohol_servings_per_week",
+      "exercise_minutes_per_week",
+      "annual_aqi",
+      "has_healthcare_coverage",
+      "has_personal_doctor",
+      "cost_barrier_to_care",
+      "last_checkup_within_year",
+      "physical_health_days",
+      "label_chronic_lung_disease",
+      "survey_weight"
+    ],
+    "adjustment": [
+      "age",
+      "sex",
+      "race_ethnicity",
+      "bmi",
+      "alcohol_servings_per_week",
+      "exercise_minutes_per_week",
+      "annual_aqi",
+      "has_healthcare_coverage",
+      "has_personal_doctor",
+      "cost_barrier_to_care",
+      "last_checkup_within_year",
+      "state_fips",
+      "year"
+    ],
+    "categorical": ["sex", "race_ethnicity", "state_fips", "year"],
+    "excluded": [
+      "physical_health_days",
+      "respiratory_symptoms",
+      "healthcare_utilization_caused_by_lung_disease",
+      "model_outputs"
+    ]
+  },
+  "dag_assumptions": {
+    "version": "smoking_lung_v1",
+    "key_edges": [
+      "demographics -> current_smoking",
+      "demographics -> diagnosed_chronic_lung_disease",
+      "socioeconomic_context -> current_smoking",
+      "socioeconomic_context -> diagnosed_chronic_lung_disease",
+      "healthcare_access -> diagnosed_chronic_lung_disease",
+      "air_quality_context -> diagnosed_chronic_lung_disease",
+      "physical_activity_bmi_alcohol -> current_smoking",
+      "physical_activity_bmi_alcohol -> diagnosed_chronic_lung_disease"
+    ],
+    "residual_risks": [
+      "occupational exposure",
+      "secondhand smoke",
+      "early-life exposure",
+      "genetics"
+    ]
+  },
+  "negative_controls": {
+    "outcomes": [
+      "sex_at_birth_if_available",
+      "race_ethnicity_if_available",
+      "adult_height_if_available",
+      "interview_month_if_available"
+    ],
+    "exposures": ["within_stratum_permuted_smoking_status"]
+  },
+  "sensitivity_checks": [
+    "never_smoker_reference",
+    "exclude_former_smokers_from_reference",
+    "age_overlap_restriction",
+    "unweighted_vs_survey_weighted_vs_overlap_weighted",
+    "e_value_or_rosenbaum_unmeasured_confounding",
+    "dowhy_placebo_subset_random_common_cause_refutations"
+  ],
+  "assumptions": [
+    "Consistency: the processed current-smoking field represents the intervention contrast.",
+    "Exchangeability: measured adjustment columns block confounding paths named in the DAG.",
+    "Positivity: comparable treated and control respondents exist across adjustment strata.",
+    "Survey weights approximate the eligible BRFSS adult population for descriptive weighting."
+  ],
+  "diagnostics": {
+    "min_propensity": 0.05,
+    "max_propensity": 0.95,
+    "trim_min_propensity": 0.05,
+    "trim_max_propensity": 0.95,
+    "max_abs_smd_warning": 0.25
+  },
+  "estimator": {
+    "method": "weighted_logistic_g_computation",
+    "random_state": 42
+  },
+  "reports": {
+    "output_dir": "data/processed/reports/causal/smoking_lung",
+    "json_name": "smoking_lung_report.json",
+    "markdown_name": "smoking_lung_report.md"
+  },
+  "serving_policy": {
+    "api_exposed": false,
+    "ui_exposed": false,
+    "statement": "Causal workbench reports are not served through API or UI."
+  }
+}
