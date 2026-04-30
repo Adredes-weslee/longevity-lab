@@ -38,6 +38,14 @@ export interface MetadataBootstrapResponse {
   features: FeatureDefinition[]
   organs: OrganDefinition[]
   conditions: ConditionDefinition[]
+  runtime: RuntimeMetadataResponse
+}
+
+export interface RuntimeMetadataResponse {
+  engine_mode: 'demo' | 'artifact'
+  engine_source: 'explicit' | 'auto' | 'fallback'
+  artifact_bundle_id: string | null
+  message: string
 }
 
 export interface ConditionScoreResponse {

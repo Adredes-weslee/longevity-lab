@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     cors_allow_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     data_dir: Path = Field(default_factory=lambda: Path("data"))
     artifacts_dir: Path = Field(default_factory=lambda: Path("artifacts"))
-    engine: Literal["demo", "artifact"] = "demo"
+    engine: Literal["auto", "demo", "artifact"] = "auto"
     artifact_bundle: str | None = None
 
 

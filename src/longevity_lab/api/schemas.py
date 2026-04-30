@@ -66,6 +66,17 @@ class ConditionDefinitionResponse(BaseModel):
     citation_url: str
 
 
+class RuntimeMetadataResponse(BaseModel):
+    """Runtime mode and artifact metadata shown to the frontend."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    engine_mode: Literal["demo", "artifact"]
+    engine_source: Literal["explicit", "auto", "fallback"]
+    artifact_bundle_id: str | None = None
+    message: str
+
+
 class MetadataBootstrapResponse(BaseModel):
     """Bootstrap metadata for the frontend."""
 
@@ -74,6 +85,7 @@ class MetadataBootstrapResponse(BaseModel):
     features: list[FeatureDefinition]
     organs: list[OrganDefinitionResponse]
     conditions: list[ConditionDefinitionResponse]
+    runtime: RuntimeMetadataResponse
 
 
 class ConditionScoreResponse(BaseModel):

@@ -103,6 +103,42 @@
   grid-template-columns: 640px minmax(620px, 1fr) 380px;
 }
 
+.runtime-banner {
+  align-items: center;
+  background: rgba(14, 18, 34, 0.82);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  display: flex;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+}
+
+.runtime-banner span {
+  border-radius: 999px;
+  color: #f8fbff;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.35rem 0.65rem;
+  text-transform: uppercase;
+}
+
+.runtime-banner p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.runtime-banner.demo span {
+  background: rgba(245, 158, 11, 0.26);
+  border: 1px solid rgba(245, 158, 11, 0.44);
+}
+
+.runtime-banner.artifact span {
+  background: rgba(22, 163, 74, 0.24);
+  border: 1px solid rgba(22, 163, 74, 0.44);
+}
+
 .overview-card,
 .panel,
 .side-panel {

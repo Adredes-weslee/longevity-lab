@@ -25,3 +25,9 @@ def test_artifact_store_rejects_bundle_id_path_traversal(tmp_path: Path) -> None
     store = ArtifactStore(base_dir)
     with pytest.raises(ValueError, match="Unsafe bundle_id"):
         store.resolve(bundle_id="../escape")
+
+
+def test_artifact_store_try_resolve_returns_none_for_missing_bundle(tmp_path: Path) -> None:
+    """try_resolve should be safe for auto-detection fallback paths."""
+    store = ArtifactStore(tmp_path / "models")
+    assert store.try_resolve() is None

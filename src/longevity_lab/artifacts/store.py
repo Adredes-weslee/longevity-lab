@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from longevity_lab.artifacts.manifest import ArtifactManifest, load_manifest
 
 
@@ -31,6 +33,15 @@ class ArtifactStore:
 
     def resolve(self, bundle_id: str | None = None) -> ArtifactBundle:
         """Resolve an artifact bundle by id or pick the latest available."""
+        bundles = self.resolve_all(bundle_id)
+        if bundles:
+            return bundles[0]
+        raise FileNotFoundError(
+            "No artifact bundles found. Train a model bundle or set LONGEVITY_LAB_ENGINE=demo."
+        )
+
+    def resolve_all(self, bundle_id: str | None = None) -> list[ArtifactBundle]:
+        """Resolve candidate artifact bundles by id or newest-first discovery order."""
         if bundle_id:
             rel = Path(bundle_id)
             if rel.is_absolute():
@@ -46,7 +57,7 @@ class ArtifactStore:
             manifest_path = bundle_dir / "manifest.json"
             if not manifest_path.exists():
                 raise FileNotFoundError(f"Missing manifest: {manifest_path}")
-            return ArtifactBundle(path=bundle_dir, manifest=load_manifest(manifest_path))
+            return [ArtifactBundle(path=bundle_dir, manifest=load_manifest(manifest_path))]
 
         bundles: list[ArtifactBundle] = []
         for bundle_dir in self.list_bundle_dirs():
@@ -63,10 +74,23 @@ class ArtifactStore:
             except ValueError:
                 continue
 
-        if not bundles:
-            raise FileNotFoundError(
-                "No artifact bundles found. Train a model bundle or set LONGEVITY_LAB_ENGINE=demo."
-            )
-
         bundles.sort(key=lambda item: item.manifest.created_at, reverse=True)
-        return bundles[0]
+        return bundles
+
+    def try_resolve(self, bundle_id: str | None = None) -> ArtifactBundle | None:
+        """Resolve a bundle when available, returning ``None`` for invalid local state."""
+        bundles = self.try_resolve_all(bundle_id)
+        return bundles[0] if bundles else None
+
+    def try_resolve_all(self, bundle_id: str | None = None) -> list[ArtifactBundle]:
+        """Resolve available bundle candidates, returning empty for invalid local state."""
+        try:
+            return self.resolve_all(bundle_id)
+        except (
+            FileNotFoundError,
+            OSError,
+            UnicodeDecodeError,
+            ValidationError,
+            ValueError,
+        ):
+            return []

@@ -9,8 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from longevity_lab.api.middleware import request_logging_middleware
 from longevity_lab.api.routes import health, metadata, pipeline, scenario
-from longevity_lab.artifacts.store import ArtifactStore
-from longevity_lab.config import get_settings
+from longevity_lab.api.schemas import FeatureProfile, RuntimeMetadataResponse
+from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
+from longevity_lab.config import Settings, get_settings
 from longevity_lab.services.artifact_engine import ArtifactScenarioEngine
 from longevity_lab.services.engine_types import ScenarioEngine
 from longevity_lab.services.metadata_service import MetadataService
@@ -27,17 +28,82 @@ def _parse_cors_allow_origins(value: str) -> list[str]:
     return origins
 
 
+def _try_load_auto_artifact_engine(
+    *,
+    store: ArtifactStore,
+    bundle: ArtifactBundle,
+) -> ArtifactScenarioEngine | None:
+    """Load and validate an auto-detected artifact engine, returning None on local defects."""
+    try:
+        engine = ArtifactScenarioEngine(store=store, bundle_id=bundle.path.name)
+        scores = engine.evaluate(FeatureProfile())
+    except Exception:
+        return None
+    if not scores:
+        return None
+    return engine
+
+
+def _select_engine(settings: Settings) -> tuple[ScenarioEngine, RuntimeMetadataResponse]:
+    """Select the runtime engine and metadata from settings and local artifacts."""
+    store = ArtifactStore(settings.artifacts_dir / "models")
+
+    if settings.engine == "demo":
+        return (
+            DemoScenarioEngine(),
+            RuntimeMetadataResponse(
+                engine_mode="demo",
+                engine_source="explicit",
+                artifact_bundle_id=None,
+                message="Demo scoring mode is active because LONGEVITY_LAB_ENGINE=demo.",
+            ),
+        )
+
+    if settings.engine == "artifact":
+        bundle = store.resolve(settings.artifact_bundle)
+        return (
+            ArtifactScenarioEngine(store=store, bundle_id=settings.artifact_bundle),
+            RuntimeMetadataResponse(
+                engine_mode="artifact",
+                engine_source="explicit",
+                artifact_bundle_id=bundle.path.name,
+                message="Artifact-backed scoring mode is active.",
+            ),
+        )
+
+    for auto_bundle in store.try_resolve_all(settings.artifact_bundle):
+        engine = _try_load_auto_artifact_engine(store=store, bundle=auto_bundle)
+        if engine is not None:
+            return (
+                engine,
+                RuntimeMetadataResponse(
+                    engine_mode="artifact",
+                    engine_source="auto",
+                    artifact_bundle_id=auto_bundle.path.name,
+                    message=(
+                        "Artifact-backed scoring mode was selected automatically "
+                        "from local artifacts."
+                    ),
+                ),
+            )
+
+    return (
+        DemoScenarioEngine(),
+        RuntimeMetadataResponse(
+            engine_mode="demo",
+            engine_source="fallback",
+            artifact_bundle_id=None,
+            message="Demo scoring mode is active because no valid local artifact bundle was found.",
+        ),
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize app-scoped services once per process."""
-    app.state.metadata_service = MetadataService()
     settings = get_settings()
-    engine: ScenarioEngine
-    if settings.engine == "artifact":
-        store = ArtifactStore(settings.artifacts_dir / "models")
-        engine = ArtifactScenarioEngine(store=store, bundle_id=settings.artifact_bundle)
-    else:
-        engine = DemoScenarioEngine()
+    engine, runtime = _select_engine(settings)
+    app.state.metadata_service = MetadataService(runtime=runtime)
     app.state.scenario_service = ScenarioService(engine=engine)
     yield
 
