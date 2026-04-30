@@ -25,7 +25,8 @@ Legend:
 - [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
 - [DONE] Causal workbench prototype for sensitivity-tested, non-serving smoking-to-lung-disease estimates.
 - [DONE] UI information architecture with Explorer, Data Evidence, Model Cards, and Scenario Lab pages.
-- [TODO] Explorer upgrade and deployment packaging.
+- [DONE] Explorer UX upgrade for input deltas, accessible anatomy selection, explanation caveats, uncertainty copy, and color-blind-safe legends.
+- [TODO] Deployment packaging.
 
 ## Current baseline
 
@@ -101,8 +102,8 @@ Legend:
 - [DONE] High-risk drill-down panels surface public-health guidance links when either current or what-if profile is in the red band.
 - [DONE] Explorer view shows a compact non-diagnostic disclaimer and runtime scoring-mode banner.
 - [DONE] Named product pages separate the Explorer, data evidence, active model-card metadata, and scenario summary workflows (`frontend/src/pages/`).
-- [TODO] Better "what changed" deltas per organ/condition.
-- [DEMO] Basic accessibility pass.
+- [DONE] Better "what changed" deltas per organ/condition through visible changed-input chips and drill-down delta summaries.
+- [DONE] Basic accessibility pass for keyboard-selectable anatomy overlays and text-supported color legends.
 - [DEMO] Mobile/responsive layout pass.
 
 ### Reproducibility
@@ -122,7 +123,7 @@ Legend:
 ## Highest-ROI next tasks
 
 1. Wire pollutant and socioeconomic context features into the benchmark harness.
-2. Wire typed explanation and uncertainty copy into the upgraded Explorer UI.
+2. Extend typed explanation and uncertainty coverage as new artifact families are trained.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
-4. Upgrade Explorer deltas, caveats, and accessibility details.
+4. Package a realistic free-tier deployment path.
 5. Finalize ethics and health disclaimer language across the UI and documentation.

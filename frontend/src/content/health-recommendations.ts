@@ -13,7 +13,7 @@ export const healthRecommendations: Partial<Record<string, HealthRecommendation>
   heart_disease: {
     title: 'General public-health guidance',
     recommendation:
-      'CDC guidance emphasizes regular physical activity, maintaining a healthy weight, quitting smoking, and drinking less alcohol to help lower heart disease risk.',
+      'CDC guidance points to practical prevention steps: move regularly, avoid smoking, keep weight in a healthy range when possible, and limit alcohol. These are general population-health steps, not personal treatment instructions.',
     citations: [
       {
         title: 'CDC: Preventing Heart Disease',
@@ -24,7 +24,7 @@ export const healthRecommendations: Partial<Record<string, HealthRecommendation>
   chronic_lung_disease: {
     title: 'General public-health guidance',
     recommendation:
-      'CDC states that the best way to prevent COPD is to never start smoking. If you smoke, quitting is the most important action you can take, and avoiding secondhand smoke also helps reduce risk.',
+      'CDC states that avoiding tobacco smoke is the most important prevention step for COPD. If someone smokes, quitting and reducing secondhand-smoke exposure are general risk-reduction steps.',
     citations: [
       {
         title: 'CDC: Health Effects of Cigarettes - COPD',
@@ -35,7 +35,7 @@ export const healthRecommendations: Partial<Record<string, HealthRecommendation>
   stroke: {
     title: 'General public-health guidance',
     recommendation:
-      'CDC recommends healthy eating, regular physical activity, quitting smoking, maintaining a healthy weight, and limiting alcohol intake to help reduce stroke risk.',
+      'CDC highlights everyday prevention steps for stroke risk: healthy eating, regular activity, not smoking, weight management when possible, and limiting alcohol.',
     citations: [
       {
         title: 'CDC: Preventing Stroke',
@@ -50,7 +50,7 @@ export const healthRecommendations: Partial<Record<string, HealthRecommendation>
   depression: {
     title: 'General public-health guidance',
     recommendation:
-      'CDC guidance on emotional well-being highlights stress management, self-care, and seeking support when stress, sadness, or depressed mood become difficult to manage.',
+      'CDC emotional well-being guidance emphasizes stress management, self-care, social support, and getting help when stress, sadness, or depressed mood becomes hard to manage.',
     citations: [
       {
         title: 'CDC: Managing Stress',
@@ -65,7 +65,7 @@ export const healthRecommendations: Partial<Record<string, HealthRecommendation>
   diabetes: {
     title: 'General public-health guidance',
     recommendation:
-      'CDC states that type 2 diabetes can often be prevented or delayed through achievable lifestyle changes such as modest weight loss, healthier eating, and more physical activity.',
+      'CDC states that type 2 diabetes can often be delayed or prevented through realistic lifestyle changes, including healthier eating, more activity, and modest weight loss for people who would benefit from it.',
     citations: [
       {
         title: 'CDC: Preventing Type 2 Diabetes',
