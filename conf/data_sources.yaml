@@ -72,6 +72,18 @@
       "checksum_policy": "record sha256 after local download; CDC/ATSDR does not publish per-file checksums here",
       "license_note": "Public CDC/ATSDR SVI data; cite the CDC/ATSDR SVI database and documentation page.",
       "local_landing_path": "external/svi/{year}/"
+    },
+    {
+      "source_id": "cdc_places_county_opendata",
+      "title": "CDC PLACES Local Data for Better Health county data Open Data CSV",
+      "official_url": "https://www.cdc.gov/places/tools/data-portal.html",
+      "download_url_template": "https://data.cdc.gov/api/views/swc5-untb/rows.csv?accessType=DOWNLOAD",
+      "year_support": {"mode": "explicit", "years": [2025]},
+      "geography": "county-level modeled aggregate estimates for PLACES 2025 release",
+      "expected_file_pattern": "places_county_{year}.csv",
+      "checksum_policy": "record sha256 after local download; CDC data.cdc.gov does not publish per-file checksums for this CSV",
+      "license_note": "Public CDC PLACES modeled aggregate county estimates; cite CDC PLACES and document that estimates are contextual modeled aggregate data, not independent person-level labels.",
+      "local_landing_path": "external/places/county/{year}/"
     }
   ]
 }

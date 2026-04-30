@@ -16,7 +16,7 @@ Legend:
 - [DONE] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
 - [DONE] EPA pollutant-specific features beyond annual AQI.
 - [DONE] ACS/SVI contextual social-determinants features.
-- [TODO] CDC PLACES contextual validation layer.
+- [DONE] CDC PLACES contextual validation layer.
 - [TODO] Scripted EDA/report generation to replace notebooks as canonical outputs.
 - [TODO] Modeling benchmark harness and calibrated gradient-boosted model family.
 - [TODO] Typed explanation, uncertainty, and model-card surfaces.
@@ -53,6 +53,9 @@ Legend:
 - [DONE] ACS 5-year curated context downloader for state/county JSON with registry-backed provenance (`src/longevity_lab/pipeline/download_acs.py`).
 - [DONE] CDC/ATSDR SVI U.S. county CSV downloader with registry-backed provenance (`src/longevity_lab/pipeline/download_svi.py`).
 - [DONE] ACS/SVI county-year and state-year context tables with ACS MOE availability flags (`src/longevity_lab/pipeline/build_context_tables.py`, `conf/context_features.yaml`).
+- [DONE] CDC PLACES county Open Data downloader with registry-backed provenance (`src/longevity_lab/pipeline/download_places.py`).
+- [DONE] PLACES county-year contextual tables for the five modeled conditions plus smoking, binge drinking, physical inactivity, obesity, and short sleep (`src/longevity_lab/pipeline/build_places_tables.py`).
+- [DONE] External PLACES reasonableness report compares aggregate model risk patterns with PLACES modeled estimates while documenting that PLACES is not an independent person-level label source (`src/longevity_lab/pipeline/validate_external_context.py`).
 
 ### Modeling
 
