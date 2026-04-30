@@ -88,10 +88,14 @@ Explanations must match the trained model:
 
 Causal inference is a separate workbench, not a replacement for prediction. The first causal milestone is a spec-only PR that defines a causal question before code estimates effects.
 
+PR 11 establishes the initial spec in `docs/causal_inference.md` and the machine-readable question registry in `conf/causal/questions.yaml`. The registry defines separate questions for smoking, physical activity, BMI, and alcohol, including estimands, adjustment candidates, exclusions, DAG assumptions, negative controls, sensitivity checks, and the required separation from predictive risk scores.
+
 Acceptable causal questions:
 
 - "Among comparable BRFSS adults, what is the estimated association/effect of current smoking on diagnosed chronic lung disease under stated assumptions?"
 - "How does meeting physical-activity guidance relate to diabetes risk after adjusting for measured confounders?"
+- "Among comparable BRFSS adults, what is the estimated effect of obesity-range BMI on diagnosed diabetes under stated assumptions?"
+- "How does heavy alcohol use relate to diagnosed depression after adjustment, sensitivity checks, and reverse-causation review?"
 - "Which subgroups show heterogeneous estimated effects for smoking, activity, BMI, or alcohol?"
 
 Required causal workflow:
@@ -140,7 +144,7 @@ A PR is ready to merge only when:
 | 08 | Modeling benchmark harness | 03, 04, 05, 07 | Reproducible baseline benchmark suite with model-card outputs. |
 | 09 | Calibrated GBDT models | 08 | Best-in-class tabular models compared against decision-tree baseline. |
 | 10 | Explainability and uncertainty | 09 | Typed SHAP/rule explanations plus calibrated uncertainty summaries. |
-| 11 | Causal inference spec | 03, 05 | Causal questions, DAGs, estimands, and feasibility report without serving changes. |
+| 11 | Causal inference spec | 02 | Spec-only causal questions, DAG assumptions, estimands, exclusions, negative controls, and sensitivity checks without serving changes. PR 12 cannot estimate effects until the relevant PR 03/05 feature contracts exist. |
 | 12 | Causal workbench prototype | 11 | Separate scripts for sensitivity-tested causal estimates and heterogeneous-effect exploration. |
 | 13 | API contract v2 | 09, 10 | Versioned contracts for context, uncertainty, explanations, and model metadata. |
 | 14 | UI information architecture | 13 | Explorer, Data Evidence, Model Cards, Scenario Lab navigation and layout. |
