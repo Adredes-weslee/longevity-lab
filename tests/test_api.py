@@ -242,6 +242,14 @@ def test_metadata_bootstrap(client: TestClient) -> None:
     assert payload["conditions"]
     assert payload["runtime"]["engine_mode"] == "demo"
     assert payload["runtime"]["engine_source"] == "fallback"
+    assert {item["field"] for item in payload["features"]} == {
+        "age",
+        "bmi",
+        "smoker",
+        "alcohol_servings_per_week",
+        "exercise_minutes_per_week",
+        "annual_aqi",
+    }
 
 
 def test_metadata_bootstrap_auto_selects_artifact_bundle(
@@ -561,6 +569,42 @@ def test_scenario_compare_missing_candidate_fields_uses_defaults(client: TestCli
     response = client.post("/api/scenario/compare", json=payload_missing)
     assert response.status_code == 200
     assert response.json() == expected.json()
+
+
+def test_scenario_compare_rejects_non_editable_brfss_v2_covariates(
+    client: TestClient,
+) -> None:
+    """The public API should reject non-editable covariates in scenario payloads."""
+    payload = _compare_payload()
+    payload["baseline"].update(
+        {
+            "sex": "male",
+            "race_ethnicity": "hispanic",
+            "has_healthcare_coverage": True,
+            "has_personal_doctor": True,
+            "cost_barrier_to_care": False,
+            "last_checkup_within_year": True,
+            "sleep_hours_per_night": 7,
+            "physical_health_days": 0,
+            "mental_health_days": 2,
+        }
+    )
+    payload["candidate"].update(
+        {
+            "sex": "female",
+            "race_ethnicity": "white_non_hispanic",
+            "has_healthcare_coverage": None,
+            "has_personal_doctor": None,
+            "cost_barrier_to_care": None,
+            "last_checkup_within_year": None,
+            "sleep_hours_per_night": None,
+            "physical_health_days": None,
+            "mental_health_days": None,
+        }
+    )
+
+    response = client.post("/api/scenario/compare", json=payload)
+    assert response.status_code == 422
 
 
 def test_scenario_compare_out_of_range_still_422(client: TestClient) -> None:

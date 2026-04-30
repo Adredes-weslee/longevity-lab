@@ -4,7 +4,7 @@ This document defines the minimum tables/files that downstream components (model
 
 It is intentionally smaller than `docs/data_dictionary.md`.
 
-Status: **v1 contracts** (BRFSS 2023 + EPA 2023, state-year join).
+Status: **v2 contracts** (BRFSS 2023 + EPA 2023, state-year join).
 
 If you change any contract here, update:
 
@@ -22,7 +22,11 @@ All of these are **gitignored** outputs written under `data/processed/`.
 - Granularity: one row per respondent-year
 - Required columns:
   - `year`, `state_fips`
-  - feature columns: `age`, `bmi`, `smoker`, `alcohol_servings_per_week`, `exercise_minutes_per_week`
+  - scenario-editable feature columns: `age`, `bmi`, `smoker`,
+    `alcohol_servings_per_week`, `exercise_minutes_per_week`
+  - adjustment/context columns: `sex`, `race_ethnicity`, `has_healthcare_coverage`,
+    `has_personal_doctor`, `cost_barrier_to_care`, `last_checkup_within_year`,
+    `sleep_hours_per_night`, `physical_health_days`, `mental_health_days`
   - label columns: `label_heart_disease`, `label_chronic_lung_disease`, `label_stroke`,
     `label_depression`, `label_diabetes`
   - `survey_weight`
@@ -41,6 +45,28 @@ All of these are **gitignored** outputs written under `data/processed/`.
 - Required columns:
   - all `brfss_person` required columns
   - plus `annual_aqi`
+
+## BRFSS v2 feature roles
+
+Training uses the union of scenario-editable, adjustment, and context features, with
+condition-specific exclusions to avoid symptom-like label leakage:
+
+- Scenario-editable: `age`, `bmi`, `smoker`, `alcohol_servings_per_week`,
+  `exercise_minutes_per_week`
+- Scenario-editable environmental feature from EPA join: `annual_aqi`
+- BRFSS adjustment covariates: `sex`, `race_ethnicity`, `has_healthcare_coverage`,
+  `has_personal_doctor`, `cost_barrier_to_care`, `last_checkup_within_year`,
+  `sleep_hours_per_night`, `physical_health_days`, `mental_health_days`
+- Survey weights: `survey_weight` is a sample-weight column, not a prediction feature.
+- Leakage exclusions:
+  - `physical_health_days` is excluded when training heart disease, chronic lung disease,
+    stroke, and diabetes labels.
+  - `mental_health_days` is excluded when training the depression label.
+
+The public API remains backward-compatible: existing scenario requests can keep sending the
+original editable fields, including `annual_aqi`. Non-editable BRFSS v2 covariates are not accepted
+in public scenario payloads; artifact inference fills them from persisted preprocessing defaults so
+direct clients cannot create scenario deltas by changing adjustment fields.
 
 ## DuckDB (optional convenience)
 

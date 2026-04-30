@@ -50,7 +50,7 @@ class ArtifactScenarioEngine(ScenarioEngine):
 
     def evaluate(self, profile: FeatureProfile) -> list[ConditionScore]:
         """Evaluate a profile by calling each loaded per-condition pipeline."""
-        frame = pd.DataFrame([profile.model_dump()])
+        frame = self._profile_frame(profile)
         results: list[ConditionScore] = []
         for condition in self._bundle.manifest.conditions:
             model = self._models[condition.condition_id]
@@ -81,6 +81,24 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 )
             )
         return results
+
+    def _profile_frame(self, profile: FeatureProfile) -> pd.DataFrame:
+        """Return a serving frame aligned to the artifact manifest feature contract."""
+        values: dict[str, object] = {
+            "sex": "unknown",
+            "race_ethnicity": "unknown",
+            "has_healthcare_coverage": None,
+            "has_personal_doctor": None,
+            "cost_barrier_to_care": None,
+            "last_checkup_within_year": None,
+            "sleep_hours_per_night": None,
+            "physical_health_days": None,
+            "mental_health_days": None,
+        }
+        values.update(profile.model_dump())
+        for feature_name in self._bundle.manifest.features:
+            values.setdefault(feature_name, None)
+        return pd.DataFrame([{name: values[name] for name in self._bundle.manifest.features}])
 
     @staticmethod
     def _load_models(bundle: ArtifactBundle) -> dict[str, LoadedConditionModel]:

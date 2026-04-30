@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import joblib  # type: ignore[import-untyped]
 import numpy as np  # type: ignore[import-untyped]
@@ -46,7 +47,28 @@ FEATURE_LABELS: dict[str, str] = {
     "alcohol_servings_per_week": "Alcohol servings / week",
     "exercise_minutes_per_week": "Exercise minutes / week",
     "annual_aqi": "Annual AQI",
+    "sex": "Sex",
+    "race_ethnicity": "Race/ethnicity",
+    "has_healthcare_coverage": "Healthcare coverage",
+    "has_personal_doctor": "Personal doctor",
+    "cost_barrier_to_care": "Could not see doctor due to cost",
+    "last_checkup_within_year": "Checkup in past year",
+    "sleep_hours_per_night": "Sleep hours / night",
+    "physical_health_days": "Poor physical health days",
+    "mental_health_days": "Poor mental health days",
 }
+
+CATEGORICAL_FEATURES: frozenset[str] = frozenset({"sex", "race_ethnicity"})
+
+BOOLEAN_FEATURES: frozenset[str] = frozenset(
+    {
+        "smoker",
+        "has_healthcare_coverage",
+        "has_personal_doctor",
+        "cost_barrier_to_care",
+        "last_checkup_within_year",
+    }
+)
 
 SLICE_REPORT_COLUMNS: tuple[str, ...] = (
     "condition_id",
@@ -68,6 +90,31 @@ SLICE_REPORT_COLUMNS: tuple[str, ...] = (
 
 
 @dataclass(frozen=True, slots=True)
+class FeatureContractSpec:
+    """Role metadata for the configured training feature contract."""
+
+    version: str
+    scenario_editable_features: tuple[str, ...]
+    adjustment_features: tuple[str, ...]
+    context_features: tuple[str, ...]
+    sample_weight_column: str | None
+    label_feature_exclusions: dict[str, tuple[str, ...]]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation for manifests and summaries."""
+        return {
+            "version": self.version,
+            "scenario_editable_features": list(self.scenario_editable_features),
+            "adjustment_features": list(self.adjustment_features),
+            "context_features": list(self.context_features),
+            "sample_weight_column": self.sample_weight_column,
+            "label_feature_exclusions": {
+                key: list(value) for key, value in self.label_feature_exclusions.items()
+            },
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class TrainingSpec:
     """Concrete training configuration after Hydra parsing."""
 
@@ -81,6 +128,7 @@ class TrainingSpec:
     force_overwrite: bool
     notes: str | None
     features: tuple[str, ...]
+    feature_contract: FeatureContractSpec
     conditions: dict[str, str]
     random_state: int
     test_size: float
@@ -125,8 +173,24 @@ class TrainingBundleResult:
     condition_results: list[ConditionTrainingResult]
 
 
+class SampleWeightPipeline(Pipeline):
+    """Pipeline variant that forwards top-level sample weights to the model step."""
+
+    def fit(
+        self,
+        x: pd.DataFrame,
+        y: pd.Series | None = None,
+        sample_weight: pd.Series | np.ndarray | None = None,
+        **params: object,
+    ) -> SampleWeightPipeline:
+        """Fit the pipeline while routing survey weights to the estimator."""
+        if sample_weight is not None and "model__sample_weight" not in params:
+            params["model__sample_weight"] = sample_weight
+        return cast(SampleWeightPipeline, super().fit(x, y, **params))
+
+
 class FeaturePreprocessor(BaseEstimator, TransformerMixin):
-    """Select and impute the stable v1 feature contract."""
+    """Select, impute, and encode the stable training feature contract."""
 
     def __init__(self, feature_names: tuple[str, ...]) -> None:
         """Store the ordered feature names."""
@@ -137,29 +201,50 @@ class FeaturePreprocessor(BaseEstimator, TransformerMixin):
         del y
         frame = self._coerce_frame(x)
         fill_values: dict[str, float] = {}
+        categories: dict[str, tuple[str, ...]] = {}
         for feature_name in self.feature_names:
+            if feature_name in CATEGORICAL_FEATURES:
+                normalized = self._to_categorical(frame[feature_name])
+                learned = tuple(sorted(set(normalized.dropna().tolist()) | {"missing"}))
+                categories[feature_name] = learned
+                continue
             series = self._to_numeric(frame[feature_name], feature_name)
             non_null = series.dropna()
             fill_values[feature_name] = float(non_null.median()) if not non_null.empty else 0.0
         self.fill_values_ = fill_values
+        self.categories_ = categories
+        self.transformed_feature_names_ = self._build_feature_names_out()
         return self
 
     def transform(self, x: pd.DataFrame) -> pd.DataFrame:
         """Return a numeric, imputed feature frame with stable column order."""
-        if not hasattr(self, "fill_values_"):
+        if not hasattr(self, "fill_values_") or not hasattr(self, "categories_"):
             raise ValueError("FeaturePreprocessor must be fitted before transform().")
         frame = self._coerce_frame(x)
         transformed = pd.DataFrame(index=frame.index)
         fill_values = self.fill_values_
+        categories = self.categories_
         for feature_name in self.feature_names:
-            series = self._to_numeric(frame[feature_name], feature_name)
-            transformed[feature_name] = series.fillna(fill_values[feature_name]).astype("float64")
+            if feature_name in CATEGORICAL_FEATURES:
+                normalized = self._to_categorical(frame[feature_name]).fillna("missing")
+                known_categories = set(categories[feature_name])
+                normalized = normalized.where(normalized.isin(known_categories), "missing")
+                for category in categories[feature_name]:
+                    column_name = self._one_hot_column_name(feature_name, category)
+                    transformed[column_name] = (normalized == category).astype("float64")
+            else:
+                series = self._to_numeric(frame[feature_name], feature_name)
+                transformed[feature_name] = series.fillna(fill_values[feature_name]).astype(
+                    "float64"
+                )
         return transformed
 
     def get_feature_names_out(self, input_features: list[str] | None = None) -> np.ndarray:
         """Return the stable feature names after preprocessing."""
         del input_features
-        return np.asarray(self.feature_names, dtype=object)
+        if not hasattr(self, "transformed_feature_names_"):
+            return np.asarray(self.feature_names, dtype=object)
+        return np.asarray(self.transformed_feature_names_, dtype=object)
 
     def _coerce_frame(self, x: pd.DataFrame) -> pd.DataFrame:
         if not isinstance(x, pd.DataFrame):
@@ -171,9 +256,51 @@ class FeaturePreprocessor(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def _to_numeric(series: pd.Series, feature_name: str) -> pd.Series:
-        if feature_name == "smoker":
-            return series.map(lambda value: np.nan if pd.isna(value) else float(bool(value)))
+        if feature_name in BOOLEAN_FEATURES:
+            return series.map(FeaturePreprocessor._to_boolean_float)
         return pd.to_numeric(series, errors="coerce")
+
+    @staticmethod
+    def _to_boolean_float(value: object) -> float:
+        if pd.isna(value):
+            return float("nan")
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"true", "1", "yes", "y"}:
+                return 1.0
+            if normalized in {"false", "0", "no", "n"}:
+                return 0.0
+            return float("nan")
+        if isinstance(value, (bool, np.bool_)):
+            return float(bool(value))
+        numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+        if pd.isna(numeric):
+            return float("nan")
+        return float(numeric != 0)
+
+    @staticmethod
+    def _to_categorical(series: pd.Series) -> pd.Series:
+        normalized = series.astype("string").str.strip().str.lower()
+        normalized = normalized.str.replace(r"[^a-z0-9]+", "_", regex=True).str.strip("_")
+        return normalized.where(normalized.notna() & (normalized != ""), "missing")
+
+    @staticmethod
+    def _one_hot_column_name(feature_name: str, category: str) -> str:
+        safe_category = re.sub(r"[^a-z0-9]+", "_", category.lower()).strip("_")
+        return f"{feature_name}_{safe_category or 'missing'}"
+
+    def _build_feature_names_out(self) -> tuple[str, ...]:
+        names: list[str] = []
+        categories = self.categories_
+        for feature_name in self.feature_names:
+            if feature_name in CATEGORICAL_FEATURES:
+                names.extend(
+                    self._one_hot_column_name(feature_name, category)
+                    for category in categories[feature_name]
+                )
+            else:
+                names.append(feature_name)
+        return tuple(names)
 
 
 def build_training_spec(raw_cfg: dict[str, Any]) -> TrainingSpec:
@@ -186,6 +313,7 @@ def build_training_spec(raw_cfg: dict[str, Any]) -> TrainingSpec:
     bundle_id = raw_cfg.get("bundle_id") or dt.datetime.now(dt.UTC).strftime(
         "bundle-%Y%m%dT%H%M%SZ"
     )
+    features = tuple(str(item) for item in raw_cfg["features"])
     return TrainingSpec(
         year=int(data_cfg["year"]),
         base_data_dir=Path(str(data_cfg["base_dir"])),
@@ -196,7 +324,8 @@ def build_training_spec(raw_cfg: dict[str, Any]) -> TrainingSpec:
         bundle_id=str(bundle_id),
         force_overwrite=bool(artifacts_cfg["force_overwrite"]),
         notes=str(artifacts_cfg["notes"]) if artifacts_cfg.get("notes") else None,
-        features=tuple(str(item) for item in raw_cfg["features"]),
+        features=features,
+        feature_contract=_build_feature_contract(raw_cfg, features=features),
         conditions={str(key): str(value) for key, value in dict(raw_cfg["conditions"]).items()},
         random_state=int(training_cfg["random_state"]),
         test_size=float(training_cfg["test_size"]),
@@ -219,6 +348,44 @@ def build_training_spec(raw_cfg: dict[str, Any]) -> TrainingSpec:
             str(key): dict(value) for key, value in dict(model_cfg["search_space"]).items()
         },
         git_commit=_detect_git_commit(),
+    )
+
+
+def _build_feature_contract(
+    raw_cfg: dict[str, Any],
+    *,
+    features: tuple[str, ...],
+) -> FeatureContractSpec:
+    contract_cfg = raw_cfg.get("feature_contract")
+    if not isinstance(contract_cfg, dict):
+        return FeatureContractSpec(
+            version="legacy_v1",
+            scenario_editable_features=features,
+            adjustment_features=(),
+            context_features=(),
+            sample_weight_column=None,
+            label_feature_exclusions={},
+        )
+    return FeatureContractSpec(
+        version=str(contract_cfg.get("version", "brfss_v2")),
+        scenario_editable_features=tuple(
+            str(item) for item in contract_cfg.get("scenario_editable_features", [])
+        ),
+        adjustment_features=tuple(
+            str(item) for item in contract_cfg.get("adjustment_features", [])
+        ),
+        context_features=tuple(str(item) for item in contract_cfg.get("context_features", [])),
+        sample_weight_column=(
+            str(contract_cfg["sample_weight_column"])
+            if contract_cfg.get("sample_weight_column")
+            else None
+        ),
+        label_feature_exclusions={
+            str(condition_id): tuple(str(item) for item in excluded_features)
+            for condition_id, excluded_features in dict(
+                contract_cfg.get("label_feature_exclusions", {})
+            ).items()
+        },
     )
 
 
@@ -264,6 +431,7 @@ def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
         "created_at": dt.datetime.now(dt.UTC).isoformat(),
         "git_commit": spec.git_commit,
         "features": list(spec.features),
+        "feature_contract": spec.feature_contract.to_dict(),
         "conditions": [
             {
                 "condition_id": result.condition_id,
@@ -349,10 +517,43 @@ def load_training_frame(spec: TrainingSpec) -> tuple[pd.DataFrame, Path]:
     else:
         frame = pd.read_csv(dataset_path)
     required = list(spec.features) + list(spec.conditions.values())
+    if spec.feature_contract.sample_weight_column:
+        required.append(spec.feature_contract.sample_weight_column)
     missing = [name for name in required if name not in frame.columns]
     if missing:
         raise ValueError(f"Training dataset is missing required columns: {missing}")
     return frame, dataset_path
+
+
+def _features_for_condition(spec: TrainingSpec, *, condition_id: str) -> tuple[str, ...]:
+    excluded = set(spec.feature_contract.label_feature_exclusions.get(condition_id, ()))
+    return tuple(feature for feature in spec.features if feature not in excluded)
+
+
+def _sample_weights_for_training(
+    frame: pd.DataFrame,
+    *,
+    spec: TrainingSpec,
+) -> pd.Series | None:
+    column = spec.feature_contract.sample_weight_column
+    if column is None:
+        return None
+    weights = pd.to_numeric(frame[column], errors="coerce")
+    weights = weights.where(weights > 0)
+    non_null = weights.dropna()
+    fill_value = float(non_null.median()) if not non_null.empty else 1.0
+    return weights.fillna(fill_value).astype("float64")
+
+
+def _weighted_mean(values: pd.Series, *, sample_weight: pd.Series | None) -> float:
+    numeric = pd.to_numeric(values, errors="coerce").astype("float64")
+    if sample_weight is None:
+        return float(numeric.mean())
+    weights = pd.to_numeric(sample_weight, errors="coerce").astype("float64")
+    valid = numeric.notna() & weights.notna() & (weights > 0)
+    if not valid.any():
+        return float(numeric.mean())
+    return float(np.average(numeric.loc[valid], weights=weights.loc[valid]))
 
 
 def default_base_data_dir() -> Path:
@@ -574,30 +775,52 @@ def _train_condition(
     condition_id: str,
     label_column: str,
 ) -> ConditionTrainingResult:
-    feature_frame = data_frame.loc[:, list(spec.features)].copy()
+    condition_features = _features_for_condition(spec, condition_id=condition_id)
+    feature_frame = data_frame.loc[:, list(condition_features)].copy()
     labels = pd.to_numeric(data_frame[label_column], errors="coerce")
     mask = labels.notna()
     feature_frame = feature_frame.loc[mask].reset_index(drop=True)
     label_series = labels.loc[mask].astype(int).reset_index(drop=True)
+    sample_weights = _sample_weights_for_training(data_frame, spec=spec)
+    sample_weights = (
+        sample_weights.loc[mask].reset_index(drop=True) if sample_weights is not None else None
+    )
     _validate_binary_target(label_series, condition_id=condition_id)
 
-    x_train, x_test, y_train, y_test = train_test_split(
+    split_values = train_test_split(
         feature_frame,
         label_series,
+        sample_weights if sample_weights is not None else pd.Series(1.0, index=label_series.index),
         test_size=spec.test_size,
         random_state=spec.random_state,
         stratify=label_series,
     )
+    x_train, x_test, y_train, y_test, w_train, w_test = split_values
 
-    tuned_params = _tune_tree_params(x_train, y_train, spec=spec)
-    explanation_pipeline = _make_tree_pipeline(spec.features, spec=spec, overrides=tuned_params)
-    explanation_pipeline.fit(x_train, y_train)
+    sample_weight_train = w_train if sample_weights is not None else None
+    sample_weight_test = w_test if sample_weights is not None else None
+
+    tuned_params = _tune_tree_params(
+        x_train,
+        y_train,
+        spec=spec,
+        feature_names=condition_features,
+        sample_weight=sample_weight_train,
+    )
+    explanation_pipeline = _make_tree_pipeline(
+        condition_features,
+        spec=spec,
+        overrides=tuned_params,
+    )
+    explanation_pipeline.fit(x_train, y_train, sample_weight=sample_weight_train)
 
     calibrated_pipeline = _fit_calibrated_pipeline(
         x_train,
         y_train,
         spec=spec,
         overrides=tuned_params,
+        feature_names=condition_features,
+        sample_weight=sample_weight_train,
     )
     base_probabilities = _predict_positive_class(explanation_pipeline, x_test)
     calibrated_probabilities = _predict_positive_class(calibrated_pipeline, x_test)
@@ -609,11 +832,18 @@ def _train_condition(
         y_test,
         spec=spec,
         tuned_params=tuned_params,
+        feature_names=condition_features,
+        sample_weight_train=sample_weight_train,
+        sample_weight_test=sample_weight_test,
     )
 
-    calibrated_metrics = _binary_metrics(y_test, calibrated_probabilities)
-    base_metrics = _binary_metrics(y_test, base_probabilities)
-    positive_rate = float(y_test.mean())
+    calibrated_metrics = _binary_metrics(
+        y_test,
+        calibrated_probabilities,
+        sample_weight=sample_weight_test,
+    )
+    base_metrics = _binary_metrics(y_test, base_probabilities, sample_weight=sample_weight_test)
+    positive_rate = _weighted_mean(y_test.astype(float), sample_weight=sample_weight_test)
 
     condition_prefix = condition_id
     pipeline_path = bundle_dir / f"{condition_prefix}.joblib"
@@ -631,6 +861,10 @@ def _train_condition(
     test_predictions["predicted_probability"] = calibrated_probabilities
     test_predictions["predicted_probability_uncalibrated"] = base_probabilities
     test_predictions["predicted_probability_no_aqi"] = no_aqi_probabilities
+    if sample_weight_test is not None:
+        test_predictions[spec.feature_contract.sample_weight_column or "survey_weight"] = (
+            sample_weight_test.to_numpy()
+        )
     if len(test_predictions) > spec.prediction_sample_rows:
         test_predictions = test_predictions.sample(
             n=spec.prediction_sample_rows,
@@ -642,15 +876,28 @@ def _train_condition(
     feature_importance_path.write_text(json.dumps(importances, indent=2) + "\n", encoding="utf-8")
 
     tree_model = explanation_pipeline.named_steps["model"]
-    tree_text = export_text(tree_model, feature_names=list(spec.features))
+    tree_text = export_text(
+        tree_model,
+        feature_names=list(explanation_pipeline.named_steps["preprocess"].get_feature_names_out()),
+    )
     tree_text_path.write_text(tree_text + "\n", encoding="utf-8")
 
     metrics_payload = {
         "condition_id": condition_id,
         "label_column": label_column,
+        "features": list(condition_features),
+        "sample_weight_column": spec.feature_contract.sample_weight_column,
         "rows_total": int(len(feature_frame)),
         "rows_train": int(len(x_train)),
         "rows_test": int(len(x_test)),
+        "weighted_rows_train": (
+            float(sample_weight_train.sum())
+            if sample_weight_train is not None
+            else int(len(x_train))
+        ),
+        "weighted_rows_test": (
+            float(sample_weight_test.sum()) if sample_weight_test is not None else int(len(x_test))
+        ),
         "target_positive_rate": positive_rate,
         "best_params": tuned_params,
         "base_metrics": base_metrics,
@@ -680,20 +927,24 @@ def _fit_no_aqi_ablation(
     *,
     spec: TrainingSpec,
     tuned_params: dict[str, Any],
+    feature_names: tuple[str, ...],
+    sample_weight_train: pd.Series | None,
+    sample_weight_test: pd.Series | None,
 ) -> tuple[dict[str, float | None], np.ndarray]:
-    ablation_features = tuple(feature for feature in spec.features if feature != "annual_aqi")
+    ablation_features = tuple(feature for feature in feature_names if feature != "annual_aqi")
     ablation_pipeline = _fit_calibrated_pipeline(
         x_train.loc[:, list(ablation_features)],
         y_train,
         spec=spec,
         overrides=tuned_params,
         feature_names=ablation_features,
+        sample_weight=sample_weight_train,
     )
     probabilities = _predict_positive_class(
         ablation_pipeline,
         x_test.loc[:, list(ablation_features)],
     )
-    return _binary_metrics(y_test, probabilities), probabilities
+    return _binary_metrics(y_test, probabilities, sample_weight=sample_weight_test), probabilities
 
 
 def _make_tree_pipeline(
@@ -701,7 +952,7 @@ def _make_tree_pipeline(
     *,
     spec: TrainingSpec,
     overrides: dict[str, Any] | None = None,
-) -> Pipeline:
+) -> SampleWeightPipeline:
     params = {
         "criterion": spec.model_criterion,
         "class_weight": spec.model_class_weight,
@@ -709,7 +960,7 @@ def _make_tree_pipeline(
     }
     if overrides:
         params.update(overrides)
-    return Pipeline(
+    return SampleWeightPipeline(
         steps=[
             ("preprocess", FeaturePreprocessor(feature_names=feature_names)),
             ("model", DecisionTreeClassifier(**params)),
@@ -724,6 +975,7 @@ def _fit_calibrated_pipeline(
     spec: TrainingSpec,
     overrides: dict[str, Any],
     feature_names: tuple[str, ...] | None = None,
+    sample_weight: pd.Series | None = None,
 ) -> CalibratedClassifierCV | Pipeline:
     base_pipeline = _make_tree_pipeline(
         feature_names or spec.features,
@@ -732,14 +984,14 @@ def _fit_calibrated_pipeline(
     )
     calibration_folds = _safe_cv_folds(y_train, requested_folds=spec.calibration_cv)
     if calibration_folds < 2:
-        base_pipeline.fit(x_train, y_train)
+        base_pipeline.fit(x_train, y_train, sample_weight=sample_weight)
         return base_pipeline
     calibrated = CalibratedClassifierCV(
         estimator=base_pipeline,
         method=spec.calibration_method,
         cv=calibration_folds,
     )
-    calibrated.fit(x_train, y_train)
+    calibrated.fit(x_train, y_train, sample_weight=sample_weight)
     return calibrated
 
 
@@ -748,6 +1000,8 @@ def _tune_tree_params(
     y_train: pd.Series,
     *,
     spec: TrainingSpec,
+    feature_names: tuple[str, ...],
+    sample_weight: pd.Series | None,
 ) -> dict[str, Any]:
     if not spec.tuning_enabled:
         return {}
@@ -762,7 +1016,12 @@ def _tune_tree_params(
             "Run `pdm install -G train` before invoking the training pipeline."
         ) from exc
 
-    tuning_frame, tuning_labels = _sample_for_tuning(x_train, y_train, spec=spec)
+    tuning_frame, tuning_labels, tuning_weights = _sample_for_tuning(
+        x_train,
+        y_train,
+        sample_weight=sample_weight,
+        spec=spec,
+    )
     tuning_folds = _safe_cv_folds(tuning_labels, requested_folds=spec.tuning_cv_folds)
     if tuning_folds < 2:
         return {}
@@ -811,13 +1070,24 @@ def _tune_tree_params(
             fold_valid = tuning_frame.iloc[valid_idx]
             fold_y_train = tuning_labels.iloc[train_idx]
             fold_y_valid = tuning_labels.iloc[valid_idx]
-            pipeline = _make_tree_pipeline(spec.features, spec=spec, overrides=params)
-            pipeline.fit(fold_train, fold_y_train)
+            fold_weights = (
+                tuning_weights.iloc[train_idx].reset_index(drop=True)
+                if tuning_weights is not None
+                else None
+            )
+            fold_valid_weights = (
+                tuning_weights.iloc[valid_idx].reset_index(drop=True)
+                if tuning_weights is not None
+                else None
+            )
+            pipeline = _make_tree_pipeline(feature_names, spec=spec, overrides=params)
+            pipeline.fit(fold_train, fold_y_train, sample_weight=fold_weights)
             probabilities = _predict_positive_class(pipeline, fold_valid)
             metric_value = _score_tuning_metric(
                 y_true=fold_y_valid,
                 probabilities=probabilities,
                 metric_name=spec.tuning_metric,
+                sample_weight=fold_valid_weights,
             )
             scores.append(metric_value)
         return float(np.mean(scores))
@@ -835,18 +1105,25 @@ def _sample_for_tuning(
     x_train: pd.DataFrame,
     y_train: pd.Series,
     *,
+    sample_weight: pd.Series | None,
     spec: TrainingSpec,
-) -> tuple[pd.DataFrame, pd.Series]:
+) -> tuple[pd.DataFrame, pd.Series, pd.Series | None]:
     if spec.tuning_sample_size is None or len(x_train) <= spec.tuning_sample_size:
-        return x_train, y_train
-    sampled_x, _, sampled_y, _ = train_test_split(
+        return x_train, y_train, sample_weight
+    split_values = train_test_split(
         x_train,
         y_train,
+        sample_weight if sample_weight is not None else pd.Series(1.0, index=y_train.index),
         train_size=spec.tuning_sample_size,
         random_state=spec.random_state,
         stratify=y_train,
     )
-    return sampled_x.reset_index(drop=True), sampled_y.reset_index(drop=True)
+    sampled_x, _, sampled_y, _, sampled_weights, _ = split_values
+    return (
+        sampled_x.reset_index(drop=True),
+        sampled_y.reset_index(drop=True),
+        sampled_weights.reset_index(drop=True) if sample_weight is not None else None,
+    )
 
 
 def _score_tuning_metric(
@@ -854,10 +1131,11 @@ def _score_tuning_metric(
     y_true: pd.Series,
     probabilities: np.ndarray,
     metric_name: str,
+    sample_weight: pd.Series | None,
 ) -> float:
     if metric_name == "roc_auc":
-        return float(roc_auc_score(y_true, probabilities))
-    return float(average_precision_score(y_true, probabilities))
+        return float(roc_auc_score(y_true, probabilities, sample_weight=sample_weight))
+    return float(average_precision_score(y_true, probabilities, sample_weight=sample_weight))
 
 
 def _predict_positive_class(
@@ -874,7 +1152,12 @@ def _predict_positive_class(
     return np.asarray(probabilities)[:, int(matches[0])]
 
 
-def _binary_metrics(y_true: pd.Series, probabilities: np.ndarray) -> dict[str, float | None]:
+def _binary_metrics(
+    y_true: pd.Series,
+    probabilities: np.ndarray,
+    *,
+    sample_weight: pd.Series | None = None,
+) -> dict[str, float | None]:
     metrics: dict[str, float | None] = {
         "average_precision": None,
         "roc_auc": None,
@@ -882,9 +1165,13 @@ def _binary_metrics(y_true: pd.Series, probabilities: np.ndarray) -> dict[str, f
     }
     if len(np.unique(y_true)) < 2:
         return metrics
-    metrics["average_precision"] = float(average_precision_score(y_true, probabilities))
-    metrics["roc_auc"] = float(roc_auc_score(y_true, probabilities))
-    metrics["brier_score"] = float(brier_score_loss(y_true, probabilities))
+    metrics["average_precision"] = float(
+        average_precision_score(y_true, probabilities, sample_weight=sample_weight)
+    )
+    metrics["roc_auc"] = float(roc_auc_score(y_true, probabilities, sample_weight=sample_weight))
+    metrics["brier_score"] = float(
+        brier_score_loss(y_true, probabilities, sample_weight=sample_weight)
+    )
     return metrics
 
 
@@ -900,7 +1187,7 @@ def _feature_importances(pipeline: Pipeline) -> list[dict[str, float | str]]:
             "importance": float(importance),
         }
         for feature_name, importance in zip(
-            pipeline.named_steps["preprocess"].feature_names,
+            pipeline.named_steps["preprocess"].get_feature_names_out(),
             importances,
             strict=True,
         )

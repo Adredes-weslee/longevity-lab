@@ -13,7 +13,7 @@ Legend:
 - [DONE] Governance, roadmap, local overlay, worktree policy, and PR plan drafted.
 - [DONE] Artifact-first runtime default when a valid local bundle exists.
 - [DONE] Data source registry and provenance schema for current public sources.
-- [TODO] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
+- [DONE] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
 - [TODO] EPA pollutant-specific features beyond annual AQI.
 - [TODO] ACS/SVI contextual social-determinants features.
 - [TODO] CDC PLACES contextual validation layer.
@@ -40,9 +40,10 @@ Legend:
 
 - [DONE] Dataset directory layout and typed path builder (`src/longevity_lab/pipeline/ingest.py`).
 - [DONE] BRFSS download script with provenance (`src/longevity_lab/pipeline/download_brfss.py`).
-- [DONE] BRFSS decode and Parquet build for v1 columns (`src/longevity_lab/pipeline/build_brfss_tables.py`).
+- [DONE] BRFSS decode and Parquet build for v2 scenario/editable, adjustment, label, and survey-weight columns (`src/longevity_lab/pipeline/build_brfss_tables.py`).
 - [DONE] EPA AirData annual AQI download and preprocessing (`src/longevity_lab/pipeline/download_epa_airdata.py`, `src/longevity_lab/pipeline/build_epa_tables.py`).
 - [DONE] BRFSS/EPA state-year join (`src/longevity_lab/pipeline/build_integrated_tables.py`).
+- [DONE] Integrated person-year tables preserve BRFSS v2 covariates for default training (`src/longevity_lab/pipeline/build_integrated_tables.py`).
 - [DONE] Expected EPA territory coverage gaps handled without breaking integrated builds (`src/longevity_lab/pipeline/build_integrated_tables.py`).
 - [DONE] Small sample slice committed in `data/sample/` for dev/testing only.
 - [DONE] DuckDB stable views builder (`src/longevity_lab/pipeline/build_duckdb_views.py`).
@@ -58,6 +59,7 @@ Legend:
 - [DONE] Calibration for probability outputs (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Evaluation script and metrics report scaffold (`src/longevity_lab/pipeline/evaluate.py`).
 - [DONE] Subgroup/slice analysis export for trained bundles (`src/longevity_lab/pipeline/evaluate.py`, `src/longevity_lab/pipeline/modeling.py`).
+- [DONE] Training config separates scenario-editable features from BRFSS adjustment/context covariates and applies survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Artifact manifest schema, bundle loader, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
 - [DONE] Explanation outputs aligned to saved explanation trees (`src/longevity_lab/services/artifact_engine.py`).
 
@@ -104,8 +106,8 @@ Legend:
 
 ## Highest-ROI next tasks
 
-1. Add BRFSS v2 and contextual data feature contracts.
-2. Replace notebook-derived analysis with scripted reports.
-3. Add reproducible model benchmarking and model-card outputs.
-4. Add pollutant-specific EPA and socioeconomic context tables.
-5. Start the modeling benchmark harness.
+1. Replace notebook-derived analysis with scripted reports.
+2. Add reproducible model benchmarking and model-card outputs.
+3. Add pollutant-specific EPA and socioeconomic context tables.
+4. Implement the non-serving causal workbench.
+5. Start the UI information architecture upgrade.
