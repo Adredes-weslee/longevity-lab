@@ -24,7 +24,8 @@ Legend:
 - [DONE] API contract v2 metadata for model provenance, explanation methods, uncertainty availability, and contextual geography.
 - [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
 - [DONE] Causal workbench prototype for sensitivity-tested, non-serving smoking-to-lung-disease estimates.
-- [TODO] UI information architecture, Explorer upgrade, and deployment packaging.
+- [DONE] UI information architecture with Explorer, Data Evidence, Model Cards, and Scenario Lab pages.
+- [TODO] Explorer upgrade and deployment packaging.
 
 ## Current baseline
 
@@ -99,6 +100,7 @@ Legend:
 - [DONE] Scenario editing is live and updates the evaluation snapshot automatically.
 - [DONE] High-risk drill-down panels surface public-health guidance links when either current or what-if profile is in the red band.
 - [DONE] Explorer view shows a compact non-diagnostic disclaimer and runtime scoring-mode banner.
+- [DONE] Named product pages separate the Explorer, data evidence, active model-card metadata, and scenario summary workflows (`frontend/src/pages/`).
 - [TODO] Better "what changed" deltas per organ/condition.
 - [DEMO] Basic accessibility pass.
 - [DEMO] Mobile/responsive layout pass.
@@ -122,5 +124,5 @@ Legend:
 1. Wire pollutant and socioeconomic context features into the benchmark harness.
 2. Wire typed explanation and uncertainty copy into the upgraded Explorer UI.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
-4. Start the UI information architecture upgrade.
+4. Upgrade Explorer deltas, caveats, and accessibility details.
 5. Finalize ethics and health disclaimer language across the UI and documentation.
