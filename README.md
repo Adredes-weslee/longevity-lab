@@ -9,7 +9,8 @@ This repo is intentionally usable *today* (end-to-end UI <-> API), and it now in
 - Current state: typed API + runnable UI + explicit compare/apply UX + a reference-based silhouette
   heatmap + BRFSS/EPA pipeline + Hydra/Optuna training entrypoints that write calibrated per-condition
   artifact bundles with metrics, prediction samples, and explanation trees.
-- Default serving mode is still `demo` until you point the backend at a local artifact bundle.
+- Default serving mode is `auto`: the backend uses a valid local artifact bundle when present and
+  otherwise falls back to clearly labeled demo scoring.
 - Target end state: BRFSS/EPA ingest -> trained + calibrated tree models -> artifact-backed API by
   default -> organ UI with richer typed explanations.
 - Product expansion roadmap: `docs/roadmap.md`
@@ -165,7 +166,8 @@ Write report-ready overall + subgroup metrics:
 pdm run python -m longevity_lab.pipeline.evaluate artifacts.output_path=artifacts/models/eval-summary.json artifacts.slice_output_path=artifacts/models/eval-slices.json
 ```
 
-To serve a trained bundle through the API, set:
+The API auto-detects a valid local bundle by default. To require artifact mode and fail fast when
+no valid bundle exists, set:
 
 ```powershell
 $env:LONGEVITY_LAB_ENGINE='artifact'

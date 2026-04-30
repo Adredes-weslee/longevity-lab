@@ -1,11 +1,221 @@
 """Backend smoke tests."""
 
+import datetime as dt
 from collections.abc import Iterator
+from pathlib import Path
 
+import joblib  # type: ignore[import-untyped]
+import pandas as pd  # type: ignore[import-untyped]
 import pytest
 from fastapi.testclient import TestClient
+from sklearn.dummy import DummyClassifier  # type: ignore[import-untyped]
+from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
 
-from longevity_lab.api.main import app
+from longevity_lab.api.main import app, create_app
+from longevity_lab.artifacts.manifest import (
+    ArtifactManifest,
+    ConditionArtifact,
+    DatasetInfo,
+    save_manifest,
+)
+from longevity_lab.config import get_settings
+
+
+def _write_api_bundle(
+    artifacts_dir: Path,
+    bundle_id: str = "bundle-api",
+    *,
+    created_at: dt.datetime | None = None,
+) -> str:
+    """Write a minimal loadable artifact bundle for API startup tests."""
+    models_dir = artifacts_dir / "models"
+    bundle_dir = models_dir / bundle_id
+    bundle_dir.mkdir(parents=True)
+    frame = pd.DataFrame(
+        [
+            {
+                "age": 45,
+                "bmi": 28.0,
+                "smoker": True,
+                "alcohol_servings_per_week": 10,
+                "exercise_minutes_per_week": 60,
+                "annual_aqi": 80,
+            },
+            {
+                "age": 45,
+                "bmi": 26.0,
+                "smoker": False,
+                "alcohol_servings_per_week": 4,
+                "exercise_minutes_per_week": 180,
+                "annual_aqi": 55,
+            },
+        ]
+    )
+    pipeline = Pipeline([("model", DummyClassifier(strategy="prior"))])
+    pipeline.fit(frame, [1, 0])
+    pipeline_path = bundle_dir / "heart_disease.joblib"
+    joblib.dump(pipeline, pipeline_path)
+    save_manifest(
+        ArtifactManifest(
+            created_at=created_at or dt.datetime.now(dt.UTC),
+            dataset=DatasetInfo(name="brfss", version="test"),
+            features=list(frame.columns),
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path=pipeline_path.name,
+                    explanation_method="tree_path",
+                )
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+    return bundle_id
+
+
+def _write_incomplete_api_bundle(
+    artifacts_dir: Path,
+    bundle_id: str = "bundle-incomplete",
+    *,
+    created_at: dt.datetime | None = None,
+) -> str:
+    """Write a parseable bundle manifest that references a missing pipeline."""
+    bundle_dir = artifacts_dir / "models" / bundle_id
+    bundle_dir.mkdir(parents=True)
+    save_manifest(
+        ArtifactManifest(
+            created_at=created_at or dt.datetime.now(dt.UTC),
+            dataset=DatasetInfo(name="brfss", version="test"),
+            features=[
+                "age",
+                "bmi",
+                "smoker",
+                "alcohol_servings_per_week",
+                "exercise_minutes_per_week",
+                "annual_aqi",
+            ],
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path="missing-heart-disease.joblib",
+                    explanation_method="tree_path",
+                )
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+    return bundle_id
+
+
+def _write_wrong_object_api_bundle(artifacts_dir: Path, bundle_id: str = "bundle-wrong") -> str:
+    """Write a parseable bundle whose joblib file is not a serving pipeline."""
+    bundle_dir = artifacts_dir / "models" / bundle_id
+    bundle_dir.mkdir(parents=True)
+    pipeline_path = bundle_dir / "heart_disease.joblib"
+    joblib.dump({"not": "a pipeline"}, pipeline_path)
+    save_manifest(
+        ArtifactManifest(
+            dataset=DatasetInfo(name="brfss", version="test"),
+            features=[
+                "age",
+                "bmi",
+                "smoker",
+                "alcohol_servings_per_week",
+                "exercise_minutes_per_week",
+                "annual_aqi",
+            ],
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path=pipeline_path.name,
+                    explanation_method="tree_path",
+                )
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+    return bundle_id
+
+
+def _write_corrupt_joblib_api_bundle(
+    artifacts_dir: Path,
+    bundle_id: str = "bundle-corrupt",
+) -> str:
+    """Write a parseable bundle whose joblib file cannot be loaded."""
+    bundle_dir = artifacts_dir / "models" / bundle_id
+    bundle_dir.mkdir(parents=True)
+    pipeline_path = bundle_dir / "heart_disease.joblib"
+    pipeline_path.write_bytes(b"not-a-valid-joblib")
+    save_manifest(
+        ArtifactManifest(
+            dataset=DatasetInfo(name="brfss", version="test"),
+            features=[
+                "age",
+                "bmi",
+                "smoker",
+                "alcohol_servings_per_week",
+                "exercise_minutes_per_week",
+                "annual_aqi",
+            ],
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path=pipeline_path.name,
+                    explanation_method="tree_path",
+                )
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+    return bundle_id
+
+
+def _compare_payload() -> dict[str, dict[str, object]]:
+    """Return a valid scenario comparison payload."""
+    return {
+        "baseline": {
+            "age": 45,
+            "bmi": 28.0,
+            "smoker": True,
+            "alcohol_servings_per_week": 10,
+            "exercise_minutes_per_week": 60,
+            "annual_aqi": 80,
+        },
+        "candidate": {
+            "age": 45,
+            "bmi": 26.0,
+            "smoker": False,
+            "alcohol_servings_per_week": 4,
+            "exercise_minutes_per_week": 180,
+            "annual_aqi": 55,
+        },
+    }
+
+
+def _configured_client(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    artifacts_dir: Path,
+    engine: str | None = None,
+    bundle_id: str | None = None,
+) -> Iterator[TestClient]:
+    """Yield a TestClient with isolated settings."""
+    monkeypatch.setenv("LONGEVITY_LAB_ARTIFACTS_DIR", str(artifacts_dir))
+    if engine is None:
+        monkeypatch.delenv("LONGEVITY_LAB_ENGINE", raising=False)
+    else:
+        monkeypatch.setenv("LONGEVITY_LAB_ENGINE", engine)
+    if bundle_id is None:
+        monkeypatch.delenv("LONGEVITY_LAB_ARTIFACT_BUNDLE", raising=False)
+    else:
+        monkeypatch.setenv("LONGEVITY_LAB_ARTIFACT_BUNDLE", bundle_id)
+
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as test_client:
+            yield test_client
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.fixture
@@ -30,6 +240,214 @@ def test_metadata_bootstrap(client: TestClient) -> None:
     payload = response.json()
     assert payload["organs"]
     assert payload["conditions"]
+    assert payload["runtime"]["engine_mode"] == "demo"
+    assert payload["runtime"]["engine_source"] == "fallback"
+
+
+def test_metadata_bootstrap_auto_selects_artifact_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should prefer a valid local artifact bundle."""
+    bundle_id = _write_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "artifact"
+        assert runtime["engine_source"] == "auto"
+        assert runtime["artifact_bundle_id"] == bundle_id
+
+
+def test_metadata_bootstrap_explicit_demo_ignores_artifact_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Explicit demo mode should preserve the user's engine override."""
+    _write_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(
+        monkeypatch,
+        artifacts_dir=tmp_path / "artifacts",
+        engine="demo",
+    ):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "demo"
+        assert runtime["engine_source"] == "explicit"
+        assert runtime["artifact_bundle_id"] is None
+
+
+def test_metadata_bootstrap_explicit_artifact_uses_selected_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Explicit artifact mode should load the selected bundle."""
+    bundle_id = _write_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(
+        monkeypatch,
+        artifacts_dir=tmp_path / "artifacts",
+        engine="artifact",
+        bundle_id=bundle_id,
+    ):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "artifact"
+        assert runtime["engine_source"] == "explicit"
+        assert runtime["artifact_bundle_id"] == bundle_id
+
+
+def test_metadata_bootstrap_auto_falls_back_on_invalid_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should fall back to demo when local bundles are invalid."""
+    (tmp_path / "artifacts" / "models" / "invalid-bundle").mkdir(parents=True)
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "demo"
+        assert runtime["engine_source"] == "fallback"
+
+
+def test_metadata_bootstrap_auto_falls_back_on_incomplete_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should not crash when a manifest points at missing model files."""
+    _write_incomplete_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "demo"
+        assert runtime["engine_source"] == "fallback"
+
+
+def test_metadata_bootstrap_auto_falls_back_on_corrupt_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should not crash when a bundle contains corrupt joblib files."""
+    _write_corrupt_joblib_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "demo"
+        assert runtime["engine_source"] == "fallback"
+
+
+def test_scenario_compare_auto_fallback_stays_usable_for_corrupt_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto fallback should still serve scenario comparisons after rejecting a bad bundle."""
+    _write_corrupt_joblib_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.post("/api/scenario/compare", json=_compare_payload())
+        assert response.status_code == 200
+        body = response.json()
+        assert body["baseline"]["conditions"]
+        assert body["candidate"]["conditions"]
+
+
+def test_metadata_bootstrap_auto_falls_back_on_wrong_object_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should validate scoring before selecting artifact mode."""
+    _write_wrong_object_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "demo"
+        assert runtime["engine_source"] == "fallback"
+
+
+def test_metadata_bootstrap_auto_selects_older_valid_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should keep trying older bundles when the newest bundle is invalid."""
+    valid_bundle_id = _write_api_bundle(
+        tmp_path / "artifacts",
+        "bundle-valid",
+        created_at=dt.datetime(2026, 1, 1, tzinfo=dt.UTC),
+    )
+    _write_incomplete_api_bundle(
+        tmp_path / "artifacts",
+        "bundle-newer-invalid",
+        created_at=dt.datetime(2026, 2, 1, tzinfo=dt.UTC),
+    )
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "artifact"
+        assert runtime["engine_source"] == "auto"
+        assert runtime["artifact_bundle_id"] == valid_bundle_id
+
+
+def test_metadata_bootstrap_auto_falls_back_on_selected_missing_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should fall back when the selected bundle has no manifest."""
+    (tmp_path / "artifacts" / "models" / "selected-bad").mkdir(parents=True)
+    for test_client in _configured_client(
+        monkeypatch,
+        artifacts_dir=tmp_path / "artifacts",
+        bundle_id="selected-bad",
+    ):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "demo"
+        assert runtime["engine_source"] == "fallback"
+
+
+def test_metadata_bootstrap_auto_falls_back_on_selected_corrupt_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should fall back when the selected bundle manifest is unreadable."""
+    bundle_dir = tmp_path / "artifacts" / "models" / "selected-bad"
+    bundle_dir.mkdir(parents=True)
+    (bundle_dir / "manifest.json").write_text("{not valid json", encoding="utf-8")
+    for test_client in _configured_client(
+        monkeypatch,
+        artifacts_dir=tmp_path / "artifacts",
+        bundle_id="selected-bad",
+    ):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "demo"
+        assert runtime["engine_source"] == "fallback"
+
+
+def test_metadata_bootstrap_auto_falls_back_on_selected_schema_invalid_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should fall back when the selected bundle manifest has invalid schema."""
+    bundle_dir = tmp_path / "artifacts" / "models" / "selected-bad"
+    bundle_dir.mkdir(parents=True)
+    (bundle_dir / "manifest.json").write_text('{"schema_version": "bad"}\n', encoding="utf-8")
+    for test_client in _configured_client(
+        monkeypatch,
+        artifacts_dir=tmp_path / "artifacts",
+        bundle_id="selected-bad",
+    ):
+        response = test_client.get("/api/metadata/bootstrap")
+        assert response.status_code == 200
+        runtime = response.json()["runtime"]
+        assert runtime["engine_mode"] == "demo"
+        assert runtime["engine_source"] == "fallback"
 
 
 def test_request_id_header_added(client: TestClient) -> None:
@@ -62,25 +480,7 @@ def test_request_id_header_rejects_invalid_input(client: TestClient) -> None:
 
 def test_scenario_compare(client: TestClient) -> None:
     """The compare route should return baseline, candidate, and deltas."""
-    payload = {
-        "baseline": {
-            "age": 45,
-            "bmi": 28.0,
-            "smoker": True,
-            "alcohol_servings_per_week": 10,
-            "exercise_minutes_per_week": 60,
-            "annual_aqi": 80,
-        },
-        "candidate": {
-            "age": 45,
-            "bmi": 26.0,
-            "smoker": False,
-            "alcohol_servings_per_week": 4,
-            "exercise_minutes_per_week": 180,
-            "annual_aqi": 55,
-        },
-    }
-    response = client.post("/api/scenario/compare", json=payload)
+    response = client.post("/api/scenario/compare", json=_compare_payload())
     assert response.status_code == 200
     body = response.json()
     assert body["baseline"]["conditions"]

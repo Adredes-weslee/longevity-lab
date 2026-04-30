@@ -11,7 +11,7 @@ Legend:
 ## Product roadmap status
 
 - [DONE] Governance, roadmap, local overlay, worktree policy, and PR plan drafted.
-- [TODO] Artifact-first runtime default when a valid local bundle exists.
+- [DONE] Artifact-first runtime default when a valid local bundle exists.
 - [TODO] Data source registry and provenance schema for additional public sources.
 - [TODO] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
 - [TODO] EPA pollutant-specific features beyond annual AQI.
@@ -33,7 +33,7 @@ Legend:
 - [DEMO] Organ heatmap renders delta, baseline, and scenario views with callouts (`frontend/src/components/body-heatmap.tsx`).
 - [DEMO] Drill-down shows condition probabilities, drivers, citations, and guidance (`frontend/src/components/condition-inspector.tsx`).
 - [DONE] Backend exposes stable typed contract (`src/longevity_lab/api/schemas.py`).
-- [DEMO] Backend compares two scenarios through `POST /api/scenario/compare` (`src/longevity_lab/api/routes/scenario.py`).
+- [DONE] Backend compares two scenarios through `POST /api/scenario/compare`, using artifact-backed scoring when a valid local bundle exists and labeled demo scoring otherwise (`src/longevity_lab/api/routes/scenario.py`).
 
 ### Data pipeline
 
@@ -50,18 +50,18 @@ Legend:
 ### Modeling
 
 - [DONE] Hydra-based training entrypoint (`src/longevity_lab/pipeline/train.py`, `conf/train.yaml`).
-- [DEMO] Demo risk engine (`src/longevity_lab/services/scenario_service.py`).
+- [DEMO] Demo risk engine remains available as explicit or fallback scoring (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Decision-tree baseline per condition with Optuna tuning (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Calibration for probability outputs (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Evaluation script and metrics report scaffold (`src/longevity_lab/pipeline/evaluate.py`).
 - [DONE] Subgroup/slice analysis export for trained bundles (`src/longevity_lab/pipeline/evaluate.py`, `src/longevity_lab/pipeline/modeling.py`).
-- [DONE] Artifact manifest schema and bundle loader (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
+- [DONE] Artifact manifest schema, bundle loader, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
 - [DONE] Explanation outputs aligned to saved explanation trees (`src/longevity_lab/services/artifact_engine.py`).
 
 ### Backend/API
 
 - [DONE] Health check (`GET /api/health`) (`src/longevity_lab/api/routes/health.py`).
-- [DONE] Metadata bootstrap (`GET /api/metadata/bootstrap`) (`src/longevity_lab/api/routes/metadata.py`).
+- [DONE] Metadata bootstrap with runtime mode/artifact status (`GET /api/metadata/bootstrap`) (`src/longevity_lab/api/routes/metadata.py`).
 - [DONE] Pipeline status endpoint (`GET /api/pipeline/status`) (`src/longevity_lab/api/routes/pipeline.py`).
 - [DONE] Service layer and engine abstraction (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Artifact-backed engine path (`src/longevity_lab/services/artifact_engine.py`).
@@ -74,7 +74,7 @@ Legend:
 - [DONE] Explorer layout includes side-by-side current and what-if inputs, a persistent comparison strip, and absolute-risk versus relative-change legends.
 - [DONE] Scenario editing is live and updates the evaluation snapshot automatically.
 - [DONE] High-risk drill-down panels surface public-health guidance links when either current or what-if profile is in the red band.
-- [DONE] Explorer view shows a compact non-diagnostic disclaimer.
+- [DONE] Explorer view shows a compact non-diagnostic disclaimer and runtime scoring-mode banner.
 - [TODO] Better "what changed" deltas per organ/condition.
 - [DEMO] Basic accessibility pass.
 - [DEMO] Mobile/responsive layout pass.
@@ -94,8 +94,8 @@ Legend:
 
 ## Highest-ROI next tasks
 
-1. Make artifact mode the default when a valid local bundle is present.
-2. Add the public data-source registry.
-3. Add BRFSS v2 and contextual data feature contracts.
-4. Replace notebook-derived analysis with scripted reports.
+1. Add the public data-source registry.
+2. Add BRFSS v2 and contextual data feature contracts.
+3. Replace notebook-derived analysis with scripted reports.
+4. Add reproducible model benchmarking and model-card outputs.
 5. Start the modeling benchmark harness.

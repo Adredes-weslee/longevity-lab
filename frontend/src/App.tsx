@@ -195,6 +195,23 @@ function App(): JSX.Element {
       {bootstrap ? (
         view === 'explorer' ? (
           <>
+            <section
+              className={`runtime-banner ${bootstrap.runtime.engine_mode}`}
+              data-testid="runtime-banner"
+            >
+              <span>
+                {bootstrap.runtime.engine_mode === 'artifact'
+                  ? 'Artifact-backed scoring'
+                  : 'Demo scoring'}
+              </span>
+              <p>
+                {bootstrap.runtime.message}
+                {bootstrap.runtime.artifact_bundle_id
+                  ? ` Bundle: ${bootstrap.runtime.artifact_bundle_id}.`
+                  : ''}
+              </p>
+            </section>
+
             <section className="overview-strip">
               <section className="overview-card primary" data-testid="overview-whatif">
                 <p className="section-kicker">What-if score</p>

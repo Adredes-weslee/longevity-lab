@@ -13,8 +13,9 @@ This guide is meant to get a developer productive quickly.
 ## Run the app (2 terminals)
 
 Optional: copy `.env.example` to `.env` to override local settings.
-For example, set `LONGEVITY_LAB_ENGINE=artifact` to load trained bundles from `artifacts/models/`
-(requires at least one local bundle with `artifacts/models/<bundle_id>/manifest.json`; otherwise keep `demo`).
+By default, `LONGEVITY_LAB_ENGINE=auto` loads a valid trained bundle from `artifacts/models/`
+when one exists and otherwise falls back to clearly labeled demo scoring.
+Set `LONGEVITY_LAB_ENGINE=artifact` only when you want startup to require a valid local bundle.
 If your frontend runs on a different port, update `LONGEVITY_LAB_CORS_ALLOW_ORIGINS` (comma-separated, no `*`).
 If you use the Vite `/api` proxy (default), you can also set it empty to disable CORS.
 
@@ -108,7 +109,8 @@ Write report-ready summary + subgroup slice exports:
 pdm run python -m longevity_lab.pipeline.evaluate artifacts.output_path=artifacts/models/eval-summary.json artifacts.slice_output_path=artifacts/models/eval-slices.json
 ```
 
-Serve the trained bundle through the API:
+The API serves a valid local bundle automatically when `LONGEVITY_LAB_ENGINE=auto`.
+To require artifact mode explicitly:
 
 ```powershell
 $env:LONGEVITY_LAB_ENGINE='artifact'
