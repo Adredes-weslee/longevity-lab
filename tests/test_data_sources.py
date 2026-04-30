@@ -24,6 +24,7 @@ def test_data_source_registry_loads_default_sources() -> None:
         "epa_airdata_annual_conc_by_monitor",
         "census_acs5_api_context",
         "cdc_atsdr_svi_us_county_csv",
+        "cdc_places_county_opendata",
     }
 
 
@@ -37,6 +38,7 @@ def test_data_source_registry_formats_year_templates() -> None:
     epa_concentration = registry.require("epa_airdata_annual_conc_by_monitor")
     acs = registry.require("census_acs5_api_context")
     svi = registry.require("cdc_atsdr_svi_us_county_csv")
+    places = registry.require("cdc_places_county_opendata")
 
     assert brfss.download_url(year=2023).endswith("/2023/files/LLCP2023XPT.zip")
     assert codebook.download_url(year=2023).endswith("/2023/zip/codebook23_llcp-v2-508.zip")
@@ -44,6 +46,9 @@ def test_data_source_registry_formats_year_templates() -> None:
     assert epa_concentration.download_url(year=2023).endswith("/annual_conc_by_monitor_2023.zip")
     assert acs.download_url(year=2024).endswith("/data/2024/acs/acs5")
     assert svi.download_url(year=2022).endswith("/SVI_2022_US_county.csv")
+    assert places.download_url(year=2025).endswith(
+        "/api/views/swc5-untb/rows.csv?accessType=DOWNLOAD"
+    )
     assert brfss.landing_path(year=2023) == "external/brfss/2023/"
 
 
@@ -132,6 +137,25 @@ def test_registry_provenance_extra_contains_epa_concentration_metadata() -> None
     concentration = indexed["epa_airdata_annual_conc_by_monitor"]
     assert concentration["download_url"].endswith("annual_conc_by_monitor_2023.zip")
     assert concentration["expected_file_pattern"] == "annual_conc_by_monitor_2023.csv"
+
+
+def test_registry_provenance_extra_contains_places_metadata() -> None:
+    """PLACES county downloads should have registry-backed provenance."""
+    registry = load_data_source_registry()
+
+    extra = registry_provenance_extra(
+        registry=registry,
+        source_ids=["cdc_places_county_opendata"],
+        year=2025,
+    )
+
+    source_record = extra["source_registry"]["sources"][0]
+    assert source_record["source_id"] == "cdc_places_county_opendata"
+    assert source_record["download_url"] == (
+        "https://data.cdc.gov/api/views/swc5-untb/rows.csv?accessType=DOWNLOAD"
+    )
+    assert source_record["expected_file_pattern"] == "places_county_2025.csv"
+    assert "modeled aggregate" in source_record["license_note"]
 
 
 def test_data_source_registry_model_rejects_unknown_fields() -> None:

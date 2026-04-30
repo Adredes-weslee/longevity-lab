@@ -92,6 +92,27 @@ Notes:
 - SVI percentile fields should not be compared as time-series measures across SVI releases; CDC/ATSDR ranks each release within its own year.
 - Registry source ID: `cdc_atsdr_svi_us_county_csv`.
 
+### CDC PLACES - County Open Data, 2025 release
+
+- Data portal: `https://www.cdc.gov/places/tools/data-portal.html`
+- CSV download: `https://data.cdc.gov/api/views/swc5-untb/rows.csv?accessType=DOWNLOAD`
+- Current local registry support: PLACES 2025 county Open Data release.
+
+Expected local path (gitignored):
+
+- `data/external/places/county/<release-year>/places_county_<release-year>.csv`
+
+Curated measures:
+
+- Modeled condition context: CHD, COPD, stroke, depression, and diagnosed diabetes.
+- Behavior/context measures aligned with scenario inputs: current smoking, binge drinking, no leisure-time physical activity, obesity, and short sleep duration.
+
+Notes:
+
+- PLACES values are modeled aggregate geography estimates. They are useful for county context and external reasonableness checks, but they are **not** independent person-level labels for model training or evaluation.
+- The local `--year` flag refers to the PLACES release year. The raw PLACES `year` column is preserved separately in processed outputs as the estimate year.
+- Registry source ID: `cdc_places_county_opendata`.
+
 ## Download commands (Windows)
 
 Preferred (uses our scripts so provenance is recorded consistently):
@@ -101,6 +122,7 @@ pdm run python -m longevity_lab.pipeline.download_brfss --year 2023
 pdm run python -m longevity_lab.pipeline.download_epa_airdata --year 2023
 pdm run python -m longevity_lab.pipeline.download_acs --year 2022
 pdm run python -m longevity_lab.pipeline.download_svi --year 2022
+pdm run python -m longevity_lab.pipeline.download_places --year 2025
 ```
 
 Recommended first-time full local build:
@@ -124,9 +146,20 @@ The pipeline CLIs default to the repo-root `data/` directory even if you invoke 
 pdm run python -m longevity_lab.pipeline.build_brfss_tables --year 2023
 pdm run python -m longevity_lab.pipeline.build_epa_tables --year 2023
 pdm run python -m longevity_lab.pipeline.build_context_tables --year 2022
+pdm run python -m longevity_lab.pipeline.build_places_tables --year 2025
 pdm run python -m longevity_lab.pipeline.build_integrated_tables --year 2023
 pdm run python -m longevity_lab.pipeline.build_duckdb_views
 ```
+
+External PLACES reasonableness report:
+
+```powershell
+pdm run python -m longevity_lab.pipeline.validate_external_context `
+  --year 2025 `
+  --model-aggregate-path data\processed\validation\model_aggregates.csv
+```
+
+Use `--bundle-dir artifacts\models\<bundle-id>` instead of `--model-aggregate-path` to summarize per-condition prediction parquet files from a local trusted model bundle. The report writes CSV/JSON outputs under `data/processed/validation/` and provenance under `data/processed/provenance/`.
 
 Note: EPA 2023 does not include a Guam state row. The integrated build keeps those BRFSS rows with
 `annual_aqi = null` by default and still raises for unexpected missing joins.

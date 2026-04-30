@@ -5,7 +5,7 @@ processed features/labels consumed by modeling and the API.
 
 It is the "human-readable contract" that complements `docs/schema_contracts.md`.
 
-Status: **v2 pinned to BRFSS 2023 + EPA AirData 2023, with ACS/SVI context tables added** (update this doc when the pipeline changes).
+Status: **v2 pinned to BRFSS 2023 + EPA AirData 2023, with ACS/SVI and CDC PLACES context tables added** (update this doc when the pipeline changes).
 Public source metadata is versioned in `conf/data_sources.yaml` and copied into download
 provenance JSON under `source_registry`.
 
@@ -48,6 +48,13 @@ provenance JSON under `source_registry`.
 - File: `data/external/svi/<year>/SVI_<year>_US_county.csv`
 - Registry source ID: `cdc_atsdr_svi_us_county_csv`
 - Current configured years: 2014, 2016, 2018, 2020, and 2022 for the selected percentile fields.
+
+### CDC PLACES county Open Data
+
+- File: `data/external/places/county/<release-year>/places_county_<release-year>.csv`
+- Registry source ID: `cdc_places_county_opendata`
+- Current configured release year: 2025.
+- Note: PLACES fields are modeled aggregate geography estimates. They are context and external reasonableness references, not independent person-level labels.
 
 ## Feature contract (API + training roles)
 
@@ -98,6 +105,34 @@ Configured fields live in `conf/context_features.yaml`.
 | `svi_theme4_housing_transportation_percentile` | float | percentile rank 0-1 | SVI `RPL_THEME4`; `-999` -> null |
 
 For every ACS feature above, processed tables also include a boolean `<feature>_moe_available` column. These flags record whether the raw ACS MOE variables required for that feature were present and non-null; the current PR does not derive aggregate MOE values.
+
+### CDC PLACES county context variables
+
+PLACES context fields are county-level modeled aggregate estimates from the CDC PLACES county Open Data release. The table stores crude prevalence percentages and lower/upper confidence limits for the selected measures.
+
+| Feature | Type | Units/Meaning | Source/Transform |
+|---|---:|---|---|
+| `release_year` | int | PLACES release year | CLI `--year` for the downloaded release |
+| `year` | int | latest selected PLACES estimate year | max raw PLACES `year` across selected measures for the county/release |
+| `places_estimate_year_min` | int | earliest selected estimate year | min raw PLACES `year` across selected measures |
+| `places_estimate_year_max` | int | latest selected estimate year | max raw PLACES `year` across selected measures |
+| `state_fips` | string | 2-digit state FIPS | derived from `locationid` |
+| `county_fips` | string | 5-digit county FIPS | raw `locationid`, zero-padded |
+| `geography_name` | string | county display name | `locationname` + state name |
+| `places_total_population` | int | persons | raw `totalpopulation` |
+| `places_total_pop_18plus` | int | adults | raw `totalpop18plus`; used for aggregate validation weighting |
+| `places_coronary_heart_disease_crude_prevalence` | float | percent | PLACES `CHD`, `datavaluetypeid == CrdPrv` |
+| `places_chronic_obstructive_pulmonary_disease_crude_prevalence` | float | percent | PLACES `COPD`, crude prevalence |
+| `places_stroke_crude_prevalence` | float | percent | PLACES `STROKE`, crude prevalence |
+| `places_depression_crude_prevalence` | float | percent | PLACES `DEPRESSION`, crude prevalence |
+| `places_diabetes_crude_prevalence` | float | percent | PLACES `DIABETES`, crude prevalence |
+| `places_current_smoking_crude_prevalence` | float | percent | PLACES `CSMOKING`, crude prevalence |
+| `places_binge_drinking_crude_prevalence` | float | percent | PLACES `BINGE`, crude prevalence |
+| `places_no_leisure_time_physical_activity_crude_prevalence` | float | percent | PLACES `LPA`, crude prevalence |
+| `places_obesity_crude_prevalence` | float | percent | PLACES `OBESITY`, crude prevalence |
+| `places_short_sleep_duration_crude_prevalence` | float | percent | PLACES `SLEEP`, crude prevalence |
+
+Each PLACES prevalence feature also has `<feature>_estimate_year`, `<feature>_low`, and `<feature>_high` columns from the raw PLACES estimate year and confidence-limit fields.
 
 ## Label contract (conditions)
 
@@ -304,6 +339,35 @@ Required columns:
 
 State-level SVI values are compact descriptive context only. They are not CDC/ATSDR state-specific SVI ranks.
 
+### `places_county_year` (one row per county per PLACES release)
+
+Path (gitignored):
+
+- `data/processed/places/places_county_year.parquet`
+
+Required columns:
+
+- Join keys and labels: `release_year`, `year`, `state_fips`, `state_abbr`, `state_name`, `county_fips`, `county_name`, `geography_name`
+- Population fields: `places_total_population`, `places_total_pop_18plus`
+- PLACES selected crude prevalence fields and confidence-limit fields listed above
+
+PLACES is not joined into the current person-year table because BRFSS 2023 LLCP does not expose county identifiers. Use it as county context and for aggregate reasonableness reports only.
+
+### `places_external_context_validation` report
+
+Paths (gitignored):
+
+- `data/processed/validation/places_external_context_validation_<release-year>.csv`
+- `data/processed/validation/places_external_context_validation_<release-year>.json`
+
+This report compares aggregate model risk patterns with population-weighted PLACES crude prevalence estimates at the model geography available in the input (`county_fips`, `state_fips`, or national). It records:
+
+- `condition_id` and PLACES `measureid`
+- `model_mean_predicted_probability`
+- `places_crude_prevalence` and `places_crude_prevalence_probability`
+- absolute and relative differences
+- a caveat that PLACES estimates are modeled aggregate context, not independent person-level labels
+
 ## Join strategy (must be documented and tested)
 
 V2 joins by **state-year**:
@@ -339,6 +403,9 @@ Pipeline commands emit a machine-readable provenance JSON under `data/processed/
 - `census_acs5_county_context_raw_<year>.json` (`download_acs`)
 - `cdc_atsdr_svi_us_county_raw_<year>.json` (`download_svi`)
 - `context_tables_<years>.json` (`build_context_tables`)
+- `cdc_places_county_raw_<release-year>.json` (`download_places`)
+- `places_county_year_<release-years>.json` (`build_places_tables`)
+- `places_external_context_validation_<release-year>.json` (`validate_external_context`)
 
 Payload fields (see `src/longevity_lab/pipeline/common.py`):
 
