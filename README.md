@@ -188,9 +188,18 @@ Bundled outputs are written under `artifacts/models/<bundle_id>/` (gitignored) a
 
 ## Analysis reports
 
-The product roadmap moves analysis evidence from notebooks into scripted reports that write metrics,
-figures, tables, and model cards programmatically. Legacy notebooks from the project prototype are
-kept outside tracked source under `legacy_artifacts/`.
+Scripted reports are the canonical analysis evidence path. Legacy notebooks from the project
+prototype are kept outside tracked source under `legacy_artifacts/` and are optional exploration
+artifacts only.
+
+Generate the processed-data EDA report:
+
+```powershell
+pdm run python -m longevity_lab.reports.eda --config conf/reports/eda.yaml
+```
+
+Outputs are written under gitignored `reports/eda/` as JSON summaries, SVG/PNG figures, Markdown,
+and HTML. See `docs/reports.md` for the input contract and override flags.
 
 ## Repo layout
 
@@ -201,6 +210,7 @@ src/longevity_lab/        Python package
   domain/                 Typed domain definitions
   services/               Metadata and scenario services
   pipeline/               Data ingest, training, and evaluation entrypoints
+  reports/                Scripted EDA/report generation
 tests/                    Backend tests
 data/
   sample/                 Small checked-in demo assets only
@@ -208,6 +218,7 @@ data/
   processed/              Ignored derived tables and snapshots
 artifacts/
   models/                 Ignored trained model artifacts
+reports/                  Ignored generated report outputs
 docs/                     Architecture, roadmap, contracts, and implementation plans
 ```
 
@@ -256,6 +267,7 @@ curl.exe http://127.0.0.1:8000/api/pipeline/status?year=2023
 - Contributing guidelines: `CONTRIBUTING.md` + `docs/git_workflow.md`
 - Dataset sources + download notes: `docs/datasets.md`
 - Data dictionary (fields + transformations): `docs/data_dictionary.md`
+- Scripted reports: `docs/reports.md`
 - Schema contracts (tables/views): `docs/schema_contracts.md`
 - Architecture rationale: `docs/architecture.md`
 - Baseline implementation history: `docs/implementation_plan.md`

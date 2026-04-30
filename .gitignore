@@ -3,6 +3,7 @@ temp/
 AGENTS.md
 .worktrees/
 legacy_artifacts/
+/reports/
 .pdm-python
 notes/
 .tmp_clone*/
