@@ -15,7 +15,7 @@ Legend:
 - [DONE] Data source registry and provenance schema for current public sources.
 - [DONE] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
 - [DONE] EPA pollutant-specific features beyond annual AQI.
-- [TODO] ACS/SVI contextual social-determinants features.
+- [DONE] ACS/SVI contextual social-determinants features.
 - [TODO] CDC PLACES contextual validation layer.
 - [TODO] Scripted EDA/report generation to replace notebooks as canonical outputs.
 - [TODO] Modeling benchmark harness and calibrated gradient-boosted model family.
@@ -50,6 +50,9 @@ Legend:
 - [DONE] Pipeline CLIs default to repo-root `data/` even when invoked from subdirectories (`src/longevity_lab/pipeline/common.py`).
 - [DONE] Source registry records official URLs, download templates, year support, expected files, checksum policy, license notes, and landing paths (`conf/data_sources.yaml`).
 - [DONE] BRFSS and EPA download provenance embeds registry metadata (`src/longevity_lab/pipeline/provenance.py`).
+- [DONE] ACS 5-year curated context downloader for state/county JSON with registry-backed provenance (`src/longevity_lab/pipeline/download_acs.py`).
+- [DONE] CDC/ATSDR SVI U.S. county CSV downloader with registry-backed provenance (`src/longevity_lab/pipeline/download_svi.py`).
+- [DONE] ACS/SVI county-year and state-year context tables with ACS MOE availability flags (`src/longevity_lab/pipeline/build_context_tables.py`, `conf/context_features.yaml`).
 
 ### Modeling
 
@@ -108,6 +111,6 @@ Legend:
 
 1. Replace notebook-derived analysis with scripted reports.
 2. Add reproducible model benchmarking and model-card outputs.
-3. Add socioeconomic context tables.
+3. Wire pollutant and socioeconomic context features into the benchmark harness.
 4. Implement the non-serving causal workbench.
 5. Start the UI information architecture upgrade.

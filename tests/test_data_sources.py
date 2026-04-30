@@ -22,6 +22,8 @@ def test_data_source_registry_loads_default_sources() -> None:
         "cdc_brfss_llcp_codebook",
         "epa_airdata_annual_aqi_by_county",
         "epa_airdata_annual_conc_by_monitor",
+        "census_acs5_api_context",
+        "cdc_atsdr_svi_us_county_csv",
     }
 
 
@@ -33,11 +35,15 @@ def test_data_source_registry_formats_year_templates() -> None:
     codebook = registry.require("cdc_brfss_llcp_codebook")
     epa = registry.require("epa_airdata_annual_aqi_by_county")
     epa_concentration = registry.require("epa_airdata_annual_conc_by_monitor")
+    acs = registry.require("census_acs5_api_context")
+    svi = registry.require("cdc_atsdr_svi_us_county_csv")
 
     assert brfss.download_url(year=2023).endswith("/2023/files/LLCP2023XPT.zip")
     assert codebook.download_url(year=2023).endswith("/2023/zip/codebook23_llcp-v2-508.zip")
     assert epa.download_url(year=2023).endswith("/annual_aqi_by_county_2023.zip")
     assert epa_concentration.download_url(year=2023).endswith("/annual_conc_by_monitor_2023.zip")
+    assert acs.download_url(year=2024).endswith("/data/2024/acs/acs5")
+    assert svi.download_url(year=2022).endswith("/SVI_2022_US_county.csv")
     assert brfss.landing_path(year=2023) == "external/brfss/2023/"
 
 

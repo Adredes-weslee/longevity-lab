@@ -48,6 +48,30 @@
       "checksum_policy": "record sha256 after local download; EPA AirData does not publish per-file checksums here",
       "license_note": "Public EPA AirData download; review EPA data terms and attribution guidance.",
       "local_landing_path": "external/epa_airdata/annual_conc_by_monitor_{year}/"
+    },
+    {
+      "source_id": "census_acs5_api_context",
+      "title": "U.S. Census ACS 5-year API curated context variables",
+      "official_url": "https://www.census.gov/data/developers/data-sets/acs-5year.html",
+      "download_url_template": "https://api.census.gov/data/{year}/acs/acs5",
+      "year_support": {"mode": "range", "start": 2017, "end": 2024},
+      "geography": "state-year and county-year ACS 5-year detailed-table rows",
+      "expected_file_pattern": "acs5_*_context.json",
+      "checksum_policy": "record sha256 after local API download; Census API responses do not publish per-query checksums",
+      "license_note": "Public U.S. Census Bureau API data; follow Census API terms of service and ACS citation guidance.",
+      "local_landing_path": "external/acs/acs5/{year}/"
+    },
+    {
+      "source_id": "cdc_atsdr_svi_us_county_csv",
+      "title": "CDC/ATSDR Social Vulnerability Index U.S. county CSV",
+      "official_url": "https://svi.cdc.gov/dataDownloads/data-download.html",
+      "download_url_template": "https://svi.cdc.gov/Documents/Data/{year}/csv/states_counties/SVI_{year}_US_county.csv",
+      "year_support": {"mode": "explicit", "years": [2014, 2016, 2018, 2020, 2022]},
+      "geography": "U.S. county percentile ranks and theme scores",
+      "expected_file_pattern": "SVI_{year}_US_county.csv",
+      "checksum_policy": "record sha256 after local download; CDC/ATSDR does not publish per-file checksums here",
+      "license_note": "Public CDC/ATSDR SVI data; cite the CDC/ATSDR SVI database and documentation page.",
+      "local_landing_path": "external/svi/{year}/"
     }
   ]
 }
