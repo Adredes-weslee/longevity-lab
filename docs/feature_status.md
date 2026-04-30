@@ -17,7 +17,7 @@ Legend:
 - [DONE] EPA pollutant-specific features beyond annual AQI.
 - [DONE] ACS/SVI contextual social-determinants features.
 - [DONE] CDC PLACES contextual validation layer.
-- [TODO] Scripted EDA/report generation to replace notebooks as canonical outputs.
+- [DONE] Scripted EDA/report generation to replace notebooks as canonical outputs.
 - [TODO] Modeling benchmark harness and calibrated gradient-boosted model family.
 - [TODO] Typed explanation, uncertainty, and model-card surfaces.
 - [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
@@ -101,6 +101,7 @@ Legend:
 
 - [DONE] Backend tests (`tests/`).
 - [DONE] Python type-check and lint configured (`pyproject.toml`).
+- [DONE] Scripted processed-data EDA report writes JSON summaries, SVG/PNG figures, Markdown, and HTML under gitignored `reports/` (`src/longevity_lab/reports/eda.py`, `docs/reports.md`).
 - [DONE] Frontend lint/type/build configured (`frontend/`).
 - [DONE] CI workflow (`.github/workflows/ci.yml`).
 - [DONE] One-command dev checks (`scripts/check_all.ps1`, `scripts/check_all.sh`).
@@ -112,8 +113,8 @@ Legend:
 
 ## Highest-ROI next tasks
 
-1. Replace notebook-derived analysis with scripted reports.
-2. Add reproducible model benchmarking and model-card outputs.
-3. Wire pollutant and socioeconomic context features into the benchmark harness.
-4. Implement the non-serving causal workbench.
-5. Start the UI information architecture upgrade.
+1. Add reproducible model benchmarking and model-card outputs.
+2. Wire pollutant and socioeconomic context features into the benchmark harness.
+3. Implement the non-serving causal workbench.
+4. Start the UI information architecture upgrade.
+5. Finalize ethics and health disclaimer language across the UI and documentation.

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "report_id": "eda",
+  "title": "Longevity Lab scripted EDA",
+  "output_dir": "reports/eda",
+  "data": {
+    "base_dir": "data",
+    "years": [2023],
+    "integrated_path_template": "processed/integrated/{year}/integrated_person_year.parquet",
+    "optional_tables": {
+      "epa_aqi_state_year": "processed/epa_airdata/annual_aqi_state_year.parquet",
+      "context_state_year": "processed/context/context_state_year.parquet",
+      "context_county_year": "processed/context/context_county_year.parquet"
+    }
+  },
+  "features": {
+    "numeric": [
+      "age",
+      "bmi",
+      "alcohol_servings_per_week",
+      "exercise_minutes_per_week",
+      "annual_aqi",
+      "pm25_mean",
+      "ozone_mean",
+      "physical_health_days",
+      "mental_health_days",
+      "sleep_hours_per_night",
+      "survey_weight",
+      "acs_poverty_percent",
+      "acs_median_household_income",
+      "acs_bachelors_degree_or_higher_percent",
+      "acs_uninsured_percent",
+      "acs_disability_percent",
+      "acs_broadband_percent",
+      "svi_overall_percentile"
+    ],
+    "categorical": [
+      "sex",
+      "race_ethnicity",
+      "smoker",
+      "has_healthcare_coverage",
+      "has_personal_doctor",
+      "cost_barrier_to_care",
+      "last_checkup_within_year"
+    ],
+    "labels": {
+      "heart_disease": "label_heart_disease",
+      "chronic_lung_disease": "label_chronic_lung_disease",
+      "stroke": "label_stroke",
+      "depression": "label_depression",
+      "diabetes": "label_diabetes"
+    }
+  }
+}
