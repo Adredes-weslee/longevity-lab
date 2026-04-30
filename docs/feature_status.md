@@ -18,7 +18,8 @@ Legend:
 - [DONE] ACS/SVI contextual social-determinants features.
 - [DONE] CDC PLACES contextual validation layer.
 - [DONE] Scripted EDA/report generation to replace notebooks as canonical outputs.
-- [TODO] Modeling benchmark harness and calibrated gradient-boosted model family.
+- [DONE] Modeling benchmark harness for logistic/tree baselines and feature ablations.
+- [TODO] Calibrated gradient-boosted model family.
 - [TODO] Typed explanation, uncertainty, and model-card surfaces.
 - [DONE] Separate causal inference specification for smoking, physical activity, BMI, and alcohol.
 - [TODO] Causal workbench for sensitivity-tested, non-serving causal estimates.
@@ -65,6 +66,7 @@ Legend:
 - [DONE] Calibration for probability outputs (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Evaluation script and metrics report scaffold (`src/longevity_lab/pipeline/evaluate.py`).
 - [DONE] Subgroup/slice analysis export for trained bundles (`src/longevity_lab/pipeline/evaluate.py`, `src/longevity_lab/pipeline/modeling.py`).
+- [DONE] Reproducible benchmark harness writes metrics, calibration curves, subgroup metrics, and model-card-ready manifests (`src/longevity_lab/pipeline/benchmarks.py`, `conf/benchmark.yaml`).
 - [DONE] Training config separates scenario-editable features from BRFSS adjustment/context covariates and applies survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Artifact manifest schema, bundle loader, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
 - [DONE] Explanation outputs aligned to saved explanation trees (`src/longevity_lab/services/artifact_engine.py`).
@@ -113,7 +115,7 @@ Legend:
 
 ## Highest-ROI next tasks
 
-1. Add reproducible model benchmarking and model-card outputs.
+1. Add calibrated gradient-boosted model candidates to the benchmark grid.
 2. Wire pollutant and socioeconomic context features into the benchmark harness.
 3. Implement the non-serving causal workbench.
 4. Start the UI information architecture upgrade.

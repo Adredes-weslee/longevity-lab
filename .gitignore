@@ -32,6 +32,7 @@ dist/
 data/external/
 data/processed/
 artifacts/models/
+reports/
 *.duckdb
 *.parquet
 
