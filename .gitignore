@@ -18,6 +18,7 @@ __pycache__/
 .ruff_cache/
 *.pyc
 *.pyo
+*.log
 .env
 
 # Frontend

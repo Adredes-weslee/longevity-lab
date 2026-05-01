@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from sklearn.dummy import DummyClassifier  # type: ignore[import-untyped]
 from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
 
-from longevity_lab.api.main import app, create_app
+from longevity_lab.api.main import create_app
 from longevity_lab.artifacts.manifest import (
     ArtifactManifest,
     ConditionArtifact,
@@ -219,10 +219,18 @@ def _configured_client(
 
 
 @pytest.fixture
-def client() -> Iterator[TestClient]:
-    """Yield a lifespan-aware API test client."""
-    with TestClient(app) as test_client:
-        yield test_client
+def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[TestClient]:
+    """Yield a lifespan-aware API test client isolated from local artifacts."""
+    monkeypatch.setenv("LONGEVITY_LAB_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
+    monkeypatch.delenv("LONGEVITY_LAB_ENGINE", raising=False)
+    monkeypatch.delenv("LONGEVITY_LAB_ARTIFACT_BUNDLE", raising=False)
+
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as test_client:
+            yield test_client
+    finally:
+        get_settings.cache_clear()
 
 
 def test_health(client: TestClient) -> None:

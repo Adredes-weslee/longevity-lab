@@ -15,6 +15,9 @@ export default defineConfig({
     {
       command:
         'pdm run python -m uvicorn longevity_lab.api.main:app --host 127.0.0.1 --port 8000',
+      env: {
+        LONGEVITY_LAB_ENGINE: 'demo',
+      },
       url: 'http://127.0.0.1:8000/api/health',
       cwd: '..',
       reuseExistingServer: !process.env.CI,
