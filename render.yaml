@@ -14,10 +14,7 @@ services:
       - key: LONGEVITY_LAB_ENGINE
         value: demo
       - key: LONGEVITY_LAB_CORS_ALLOW_ORIGINS
-        fromService:
-          name: longevity-lab-frontend
-          type: web
-          property: host
+        value: https://longevity-lab-frontend.onrender.com
       - key: LONGEVITY_LAB_DATA_DIR
         value: data
       - key: LONGEVITY_LAB_ARTIFACTS_DIR
@@ -30,10 +27,7 @@ services:
     staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_BASE_URL
-        fromService:
-          name: longevity-lab-api
-          type: web
-          property: host
+        value: https://longevity-lab-api.onrender.com
     routes:
       - type: rewrite
         source: /*

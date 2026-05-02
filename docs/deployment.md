@@ -28,15 +28,16 @@ Relevant provider docs:
 - `longevity-lab-frontend`: an optional static frontend that builds `frontend/dist` and rewrites
   client-side routes to `index.html`.
 
-The Blueprint wires `LONGEVITY_LAB_CORS_ALLOW_ORIGINS` and `VITE_API_BASE_URL` from the paired
-Render service hosts. The app normalizes these host-only values to HTTPS URLs at runtime/build time.
+The Blueprint sets `LONGEVITY_LAB_CORS_ALLOW_ORIGINS` and `VITE_API_BASE_URL` to the public Render
+service URLs. Keep these values in sync if the service names or custom domains change.
 
 After creating the Blueprint:
 
 1. Confirm both services deploy from the same Blueprint.
 2. If you later add a custom frontend domain, update `LONGEVITY_LAB_CORS_ALLOW_ORIGINS` to include
    that full origin.
-3. Keep `LONGEVITY_LAB_ENGINE=demo` unless a trusted artifact download/build step is added.
+3. If you later rename the API service, update `VITE_API_BASE_URL` to the new public API origin.
+4. Keep `LONGEVITY_LAB_ENGINE=demo` unless a trusted artifact download/build step is added.
 
 Render free instances can cold-start after inactivity. The first API call after idle may be slow.
 
