@@ -28,6 +28,7 @@ Legend:
 - [DONE] UI information architecture with Explorer, Data Evidence, Model Cards, and Scenario Lab pages.
 - [DONE] Explorer UX upgrade for input deltas, accessible anatomy selection, explanation caveats, uncertainty copy, and color-blind-safe legends.
 - [DONE] Deployment packaging for Render API/static frontend and Vercel static frontend handoff.
+- [DONE] Public GitHub Release artifact download with SHA256 verification for Render artifact mode.
 
 ## Current baseline
 
@@ -118,6 +119,7 @@ Legend:
 - [DONE] One-command dev checks (`scripts/check_all.ps1`, `scripts/check_all.sh`).
 - [DONE] E2E smoke tests (`frontend/e2e/`).
 - [DONE] Free-tier deployment profile documented with Render Blueprint config and Vite API-origin support (`render.yaml`, `docs/deployment.md`, `frontend/vite.config.ts`, `frontend/.env.example`).
+- [DONE] Build-time model artifact downloader verifies public release bundles before production artifact mode (`scripts/download_model_bundle.py`).
 - [TODO] One-command dev bootstrap for Windows and macOS.
 - [DONE] Artifact-backed runtime no longer requires Optuna just to load packaged bundles (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Dataset sources and provenance docs (`docs/datasets.md`, `docs/data_dictionary.md`).

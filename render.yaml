@@ -3,7 +3,7 @@ services:
     name: longevity-lab-api
     runtime: python
     plan: free
-    buildCommand: pip install --upgrade pip && pip install .
+    buildCommand: python scripts/download_model_bundle.py && pip install --upgrade pip && pip install .
     startCommand: uvicorn longevity_lab.api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
@@ -12,7 +12,13 @@ services:
       - key: LONGEVITY_LAB_ENVIRONMENT
         value: production
       - key: LONGEVITY_LAB_ENGINE
-        value: demo
+        value: artifact
+      - key: LONGEVITY_LAB_ARTIFACT_BUNDLE
+        value: real-20260502-full
+      - key: LONGEVITY_LAB_ARTIFACT_URL
+        value: https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260502-full/real-20260502-full.zip
+      - key: LONGEVITY_LAB_ARTIFACT_SHA256
+        value: 331d702fb54b94001bdd9c8a9d6e03db569678017e73dde4325f8d7fda453832
       - key: LONGEVITY_LAB_CORS_ALLOW_ORIGINS
         value: https://longevity-lab-frontend.onrender.com
       - key: LONGEVITY_LAB_DATA_DIR

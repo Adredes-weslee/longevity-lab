@@ -85,12 +85,16 @@ Open `http://localhost:4173` and verify:
 
 ## Artifact strategy
 
-Current public deployment should use demo mode because free-tier services should not serve untracked
-large local artifacts. A future artifact-backed deployment should add all of the following before
-changing `LONGEVITY_LAB_ENGINE` to `artifact`:
+Public deployments can run artifact-backed scoring by downloading a trusted zipped bundle during the
+Render build. The current release asset is:
 
-- a trusted artifact build or download step,
-- checksum/provenance verification,
-- storage that is not the git repo,
-- clear model-card metadata in the UI,
-- and a rollback path to demo mode.
+- `LONGEVITY_LAB_ARTIFACT_BUNDLE=real-20260502-full`
+- `LONGEVITY_LAB_ARTIFACT_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260502-full/real-20260502-full.zip`
+- `LONGEVITY_LAB_ARTIFACT_SHA256=331d702fb54b94001bdd9c8a9d6e03db569678017e73dde4325f8d7fda453832`
+
+The build command runs `scripts/download_model_bundle.py`, which downloads the zip, verifies SHA256,
+rejects unsafe zip paths, and extracts the bundle under `artifacts/models/`. Production can then set
+`LONGEVITY_LAB_ENGINE=artifact`.
+
+Keep `LONGEVITY_LAB_ENGINE=demo` as the rollback path. Do not commit `data/external/`,
+`data/processed/`, or `artifacts/models/` directly to the repo.
