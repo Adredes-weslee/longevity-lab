@@ -24,13 +24,23 @@ from longevity_lab.services.scenario_service import DemoScenarioEngine, Scenario
 
 
 def _parse_cors_allow_origins(value: str) -> list[str]:
-    origins = [item.strip() for item in value.split(",") if item.strip()]
+    origins = [_normalize_cors_origin(item) for item in value.split(",") if item.strip()]
     if "*" in origins:
         raise ValueError(
             "LONGEVITY_LAB_CORS_ALLOW_ORIGINS cannot include '*'. "
             "Provide explicit origins (comma-separated) instead."
         )
     return origins
+
+
+def _normalize_cors_origin(value: str) -> str:
+    """Normalize explicit CORS origins, including host-only Render service references."""
+    origin = value.strip().rstrip("/")
+    if "://" in origin or origin == "*":
+        return origin
+    if origin.startswith(("localhost", "127.0.0.1", "[::1]")):
+        return f"http://{origin}"
+    return f"https://{origin}"
 
 
 def _try_load_auto_artifact_engine(

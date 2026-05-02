@@ -31,6 +31,24 @@ def test_create_app_rejects_wildcard_cors_origin(monkeypatch: pytest.MonkeyPatch
     get_settings.cache_clear()
 
 
+def test_create_app_normalizes_host_only_cors_origins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Host-only origins from Render service references should be converted to URLs."""
+    monkeypatch.setenv(
+        "LONGEVITY_LAB_CORS_ALLOW_ORIGINS",
+        "longevity-lab-frontend.onrender.com,localhost:5173",
+    )
+    get_settings.cache_clear()
+    app = create_app()
+    cors = next(m for m in app.user_middleware if getattr(m, "cls", None) is CORSMiddleware)
+    assert cors.kwargs["allow_origins"] == [
+        "https://longevity-lab-frontend.onrender.com",
+        "http://localhost:5173",
+    ]
+    get_settings.cache_clear()
+
+
 def test_create_app_disables_cors_when_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """If configured empty, CORS middleware should not be added."""
     monkeypatch.setenv("LONGEVITY_LAB_CORS_ALLOW_ORIGINS", "")

@@ -13,10 +13,25 @@ function normalizeApiBaseUrl(value: string | undefined): string {
   if (!value?.trim()) {
     return ''
   }
-  const withoutTrailingSlash = value.trim().replace(/\/+$/, '')
+  const withScheme = ensureUrlScheme(value.trim())
+  const withoutTrailingSlash = withScheme.replace(/\/+$/, '')
   return withoutTrailingSlash.endsWith(API_PREFIX)
     ? withoutTrailingSlash.slice(0, -API_PREFIX.length)
     : withoutTrailingSlash
+}
+
+function ensureUrlScheme(value: string): string {
+  if (/^[a-z][a-z\d+\-.]*:\/\//i.test(value) || value.startsWith('/')) {
+    return value
+  }
+  if (
+    value.startsWith('localhost') ||
+    value.startsWith('127.0.0.1') ||
+    value.startsWith('[::1]')
+  ) {
+    return `http://${value}`
+  }
+  return `https://${value}`
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
