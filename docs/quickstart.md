@@ -66,7 +66,7 @@ to show whether expected raw/processed pipeline artifacts exist locally.
 1. Open the Explorer page and confirm the baseline/scenario summaries render.
 2. Click an organ or callout and confirm the drill-down updates.
 3. Open `#/data` and confirm the pipeline status page loads.
-4. Open `#/models` and confirm active model metadata is visible.
+4. Open `#/models` and confirm active model metadata plus model-card metrics are visible when an artifact bundle is active.
 
 ## Backend checks
 
@@ -113,6 +113,7 @@ pdm run python -m longevity_lab.pipeline.evaluate artifacts.output_path=artifact
 ```
 
 The API serves a valid local bundle automatically when `LONGEVITY_LAB_ENGINE=auto`.
+Model-card metrics for the active bundle are exposed through `GET /api/models/cards`.
 To require artifact mode explicitly:
 
 ```powershell

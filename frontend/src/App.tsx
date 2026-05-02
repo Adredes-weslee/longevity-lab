@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 
-import { compareScenarios, fetchBootstrap, fetchPipelineStatus } from './api/client'
+import {
+  compareScenarios,
+  fetchBootstrap,
+  fetchModelCards,
+  fetchPipelineStatus,
+} from './api/client'
 import { DataEvidencePage } from './pages/DataEvidencePage'
 import { ExplorerPage } from './pages/ExplorerPage'
 import { ModelCardsPage } from './pages/ModelCardsPage'
@@ -9,6 +14,7 @@ import { useScenario } from './state/scenario-context'
 import type {
   HeatmapMode,
   MetadataBootstrapResponse,
+  ModelCardBundleResponse,
   PipelineStatusResponse,
   ScenarioCompareResponse,
 } from './types'
@@ -47,6 +53,9 @@ function App(): JSX.Element {
   const [pipelineStatus, setPipelineStatus] = useState<PipelineStatusResponse | null>(null)
   const [pipelineError, setPipelineError] = useState<string | null>(null)
   const [pipelineLoading, setPipelineLoading] = useState(false)
+  const [modelCards, setModelCards] = useState<ModelCardBundleResponse | null>(null)
+  const [modelCardsError, setModelCardsError] = useState<string | null>(null)
+  const [modelCardsLoading, setModelCardsLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [heatmapMode, setHeatmapMode] = useState<HeatmapMode>('delta')
@@ -117,6 +126,21 @@ function App(): JSX.Element {
     }
   }, [])
 
+  const loadModelCards = useCallback(async (): Promise<void> => {
+    setModelCardsLoading(true)
+    setModelCardsError(null)
+    try {
+      const cards = await fetchModelCards()
+      setModelCards(cards)
+    } catch (error) {
+      setModelCardsError(
+        error instanceof Error ? error.message : 'Model-card metrics unavailable.',
+      )
+    } finally {
+      setModelCardsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadBootstrap()
   }, [loadBootstrap])
@@ -135,6 +159,12 @@ function App(): JSX.Element {
       void loadPipelineStatus()
     }
   }, [loadPipelineStatus, view])
+
+  useEffect(() => {
+    if (view === 'models') {
+      void loadModelCards()
+    }
+  }, [loadModelCards, view])
 
   useEffect(() => {
     if (!bootstrap) {
@@ -198,7 +228,14 @@ function App(): JSX.Element {
             />
           ) : null}
           {view === 'models' ? (
-            <ModelCardsPage bootstrap={bootstrap} comparison={comparison} />
+            <ModelCardsPage
+              bootstrap={bootstrap}
+              comparison={comparison}
+              error={modelCardsError}
+              loading={modelCardsLoading}
+              modelCards={modelCards}
+              onRetry={() => void loadModelCards()}
+            />
           ) : null}
           {view === 'lab' ? (
             <ScenarioLabPage comparison={comparison} loading={busy} />

@@ -12,6 +12,7 @@ Legend:
 
 - [DONE] Governance, roadmap, local overlay, worktree policy, and PR plan drafted.
 - [DONE] Artifact-first runtime default when a valid local bundle exists.
+- [DONE] Model-card endpoint and UI metrics surface for active artifact bundles.
 - [DONE] Data source registry and provenance schema for current public sources.
 - [DONE] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
 - [DONE] EPA pollutant-specific features beyond annual AQI.
@@ -88,6 +89,7 @@ Legend:
 - [DONE] Health check (`GET /api/health`) (`src/longevity_lab/api/routes/health.py`).
 - [DONE] Metadata bootstrap with runtime mode/artifact status (`GET /api/metadata/bootstrap`) (`src/longevity_lab/api/routes/metadata.py`).
 - [DONE] Pipeline status endpoint (`GET /api/pipeline/status`) (`src/longevity_lab/api/routes/pipeline.py`).
+- [DONE] Model-card endpoint exposes active artifact metrics (`GET /api/models/cards`) (`src/longevity_lab/api/routes/models.py`).
 - [DONE] Service layer and engine abstraction (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Artifact-backed engine path (`src/longevity_lab/services/artifact_engine.py`).
 - [DONE] Versioned v2 response metadata shares active model mode, artifact id, data vintage, explanation methods, uncertainty availability, and inferred contextual geography across bootstrap and scenario compare responses (`src/longevity_lab/services/contract_metadata.py`).

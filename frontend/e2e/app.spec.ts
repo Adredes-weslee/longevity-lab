@@ -59,6 +59,10 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await page.getByRole('button', { name: 'Model cards' }).click()
   await expect(page.getByTestId('model-cards-page')).toBeVisible()
   await expect(page.getByText('Active scoring contract')).toBeVisible()
+  await expect(page.getByTestId('model-card-metrics')).toBeVisible()
+  await expect(
+    page.getByText('Model-card metrics require an active artifact-backed bundle.'),
+  ).toBeVisible()
 
   await page.getByRole('button', { name: 'Scenario lab' }).click()
   await expect(page.getByTestId('scenario-lab-page')).toBeVisible()

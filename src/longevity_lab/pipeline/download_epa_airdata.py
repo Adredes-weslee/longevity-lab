@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 
 from longevity_lab.pipeline.common import (
@@ -38,6 +39,32 @@ def _annual_conc_by_monitor_extract_dir(base_dir: Path, year: int) -> Path:
     return base_dir / "external" / "epa_airdata" / f"annual_conc_by_monitor_{year}"
 
 
+def _normalize_extracted_csv(
+    *,
+    extract_dir: Path,
+    expected_name: str,
+    extracted_paths: list[Path],
+    dry_run: bool,
+) -> list[Path]:
+    """Ensure expected AirData CSVs are available at the documented extract root."""
+    expected_path = extract_dir / expected_name
+    if dry_run:
+        return extracted_paths
+
+    candidate = next(
+        (path for path in extracted_paths if path.is_file() and path.name == expected_name),
+        None,
+    )
+    if candidate is None or not candidate.is_file():
+        return extracted_paths
+    if candidate.resolve() == expected_path.resolve():
+        return extracted_paths
+
+    expected_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(candidate, expected_path)
+    return [*extracted_paths, expected_path]
+
+
 def main(argv: list[str] | None = None) -> None:
     """CLI entrypoint for downloading EPA AirData annual zip(s)."""
     parser = argparse.ArgumentParser(
@@ -71,6 +98,12 @@ def main(argv: list[str] | None = None) -> None:
         annual_conc_extracted = extract_zip(
             annual_conc_zip_path,
             _annual_conc_by_monitor_extract_dir(paths.base_dir, year),
+            dry_run=args.dry_run,
+        )
+        annual_conc_extracted = _normalize_extracted_csv(
+            extract_dir=_annual_conc_by_monitor_extract_dir(paths.base_dir, year),
+            expected_name=f"annual_conc_by_monitor_{year}.csv",
+            extracted_paths=annual_conc_extracted,
             dry_run=args.dry_run,
         )
 

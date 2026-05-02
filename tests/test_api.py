@@ -1,6 +1,7 @@
 """Backend smoke tests."""
 
 import datetime as dt
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -26,6 +27,7 @@ def _write_api_bundle(
     bundle_id: str = "bundle-api",
     *,
     created_at: dt.datetime | None = None,
+    write_metrics: bool = False,
 ) -> str:
     """Write a minimal loadable artifact bundle for API startup tests."""
     models_dir = artifacts_dir / "models"
@@ -55,6 +57,38 @@ def _write_api_bundle(
     pipeline.fit(frame, [1, 0])
     pipeline_path = bundle_dir / "heart_disease.joblib"
     joblib.dump(pipeline, pipeline_path)
+    metrics_path = bundle_dir / "heart_disease_metrics.json"
+    if write_metrics:
+        metrics_path.write_text(
+            json.dumps(
+                {
+                    "condition_id": "heart_disease",
+                    "rows_total": 2,
+                    "rows_train": 1,
+                    "rows_test": 1,
+                    "target_positive_rate": 0.5,
+                    "features": list(frame.columns),
+                    "best_params": {"max_depth": 2},
+                    "base_metrics": {
+                        "average_precision": 0.6,
+                        "roc_auc": 0.7,
+                        "brier_score": 0.2,
+                    },
+                    "calibrated_metrics": {
+                        "average_precision": 0.8,
+                        "roc_auc": 0.9,
+                        "brier_score": 0.1,
+                    },
+                    "no_aqi_metrics": {
+                        "average_precision": 0.75,
+                        "roc_auc": 0.85,
+                        "brier_score": 0.12,
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     save_manifest(
         ArtifactManifest(
             created_at=created_at or dt.datetime.now(dt.UTC),
@@ -64,6 +98,7 @@ def _write_api_bundle(
                 ConditionArtifact(
                     condition_id="heart_disease",
                     pipeline_path=pipeline_path.name,
+                    metrics_path=metrics_path.name if write_metrics else None,
                     explanation_method="tree_path",
                 )
             ],
@@ -275,6 +310,18 @@ def test_metadata_bootstrap(client: TestClient) -> None:
     }
 
 
+def test_model_cards_demo_reports_unavailable(client: TestClient) -> None:
+    """Demo mode should expose a stable unavailable model-card response."""
+    response = client.get("/api/models/cards")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["contract_version"] == "v2"
+    assert payload["available"] is False
+    assert payload["artifact_id"] is None
+    assert payload["condition_cards"] == []
+    assert payload["model_metadata"]["model_mode"] == "demo"
+
+
 def test_metadata_bootstrap_auto_selects_artifact_bundle(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -304,6 +351,102 @@ def test_metadata_bootstrap_auto_selects_artifact_bundle(
             "levels": ["state"],
             "source": "artifact_features",
         }
+
+
+def test_model_cards_artifact_surfaces_condition_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Artifact mode should expose metrics from trusted local model-card JSON files."""
+    bundle_id = _write_api_bundle(tmp_path / "artifacts", write_metrics=True)
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/models/cards")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["available"] is True
+        assert payload["artifact_id"] == bundle_id
+        assert payload["model_metadata"]["model_mode"] == "artifact"
+        assert payload["condition_cards"][0]["condition_id"] == "heart_disease"
+        assert payload["condition_cards"][0]["label"] == "Heart disease"
+        assert payload["condition_cards"][0]["metrics_available"] is True
+        assert payload["condition_cards"][0]["rows_total"] == 2
+        assert payload["condition_cards"][0]["feature_count"] == 6
+        assert payload["condition_cards"][0]["calibrated_metrics"]["roc_auc"] == 0.9
+        assert payload["condition_cards"][0]["aqi_average_precision_delta"] == pytest.approx(0.05)
+
+
+def test_model_cards_artifact_tolerates_corrupt_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Model cards should not 500 when optional metrics JSON is corrupt."""
+    bundle_id = _write_api_bundle(tmp_path / "artifacts", write_metrics=True)
+    metrics_path = tmp_path / "artifacts" / "models" / bundle_id / "heart_disease_metrics.json"
+    metrics_path.write_text("{not-json", encoding="utf-8")
+
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/models/cards")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["available"] is False
+        assert payload["artifact_id"] == bundle_id
+        assert payload["condition_cards"][0]["metrics_available"] is False
+
+
+def test_model_cards_use_nested_active_bundle_id(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Model cards should use the same nested bundle ID as the active scorer."""
+    bundle_id = _write_api_bundle(
+        tmp_path / "artifacts",
+        bundle_id="group/bundle-nested",
+        write_metrics=True,
+    )
+
+    for test_client in _configured_client(
+        monkeypatch,
+        artifacts_dir=tmp_path / "artifacts",
+        engine="artifact",
+        bundle_id=bundle_id,
+    ):
+        bootstrap = test_client.get("/api/metadata/bootstrap").json()
+        cards = test_client.get("/api/models/cards").json()
+
+        assert bootstrap["runtime"]["artifact_bundle_id"] == bundle_id
+        assert bootstrap["model_metadata"]["artifact_id"] == bundle_id
+        assert cards["artifact_id"] == bundle_id
+        assert cards["model_metadata"]["artifact_id"] == bundle_id
+        assert cards["available"] is True
+        assert cards["condition_cards"][0]["condition_id"] == "heart_disease"
+
+
+def test_auto_mode_uses_nested_selected_bundle_id(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Auto mode should validate and serve a selected nested artifact bundle."""
+    bundle_id = _write_api_bundle(
+        tmp_path / "artifacts",
+        bundle_id="group/bundle-nested",
+        write_metrics=True,
+    )
+
+    for test_client in _configured_client(
+        monkeypatch,
+        artifacts_dir=tmp_path / "artifacts",
+        bundle_id=bundle_id,
+    ):
+        bootstrap = test_client.get("/api/metadata/bootstrap").json()
+        compare = test_client.post("/api/scenario/compare", json=_compare_payload()).json()
+        cards = test_client.get("/api/models/cards").json()
+
+        assert bootstrap["runtime"]["engine_mode"] == "artifact"
+        assert bootstrap["runtime"]["engine_source"] == "auto"
+        assert bootstrap["runtime"]["artifact_bundle_id"] == bundle_id
+        assert compare["model_metadata"]["artifact_id"] == bundle_id
+        assert cards["artifact_id"] == bundle_id
+        assert cards["available"] is True
 
 
 def test_metadata_bootstrap_explicit_demo_ignores_artifact_bundle(

@@ -254,3 +254,49 @@ class PipelineStatusResponse(BaseModel):
     year: int
     artifacts: list[PipelineArtifactStatus]
     provenance: list[PipelineProvenanceSummary]
+
+
+class ModelMetricSetResponse(BaseModel):
+    """A small set of model performance metrics."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    average_precision: float | None = None
+    roc_auc: float | None = None
+    brier_score: float | None = None
+
+
+class ConditionModelCardResponse(BaseModel):
+    """Metrics and training metadata for one condition model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    condition_id: str
+    label: str
+    metrics_available: bool
+    metrics_path: str | None = None
+    rows_total: int | None = None
+    rows_train: int | None = None
+    rows_test: int | None = None
+    positive_rate: float | None = None
+    feature_count: int | None = None
+    features: list[str] = Field(default_factory=list)
+    best_params: dict[str, Any] = Field(default_factory=dict)
+    base_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
+    calibrated_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
+    no_aqi_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
+    aqi_average_precision_delta: float | None = None
+
+
+class ModelCardBundleResponse(BaseModel):
+    """Model-card response for the active scoring bundle."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_version: ApiContractVersion = API_CONTRACT_VERSION
+    model_metadata: ModelMetadataResponse
+    available: bool
+    message: str
+    artifact_id: str | None = None
+    generated_from: str | None = None
+    condition_cards: list[ConditionModelCardResponse] = Field(default_factory=list)

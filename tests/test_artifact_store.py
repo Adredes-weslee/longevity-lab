@@ -31,3 +31,18 @@ def test_artifact_store_try_resolve_returns_none_for_missing_bundle(tmp_path: Pa
     """try_resolve should be safe for auto-detection fallback paths."""
     store = ArtifactStore(tmp_path / "models")
     assert store.try_resolve() is None
+
+
+def test_artifact_store_reports_nested_bundle_id(tmp_path: Path) -> None:
+    """Relative bundle IDs should preserve nested paths, not only leaf names."""
+    bundle_dir = tmp_path / "models" / "group" / "bundle-nested"
+    bundle_dir.mkdir(parents=True)
+    save_manifest(
+        ArtifactManifest(dataset=DatasetInfo(name="brfss", version="test")),
+        bundle_dir / "manifest.json",
+    )
+
+    store = ArtifactStore(tmp_path / "models")
+    bundle = store.resolve("group/bundle-nested")
+
+    assert store.bundle_id(bundle) == "group/bundle-nested"

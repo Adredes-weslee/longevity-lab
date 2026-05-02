@@ -31,6 +31,12 @@ class ArtifactStore:
             return []
         return [path for path in self._base_dir.iterdir() if path.is_dir()]
 
+    def bundle_id(self, bundle: ArtifactBundle) -> str:
+        """Return the bundle path relative to the artifact-store base directory."""
+        base_resolved = self._base_dir.resolve()
+        bundle_path = bundle.path.resolve()
+        return bundle_path.relative_to(base_resolved).as_posix()
+
     def resolve(self, bundle_id: str | None = None) -> ArtifactBundle:
         """Resolve an artifact bundle by id or pick the latest available."""
         bundles = self.resolve_all(bundle_id)

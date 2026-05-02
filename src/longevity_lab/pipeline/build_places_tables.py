@@ -240,7 +240,11 @@ def _geography_name(county_name: object, state_name: object) -> str:
 
 
 def _read_places_csv(csv_path: Path) -> pd.DataFrame:
-    frame = pd.read_csv(csv_path, dtype={"locationid": "string", "LocationID": "string"})
+    frame = pd.read_csv(
+        csv_path,
+        dtype={"locationid": "string", "LocationID": "string"},
+        low_memory=False,
+    )
     frame = _rename_places_columns(frame)
     require_columns(actual=frame.columns, required=_REQUIRED_COLUMNS, context="CDC PLACES county")
     return frame

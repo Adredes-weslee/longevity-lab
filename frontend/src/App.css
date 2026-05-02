@@ -1319,6 +1319,36 @@
   font-variant-numeric: tabular-nums;
 }
 
+.metric-card-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.metric-card {
+  background: rgba(12, 17, 30, 0.64);
+  border: 1px solid rgba(134, 144, 192, 0.14);
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+}
+
+.metric-card h4 {
+  color: var(--text-main);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.compact-list {
+  gap: 0.55rem;
+}
+
+.compact-list li {
+  padding: 0.65rem 0.75rem;
+}
+
 .selected-panel {
   align-content: start;
 }
@@ -1364,6 +1394,7 @@
   .control-field-header,
   .control-inputs,
   .page-card-grid,
+  .metric-card-grid,
   .page-stat-grid {
     grid-template-columns: 1fr;
   }

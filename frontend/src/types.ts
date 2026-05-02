@@ -74,6 +74,40 @@ export interface ModelMetadataResponse {
   contextual_geography: ContextualGeographyMetadataResponse
 }
 
+export interface ModelMetricSetResponse {
+  average_precision: number | null
+  roc_auc: number | null
+  brier_score: number | null
+}
+
+export interface ConditionModelCardResponse {
+  condition_id: string
+  label: string
+  metrics_available: boolean
+  metrics_path: string | null
+  rows_total: number | null
+  rows_train: number | null
+  rows_test: number | null
+  positive_rate: number | null
+  feature_count: number | null
+  features: string[]
+  best_params: Record<string, unknown>
+  base_metrics: ModelMetricSetResponse
+  calibrated_metrics: ModelMetricSetResponse
+  no_aqi_metrics: ModelMetricSetResponse
+  aqi_average_precision_delta: number | null
+}
+
+export interface ModelCardBundleResponse {
+  contract_version: ApiContractVersion
+  model_metadata: ModelMetadataResponse
+  available: boolean
+  message: string
+  artifact_id: string | null
+  generated_from: string | null
+  condition_cards: ConditionModelCardResponse[]
+}
+
 export interface ConditionScoreResponse {
   condition_id: string
   label: string

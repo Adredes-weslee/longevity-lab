@@ -35,7 +35,11 @@ def build_demo_model_metadata() -> ModelMetadataResponse:
     )
 
 
-def build_artifact_model_metadata(bundle: ArtifactBundle) -> ModelMetadataResponse:
+def build_artifact_model_metadata(
+    bundle: ArtifactBundle,
+    *,
+    artifact_id: str | None = None,
+) -> ModelMetadataResponse:
     """Return v2 model metadata derived from an artifact bundle manifest."""
     uncertainty_methods = [
         cast(UncertaintyMethod, method)
@@ -53,7 +57,7 @@ def build_artifact_model_metadata(bundle: ArtifactBundle) -> ModelMetadataRespon
     retrieved_at = bundle.manifest.dataset.retrieved_at
     return ModelMetadataResponse(
         model_mode="artifact",
-        artifact_id=bundle.path.name,
+        artifact_id=artifact_id or bundle.path.name,
         data_vintage=bundle.manifest.dataset.version,
         dataset_name=bundle.manifest.dataset.name,
         dataset_version=bundle.manifest.dataset.version,

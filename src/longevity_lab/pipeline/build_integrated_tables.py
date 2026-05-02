@@ -110,7 +110,7 @@ def _quality_gate_pollutant_features(joined: pd.DataFrame) -> pd.DataFrame:
         if not all(col in out.columns for col in pollutant_cols):
             continue
 
-        complete = out[complete_col].fillna(False).astype(bool)
+        complete = out[complete_col].astype("boolean").fillna(False).astype(bool)
         out[complete_col] = complete
         out[count_col] = pd.to_numeric(out[count_col], errors="coerce").fillna(0).astype("Int64")
         out[mean_col] = pd.to_numeric(out[mean_col], errors="coerce").where(complete)

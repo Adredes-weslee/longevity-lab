@@ -88,6 +88,17 @@ clients that read the original organs, conditions, runtime, and scenario scores 
 - `contextual_geography`: the geographic context levels inferred from artifact features, such as
   state-level AQI or county-level ACS/SVI/PLACES context.
 
+`GET /api/models/cards` exposes model-card metrics for the same active model contract:
+
+- `available`: whether trusted local metrics files were found for the active artifact bundle.
+- `artifact_id`: the active relative bundle id, including nested path segments when applicable.
+- `condition_cards`: per-condition rows with `rows_total`, train/test row counts, positive rate,
+  feature count, calibrated/base/no-AQI metric sets, best tree parameters, and AQI average-precision
+  delta.
+
+When demo mode is active or the active artifact has no readable metrics files, the endpoint returns
+`available: false` instead of failing the UI.
+
 ## Scenario response explanations and uncertainty
 
 `POST /api/scenario/compare` condition responses include:

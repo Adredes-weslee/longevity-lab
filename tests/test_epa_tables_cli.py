@@ -163,3 +163,93 @@ def test_download_epa_airdata_fetches_aqi_and_annual_concentration_without_netwo
             "annual_conc_by_monitor_2023.zip",
         ),
     ]
+
+
+def test_download_epa_airdata_normalizes_nested_annual_concentration_csv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Downloader should expose nested EPA annual-concentration CSVs at the expected path."""
+    base_dir = tmp_path / "data"
+
+    def fake_download_file(
+        url: str,
+        dest_path: Path,
+        *,
+        force: bool,
+        dry_run: bool,
+    ) -> None:
+        if not dry_run:
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_bytes(b"zip")
+
+    def fake_extract_zip(zip_path: Path, dest_dir: Path, *, dry_run: bool) -> list[Path]:
+        if dry_run:
+            return []
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        if zip_path.name.startswith("annual_conc"):
+            csv_path = dest_dir / "annual_conc_by_monitor_2023" / "annual_conc_by_monitor_2023.csv"
+        else:
+            csv_path = dest_dir / "annual_aqi_by_county_2023.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        csv_path.write_text("header\n", encoding="utf-8")
+        return [csv_path]
+
+    monkeypatch.setattr(download_epa_airdata, "download_file", fake_download_file)
+    monkeypatch.setattr(download_epa_airdata, "extract_zip", fake_extract_zip)
+
+    stale_root_csv = _epa_airdata_annual_conc_csv(base_dir, 2023)
+    stale_root_csv.parent.mkdir(parents=True, exist_ok=True)
+    stale_root_csv.write_text("stale\n", encoding="utf-8")
+
+    download_epa_airdata.main(["--base-dir", str(base_dir), "--year", "2023"])
+
+    assert stale_root_csv.exists()
+    assert stale_root_csv.read_text(encoding="utf-8") == "header\n"
+
+
+def test_download_epa_airdata_does_not_promote_stale_nested_csv(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Normalization should only promote files extracted in the current run."""
+    base_dir = tmp_path / "data"
+
+    def fake_download_file(
+        url: str,
+        dest_path: Path,
+        *,
+        force: bool,
+        dry_run: bool,
+    ) -> None:
+        if not dry_run:
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            dest_path.write_bytes(b"zip")
+
+    def fake_extract_zip(zip_path: Path, dest_dir: Path, *, dry_run: bool) -> list[Path]:
+        if dry_run:
+            return []
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = dest_dir / "annual_aqi_by_county_2023.csv"
+        if zip_path.name.startswith("annual_conc"):
+            csv_path = dest_dir / "unrelated_current_extract.csv"
+        csv_path.write_text("current\n", encoding="utf-8")
+        return [csv_path]
+
+    stale_nested_csv = (
+        base_dir
+        / "external"
+        / "epa_airdata"
+        / "annual_conc_by_monitor_2023"
+        / "annual_conc_by_monitor_2023"
+        / "annual_conc_by_monitor_2023.csv"
+    )
+    stale_nested_csv.parent.mkdir(parents=True, exist_ok=True)
+    stale_nested_csv.write_text("stale\n", encoding="utf-8")
+
+    monkeypatch.setattr(download_epa_airdata, "download_file", fake_download_file)
+    monkeypatch.setattr(download_epa_airdata, "extract_zip", fake_extract_zip)
+
+    download_epa_airdata.main(["--base-dir", str(base_dir), "--year", "2023"])
+
+    assert not _epa_airdata_annual_conc_csv(base_dir, 2023).exists()

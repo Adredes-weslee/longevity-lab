@@ -1,22 +1,74 @@
 import type { JSX } from 'react'
 
 import type {
+  ConditionModelCardResponse,
   MetadataBootstrapResponse,
+  ModelCardBundleResponse,
+  ModelMetricSetResponse,
   ScenarioCompareResponse,
 } from '../types'
 
 interface ModelCardsPageProps {
   bootstrap: MetadataBootstrapResponse
   comparison: ScenarioCompareResponse | null
+  error: string | null
+  loading: boolean
+  modelCards: ModelCardBundleResponse | null
+  onRetry: () => void
 }
 
 function formatList(values: string[]): string {
   return values.length ? values.join(', ') : 'Not available in active bundle'
 }
 
+function formatMetric(value: number | null, digits = 3): string {
+  return value == null ? 'n/a' : value.toFixed(digits)
+}
+
+function formatPercent(value: number | null): string {
+  return value == null ? 'n/a' : `${(value * 100).toFixed(1)}%`
+}
+
+function metricSummary(metrics: ModelMetricSetResponse): string {
+  return `ROC-AUC ${formatMetric(metrics.roc_auc)} · AP ${formatMetric(metrics.average_precision)} · Brier ${formatMetric(metrics.brier_score)}`
+}
+
+function conditionCard(card: ConditionModelCardResponse): JSX.Element {
+  return (
+    <article className="metric-card" key={card.condition_id}>
+      <div>
+        <p className="section-kicker">{card.label}</p>
+        <h4>{card.metrics_available ? metricSummary(card.calibrated_metrics) : 'Metrics unavailable'}</h4>
+      </div>
+      <ul className="comparison-list compact-list">
+        <li>
+          <span>Rows</span>
+          <strong>{card.rows_total?.toLocaleString() ?? 'n/a'}</strong>
+        </li>
+        <li>
+          <span>Positive rate</span>
+          <strong>{formatPercent(card.positive_rate)}</strong>
+        </li>
+        <li>
+          <span>AQI AP lift</span>
+          <strong>{formatMetric(card.aqi_average_precision_delta, 4)}</strong>
+        </li>
+        <li>
+          <span>Features</span>
+          <strong>{card.feature_count ?? card.features.length}</strong>
+        </li>
+      </ul>
+    </article>
+  )
+}
+
 export function ModelCardsPage({
   bootstrap,
   comparison,
+  error,
+  loading,
+  modelCards,
+  onRetry,
 }: ModelCardsPageProps): JSX.Element {
   const model = bootstrap.model_metadata
   const runtime = bootstrap.runtime
@@ -32,8 +84,8 @@ export function ModelCardsPage({
           <h2>Active scoring contract</h2>
           <p>
             The UI only reports model metadata that the backend exposes through the v2 contract.
-            Detailed benchmark metrics remain local generated artifacts until a model-card endpoint
-            is added.
+            Detailed benchmark metrics are loaded from trusted local artifact bundles when
+            artifact-backed scoring is active.
           </p>
         </div>
         <div className="page-stat-grid">
@@ -113,6 +165,37 @@ export function ModelCardsPage({
             </div>
           </dl>
         </article>
+      </section>
+
+      <section className="panel" data-testid="model-card-metrics">
+        <div className="panel-header">
+          <h3>Model-card metrics</h3>
+          <p>
+            Condition-level metrics come from the active bundle's generated metrics JSON files,
+            not from hard-coded frontend copy.
+          </p>
+        </div>
+        {loading ? <p className="muted">Loading model-card metrics.</p> : null}
+        {error ? (
+          <div className="panel-inline-actions">
+            <p className="error-banner">{error}</p>
+            <button className="ghost-button" onClick={onRetry} type="button">
+              Retry model cards
+            </button>
+          </div>
+        ) : null}
+        {!loading && !error && modelCards ? (
+          modelCards.available ? (
+            <>
+              <p className="muted">{modelCards.message}</p>
+              <div className="metric-card-grid">
+                {modelCards.condition_cards.map(conditionCard)}
+              </div>
+            </>
+          ) : (
+            <p className="muted">{modelCards.message}</p>
+          )
+        ) : null}
       </section>
 
       <section className="panel">
