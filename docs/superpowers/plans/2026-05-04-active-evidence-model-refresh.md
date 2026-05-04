@@ -113,4 +113,3 @@
 - [ ] Run targeted tests, full backend/frontend checks, Playwright E2E, local artifact download smoke, Render blueprint validation, and production smoke after merge/deploy.
 - [ ] Run local adversarial review against `origin/main..HEAD` until no open P0/P1/P2 issues remain.
 - [ ] Push branch, open PR, wait for CI, merge, clean up worktree/branch.
-
