@@ -51,10 +51,9 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Data evidence' }).click()
   await expect(page.getByTestId('data-evidence-page')).toBeVisible()
-  await expect(page.getByTestId('pipeline-status')).toBeVisible()
-  await expect(
-    page.locator('[data-testid="pipeline-status"] .pipeline-status-list li').first(),
-  ).toBeVisible()
+  await expect(page.getByTestId('source-registry')).toBeVisible()
+  await expect(page.getByTestId('asset-group-raw_sources')).toBeVisible()
+  await expect(page.getByTestId('inactive-gaps')).toBeVisible()
 
   await page.getByRole('button', { name: 'Model cards' }).click()
   await expect(page.getByTestId('model-cards-page')).toBeVisible()

@@ -63,6 +63,8 @@ FEATURE_LABELS: dict[str, str] = {
     "alcohol_servings_per_week": "Alcohol servings / week",
     "exercise_minutes_per_week": "Exercise minutes / week",
     "annual_aqi": "Annual AQI",
+    "pm25_mean": "PM2.5 annual mean",
+    "ozone_mean": "Ozone annual mean",
     "sex": "Sex",
     "race_ethnicity": "Race/ethnicity",
     "has_healthcare_coverage": "Healthcare coverage",
@@ -670,6 +672,10 @@ def evaluate_bundle(bundle_dir: Path) -> pd.DataFrame:
                 "test_roc_auc": metrics["calibrated_metrics"]["roc_auc"],
                 "test_brier_score": metrics["calibrated_metrics"]["brier_score"],
                 "test_average_precision_no_aqi": metrics["no_aqi_metrics"]["average_precision"],
+                "test_average_precision_no_pollutants": metrics.get(
+                    "no_pollutants_metrics",
+                    {},
+                ).get("average_precision"),
                 "positive_rate": metrics["target_positive_rate"],
             }
         )
@@ -1022,8 +1028,14 @@ def _train_condition(
     )
     base_probabilities = _predict_positive_class(explanation_pipeline, x_test)
     calibrated_probabilities = _predict_positive_class(calibrated_pipeline, x_test)
+    calibrated_metrics = _binary_metrics(
+        y_test,
+        calibrated_probabilities,
+        sample_weight=sample_weight_test,
+    )
+    base_metrics = _binary_metrics(y_test, base_probabilities, sample_weight=sample_weight_test)
 
-    no_aqi_metrics, no_aqi_probabilities = _fit_no_aqi_ablation(
+    no_aqi_metrics, no_aqi_probabilities = _fit_feature_ablation(
         x_train,
         x_test,
         y_train,
@@ -1031,16 +1043,27 @@ def _train_condition(
         spec=spec,
         tuned_params=tuned_params,
         feature_names=condition_features,
+        drop_features=("annual_aqi",),
+        fallback_probabilities=calibrated_probabilities,
+        fallback_metrics=calibrated_metrics,
+        sample_weight_train=sample_weight_train,
+        sample_weight_test=sample_weight_test,
+    )
+    no_pollutants_metrics, no_pollutants_probabilities = _fit_feature_ablation(
+        x_train,
+        x_test,
+        y_train,
+        y_test,
+        spec=spec,
+        tuned_params=tuned_params,
+        feature_names=condition_features,
+        drop_features=("pm25_mean", "ozone_mean"),
+        fallback_probabilities=calibrated_probabilities,
+        fallback_metrics=calibrated_metrics,
         sample_weight_train=sample_weight_train,
         sample_weight_test=sample_weight_test,
     )
 
-    calibrated_metrics = _binary_metrics(
-        y_test,
-        calibrated_probabilities,
-        sample_weight=sample_weight_test,
-    )
-    base_metrics = _binary_metrics(y_test, base_probabilities, sample_weight=sample_weight_test)
     positive_rate = _weighted_mean(y_test.astype(float), sample_weight=sample_weight_test)
 
     condition_prefix = condition_id
@@ -1059,6 +1082,7 @@ def _train_condition(
     test_predictions["predicted_probability"] = calibrated_probabilities
     test_predictions["predicted_probability_uncalibrated"] = base_probabilities
     test_predictions["predicted_probability_no_aqi"] = no_aqi_probabilities
+    test_predictions["predicted_probability_no_pollutants"] = no_pollutants_probabilities
     if sample_weight_test is not None:
         test_predictions[spec.feature_contract.sample_weight_column or "survey_weight"] = (
             sample_weight_test.to_numpy()
@@ -1101,6 +1125,7 @@ def _train_condition(
         "base_metrics": base_metrics,
         "calibrated_metrics": calibrated_metrics,
         "no_aqi_metrics": no_aqi_metrics,
+        "no_pollutants_metrics": no_pollutants_metrics,
     }
     metrics_path.write_text(json.dumps(metrics_payload, indent=2) + "\n", encoding="utf-8")
 
@@ -1117,7 +1142,7 @@ def _train_condition(
     )
 
 
-def _fit_no_aqi_ablation(
+def _fit_feature_ablation(
     x_train: pd.DataFrame,
     x_test: pd.DataFrame,
     y_train: pd.Series,
@@ -1126,10 +1151,15 @@ def _fit_no_aqi_ablation(
     spec: TrainingSpec,
     tuned_params: dict[str, Any],
     feature_names: tuple[str, ...],
+    drop_features: tuple[str, ...],
+    fallback_probabilities: np.ndarray,
+    fallback_metrics: dict[str, float | None],
     sample_weight_train: pd.Series | None,
     sample_weight_test: pd.Series | None,
 ) -> tuple[dict[str, float | None], np.ndarray]:
-    ablation_features = tuple(feature for feature in feature_names if feature != "annual_aqi")
+    ablation_features = tuple(feature for feature in feature_names if feature not in drop_features)
+    if ablation_features == feature_names:
+        return dict(fallback_metrics), fallback_probabilities.copy()
     ablation_pipeline = _fit_calibrated_pipeline(
         x_train.loc[:, list(ablation_features)],
         y_train,

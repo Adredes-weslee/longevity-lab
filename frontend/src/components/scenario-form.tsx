@@ -53,6 +53,16 @@ const fieldMeta: Partial<
     shortLabel: 'Annual AQI',
     helper: 'EPA annual AQI proxy.',
   },
+  pm25_mean: {
+    group: 'Environment',
+    shortLabel: 'PM2.5',
+    helper: 'EPA annual fine-particle mean.',
+  },
+  ozone_mean: {
+    group: 'Environment',
+    shortLabel: 'Ozone',
+    helper: 'EPA annual ozone mean concentration.',
+  },
 }
 
 const groupOrder = ['Demographics', 'Body metrics', 'Activity', 'Substances', 'Environment']
@@ -105,6 +115,12 @@ function formatNumericValue(value: number, field: keyof FeatureProfile): string 
   }
   if (field === 'annual_aqi') {
     return `${Math.round(value)} AQI`
+  }
+  if (field === 'pm25_mean') {
+    return `${value.toFixed(1)} µg/m³`
+  }
+  if (field === 'ozone_mean') {
+    return `${value.toFixed(3)} ppm`
   }
   if (field === 'bmi') {
     return value.toFixed(1)

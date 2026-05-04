@@ -13,6 +13,7 @@ Legend:
 - [DONE] Governance, roadmap, local overlay, worktree policy, and PR plan drafted.
 - [DONE] Artifact-first runtime default when a valid local bundle exists.
 - [DONE] Model-card endpoint and UI metrics surface for active artifact bundles.
+- [DONE] Evidence-status endpoint and UI separate active scoring inputs from local-only data, validation reports, and inactive geography context.
 - [DONE] Data source registry and provenance schema for current public sources.
 - [DONE] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
 - [DONE] EPA pollutant-specific features beyond annual AQI.
@@ -60,7 +61,7 @@ Legend:
 - [DONE] CDC/ATSDR SVI U.S. county CSV downloader with registry-backed provenance (`src/longevity_lab/pipeline/download_svi.py`).
 - [DONE] ACS/SVI county-year and state-year context tables with ACS MOE availability flags (`src/longevity_lab/pipeline/build_context_tables.py`, `conf/context_features.yaml`).
 - [DONE] CDC PLACES county Open Data downloader with registry-backed provenance (`src/longevity_lab/pipeline/download_places.py`).
-- [DONE] PLACES county-year contextual tables for the five modeled conditions plus smoking, binge drinking, physical inactivity, obesity, and short sleep (`src/longevity_lab/pipeline/build_places_tables.py`).
+- [DONE] PLACES county-year contextual tables for matching modeled conditions where PLACES has a public measure (heart disease, COPD, asthma, stroke, depression, diabetes, arthritis) plus smoking, binge drinking, physical inactivity, obesity, and short sleep (`src/longevity_lab/pipeline/build_places_tables.py`).
 - [DONE] External PLACES reasonableness report compares aggregate model risk patterns with PLACES modeled estimates while documenting that PLACES is not an independent person-level label source (`src/longevity_lab/pipeline/validate_external_context.py`).
 
 ### Modeling
@@ -74,6 +75,7 @@ Legend:
 - [DONE] Reproducible benchmark harness writes metrics, calibration curves, subgroup metrics, and model-card-ready manifests (`src/longevity_lab/pipeline/benchmarks.py`, `conf/benchmark.yaml`).
 - [DONE] Benchmark harness compares calibrated histogram gradient boosting and optional XGBoost candidates against the decision-tree baseline, recording skipped XGBoost rows when the optional dependency is unavailable (`src/longevity_lab/pipeline/benchmarks.py`, `conf/model/hist_gradient_boosting.yaml`, `conf/model/xgboost.yaml`).
 - [DONE] Training config separates scenario-editable features from BRFSS adjustment/context covariates and applies survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
+- [DONE] Active training scope covers eight BRFSS-derived conditions: heart disease, chronic lung disease, asthma, stroke, depression, diabetes, chronic kidney disease, and arthritis (`conf/train.yaml`, `src/longevity_lab/domain/catalog.py`).
 - [DONE] Artifact manifest schema, bundle loader, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
 - [DONE] Explanation outputs aligned to saved explanation trees, optional SHAP artifacts, and manifest-declared uncertainty intervals (`src/longevity_lab/services/artifact_engine.py`, `src/longevity_lab/services/explanations.py`, `src/longevity_lab/services/uncertainty.py`).
 
@@ -91,6 +93,7 @@ Legend:
 - [DONE] Metadata bootstrap with runtime mode/artifact status (`GET /api/metadata/bootstrap`) (`src/longevity_lab/api/routes/metadata.py`).
 - [DONE] Pipeline status endpoint (`GET /api/pipeline/status`) (`src/longevity_lab/api/routes/pipeline.py`).
 - [DONE] Model-card endpoint exposes active artifact metrics (`GET /api/models/cards`) (`src/longevity_lab/api/routes/models.py`).
+- [DONE] Evidence endpoint exposes source registry roles, asset readiness, production artifact download status, active-vs-available features, reports, and inactive gaps (`GET /api/evidence/status`) (`src/longevity_lab/api/routes/evidence.py`).
 - [DONE] Service layer and engine abstraction (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Artifact-backed engine path (`src/longevity_lab/services/artifact_engine.py`).
 - [DONE] Versioned v2 response metadata shares active model mode, artifact id, data vintage, explanation methods, uncertainty availability, and inferred contextual geography across bootstrap and scenario compare responses (`src/longevity_lab/services/contract_metadata.py`).
@@ -99,7 +102,7 @@ Legend:
 
 ### Frontend UX
 
-- [DEMO] Body map uses a reference-based silhouette underlay plus SVG organ overlays.
+- [DONE] Body map uses a reference-based silhouette underlay plus SVG organ overlays for heart, lungs, brain, pancreas, kidneys, and joints.
 - [DONE] Explorer layout includes side-by-side current and what-if inputs, a persistent comparison strip, and absolute-risk versus relative-change legends.
 - [DONE] Scenario editing is live and updates the evaluation snapshot automatically.
 - [DONE] High-risk drill-down panels surface public-health guidance links when either current or what-if profile is in the red band.
@@ -127,7 +130,7 @@ Legend:
 
 ## Highest-ROI next tasks
 
-1. Wire pollutant and socioeconomic context features into the benchmark harness.
+1. Add geography-aware serving before activating ACS/SVI context features in predictions.
 2. Extend typed explanation and uncertainty coverage as new artifact families are trained.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
 4. Add one-command dev bootstrap for Windows and macOS.

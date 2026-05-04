@@ -84,6 +84,11 @@ def _write_api_bundle(
                         "roc_auc": 0.85,
                         "brier_score": 0.12,
                     },
+                    "no_pollutants_metrics": {
+                        "average_precision": 0.78,
+                        "roc_auc": 0.88,
+                        "brier_score": 0.11,
+                    },
                 }
             )
             + "\n",
@@ -307,6 +312,8 @@ def test_metadata_bootstrap(client: TestClient) -> None:
         "alcohol_servings_per_week",
         "exercise_minutes_per_week",
         "annual_aqi",
+        "pm25_mean",
+        "ozone_mean",
     }
 
 
@@ -373,6 +380,9 @@ def test_model_cards_artifact_surfaces_condition_metrics(
         assert payload["condition_cards"][0]["feature_count"] == 6
         assert payload["condition_cards"][0]["calibrated_metrics"]["roc_auc"] == 0.9
         assert payload["condition_cards"][0]["aqi_average_precision_delta"] == pytest.approx(0.05)
+        assert payload["condition_cards"][0]["pollutant_average_precision_delta"] == pytest.approx(
+            0.02
+        )
 
 
 def test_model_cards_artifact_tolerates_corrupt_metrics(

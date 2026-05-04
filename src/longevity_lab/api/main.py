@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from longevity_lab.api.middleware import request_logging_middleware
-from longevity_lab.api.routes import health, metadata, models, pipeline, scenario
+from longevity_lab.api.routes import evidence, health, metadata, models, pipeline, scenario
 from longevity_lab.api.schemas import FeatureProfile, ModelMetadataResponse, RuntimeMetadataResponse
 from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
 from longevity_lab.config import Settings, get_settings
@@ -18,6 +18,7 @@ from longevity_lab.services.contract_metadata import (
     build_demo_model_metadata,
 )
 from longevity_lab.services.engine_types import ScenarioEngine
+from longevity_lab.services.evidence_service import EvidenceService
 from longevity_lab.services.metadata_service import MetadataService
 from longevity_lab.services.model_card_service import ModelCardService
 from longevity_lab.services.scenario_service import DemoScenarioEngine, ScenarioService
@@ -139,6 +140,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         artifact_store=ArtifactStore(settings.artifacts_dir / "models"),
         model_metadata=model_metadata,
     )
+    app.state.evidence_service = EvidenceService(
+        settings=settings,
+        runtime=runtime,
+        model_metadata=model_metadata,
+    )
     app.state.scenario_service = ScenarioService(
         engine=engine,
         model_metadata=model_metadata,
@@ -163,6 +169,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=settings.api_prefix)
     app.include_router(metadata.router, prefix=settings.api_prefix)
     app.include_router(models.router, prefix=settings.api_prefix)
+    app.include_router(evidence.router, prefix=settings.api_prefix)
     app.include_router(pipeline.router, prefix=settings.api_prefix)
     app.include_router(scenario.router, prefix=settings.api_prefix)
     return app

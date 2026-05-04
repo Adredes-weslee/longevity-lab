@@ -27,8 +27,9 @@ All of these are **gitignored** outputs written under `data/processed/`.
   - adjustment/context columns: `sex`, `race_ethnicity`, `has_healthcare_coverage`,
     `has_personal_doctor`, `cost_barrier_to_care`, `last_checkup_within_year`,
     `sleep_hours_per_night`, `physical_health_days`, `mental_health_days`
-  - label columns: `label_heart_disease`, `label_chronic_lung_disease`, `label_stroke`,
-    `label_depression`, `label_diabetes`
+  - label columns: `label_heart_disease`, `label_chronic_lung_disease`, `label_asthma`,
+    `label_stroke`, `label_depression`, `label_diabetes`, `label_kidney_disease`,
+    `label_arthritis`
   - `survey_weight`
 
 ### `annual_aqi_state_year.parquet`
@@ -53,20 +54,26 @@ condition-specific exclusions to avoid symptom-like label leakage:
 
 - Scenario-editable: `age`, `bmi`, `smoker`, `alcohol_servings_per_week`,
   `exercise_minutes_per_week`
-- Scenario-editable environmental feature from EPA join: `annual_aqi`
+- Scenario-editable environmental features from EPA join: `annual_aqi`, `pm25_mean`, and
+  `ozone_mean`
 - BRFSS adjustment covariates: `sex`, `race_ethnicity`, `has_healthcare_coverage`,
   `has_personal_doctor`, `cost_barrier_to_care`, `last_checkup_within_year`,
   `sleep_hours_per_night`, `physical_health_days`, `mental_health_days`
 - Survey weights: `survey_weight` is a sample-weight column, not a prediction feature.
 - Leakage exclusions:
   - `physical_health_days` is excluded when training heart disease, chronic lung disease,
-    stroke, and diabetes labels.
+    asthma, stroke, diabetes, chronic kidney disease, and arthritis labels.
   - `mental_health_days` is excluded when training the depression label.
 
 The public API remains backward-compatible: existing scenario requests can keep sending the
 original editable fields, including `annual_aqi`. Non-editable BRFSS v2 covariates are not accepted
 in public scenario payloads; artifact inference fills them from persisted preprocessing defaults so
 direct clients cannot create scenario deltas by changing adjustment fields.
+
+`GET /api/evidence/status` exposes the comprehensive evidence contract used by the Data Evidence
+page: public source roles, local asset readiness, generated reports, production artifact download
+configuration, active-vs-available feature inventory, and explicitly inactive gaps such as ACS/SVI
+context features that are not served until geography-aware scenario inputs exist.
 
 ## API contract v2
 

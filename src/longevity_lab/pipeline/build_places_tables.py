@@ -36,6 +36,8 @@ SCENARIO_EDITABLE_COLUMNS: frozenset[str] = frozenset(
         "alcohol_servings_per_week",
         "exercise_minutes_per_week",
         "annual_aqi",
+        "pm25_mean",
+        "ozone_mean",
     }
 )
 PLACES_OUTPUT_DIR = "places"
@@ -65,6 +67,12 @@ PLACES_CONDITION_MEASURES: dict[str, PlacesMeasure] = {
         display_name="Chronic obstructive pulmonary disease among adults",
         role="modeled_condition_context",
     ),
+    "asthma": PlacesMeasure(
+        measure_id="CASTHMA",
+        feature_prefix="current_asthma",
+        display_name="Current asthma among adults",
+        role="modeled_condition_context",
+    ),
     "stroke": PlacesMeasure(
         measure_id="STROKE",
         feature_prefix="stroke",
@@ -81,6 +89,12 @@ PLACES_CONDITION_MEASURES: dict[str, PlacesMeasure] = {
         measure_id="DIABETES",
         feature_prefix="diabetes",
         display_name="Diagnosed diabetes among adults",
+        role="modeled_condition_context",
+    ),
+    "arthritis": PlacesMeasure(
+        measure_id="ARTHRITIS",
+        feature_prefix="arthritis",
+        display_name="Arthritis among adults",
         role="modeled_condition_context",
     ),
 }

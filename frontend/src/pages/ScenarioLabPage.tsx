@@ -18,6 +18,8 @@ const featureLabels: Record<keyof FeatureProfile, string> = {
   alcohol_servings_per_week: 'Alcohol servings / week',
   exercise_minutes_per_week: 'Exercise minutes / week',
   annual_aqi: 'Annual AQI',
+  pm25_mean: 'PM2.5 annual mean',
+  ozone_mean: 'Ozone annual mean',
 }
 
 function formatFeatureValue(field: keyof FeatureProfile, value: FeatureProfile[keyof FeatureProfile]): string {
@@ -26,6 +28,12 @@ function formatFeatureValue(field: keyof FeatureProfile, value: FeatureProfile[k
   }
   if (field === 'bmi') {
     return Number(value).toFixed(1)
+  }
+  if (field === 'pm25_mean') {
+    return `${Number(value).toFixed(1)} µg/m³`
+  }
+  if (field === 'ozone_mean') {
+    return `${Number(value).toFixed(3)} ppm`
   }
   return String(value)
 }

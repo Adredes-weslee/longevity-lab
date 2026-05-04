@@ -73,6 +73,22 @@ class MetadataService:
                 max_value=500,
                 step=1,
             ),
+            FeatureDefinition(
+                field="pm25_mean",
+                label="PM2.5 annual mean",
+                kind="number",
+                min_value=0,
+                max_value=50,
+                step=0.1,
+            ),
+            FeatureDefinition(
+                field="ozone_mean",
+                label="Ozone annual mean",
+                kind="number",
+                min_value=0,
+                max_value=0.2,
+                step=0.001,
+            ),
         ]
         organs = [
             OrganDefinitionResponse(

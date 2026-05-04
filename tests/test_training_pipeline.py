@@ -27,6 +27,8 @@ def _write_training_frame(path: Path, *, rows: int = 400) -> None:
     alcohol = [idx % 21 for idx in range(rows)]
     exercise = [30 + (idx % 12) * 20 for idx in range(rows)]
     annual_aqi = [40 + (idx % 9) * 12 for idx in range(rows)]
+    pm25 = [6.0 + (idx % 10) * 0.9 for idx in range(rows)]
+    ozone = [0.030 + (idx % 8) * 0.003 for idx in range(rows)]
     sex = ["female" if idx % 2 == 0 else "male" for idx in range(rows)]
     race = [
         ["white_non_hispanic", "black_non_hispanic", "hispanic", "other_non_hispanic"][idx % 4]
@@ -53,6 +55,8 @@ def _write_training_frame(path: Path, *, rows: int = 400) -> None:
             "alcohol_servings_per_week": alcohol,
             "exercise_minutes_per_week": exercise,
             "annual_aqi": annual_aqi,
+            "pm25_mean": pm25,
+            "ozone_mean": ozone,
             "has_healthcare_coverage": has_coverage,
             "has_personal_doctor": has_doctor,
             "cost_barrier_to_care": cost_barrier,
@@ -65,8 +69,12 @@ def _write_training_frame(path: Path, *, rows: int = 400) -> None:
                 for item_age, item_bmi, item_smoker in zip(age, bmi, smoker, strict=True)
             ],
             "label_chronic_lung_disease": [
-                int(item_smoker or item_aqi > 110)
-                for item_smoker, item_aqi in zip(smoker, annual_aqi, strict=True)
+                int(item_smoker or item_aqi > 110 or item_pm25 > 13)
+                for item_smoker, item_aqi, item_pm25 in zip(smoker, annual_aqi, pm25, strict=True)
+            ],
+            "label_asthma": [
+                int(item_smoker or item_ozone > 0.045 or item_pm25 > 12)
+                for item_smoker, item_ozone, item_pm25 in zip(smoker, ozone, pm25, strict=True)
             ],
             "label_stroke": [
                 int(item_age > 70 or item_aqi > 120)
@@ -79,6 +87,14 @@ def _write_training_frame(path: Path, *, rows: int = 400) -> None:
             "label_diabetes": [
                 int(item_bmi > 31 or item_age > 58)
                 for item_bmi, item_age in zip(bmi, age, strict=True)
+            ],
+            "label_kidney_disease": [
+                int(item_age > 68 or item_bmi > 34)
+                for item_age, item_bmi in zip(age, bmi, strict=True)
+            ],
+            "label_arthritis": [
+                int(item_age > 55 or item_bmi > 33 or item_exercise < 70)
+                for item_age, item_bmi, item_exercise in zip(age, bmi, exercise, strict=True)
             ],
             "survey_weight": survey_weight,
         }
@@ -163,6 +179,8 @@ BRFSS_V2_FEATURES = [
     "alcohol_servings_per_week",
     "exercise_minutes_per_week",
     "annual_aqi",
+    "pm25_mean",
+    "ozone_mean",
     "sex",
     "race_ethnicity",
     "has_healthcare_coverage",
@@ -183,6 +201,8 @@ BRFSS_V2_CONTRACT = {
         "alcohol_servings_per_week",
         "exercise_minutes_per_week",
         "annual_aqi",
+        "pm25_mean",
+        "ozone_mean",
     ],
     "adjustment_features": [
         "sex",
@@ -200,9 +220,12 @@ BRFSS_V2_CONTRACT = {
     "label_feature_exclusions": {
         "heart_disease": ["physical_health_days"],
         "chronic_lung_disease": ["physical_health_days"],
+        "asthma": ["physical_health_days"],
         "stroke": ["physical_health_days"],
         "depression": ["mental_health_days"],
         "diabetes": ["physical_health_days"],
+        "kidney_disease": ["physical_health_days"],
+        "arthritis": ["physical_health_days"],
     },
 }
 
@@ -430,6 +453,7 @@ def test_evaluate_bundle_returns_condition_summary(tmp_path: Path) -> None:
         "test_roc_auc",
         "test_brier_score",
         "test_average_precision_no_aqi",
+        "test_average_precision_no_pollutants",
         "positive_rate",
     }
     assert len(summary) == 5

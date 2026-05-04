@@ -54,6 +54,10 @@ function conditionCard(card: ConditionModelCardResponse): JSX.Element {
           <strong>{formatMetric(card.aqi_average_precision_delta, 4)}</strong>
         </li>
         <li>
+          <span>Pollutant AP lift</span>
+          <strong>{formatMetric(card.pollutant_average_precision_delta, 4)}</strong>
+        </li>
+        <li>
           <span>Features</span>
           <strong>{card.feature_count ?? card.features.length}</strong>
         </li>

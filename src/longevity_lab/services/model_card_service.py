@@ -126,7 +126,12 @@ def _build_condition_card(
         base_metrics=_metric_set(payload.get("base_metrics")),
         calibrated_metrics=_metric_set(payload.get("calibrated_metrics")),
         no_aqi_metrics=_metric_set(payload.get("no_aqi_metrics")),
+        no_pollutants_metrics=_metric_set(payload.get("no_pollutants_metrics")),
         aqi_average_precision_delta=_average_precision_delta(payload),
+        pollutant_average_precision_delta=_average_precision_delta(
+            payload,
+            ablation_key="no_pollutants_metrics",
+        ),
     )
 
 
@@ -155,13 +160,17 @@ def _metric_set(value: object) -> ModelMetricSetResponse:
     )
 
 
-def _average_precision_delta(payload: dict[str, Any]) -> float | None:
-    """Return calibrated average-precision lift over the no-AQI variant."""
+def _average_precision_delta(
+    payload: dict[str, Any],
+    *,
+    ablation_key: str = "no_aqi_metrics",
+) -> float | None:
+    """Return calibrated average-precision lift over an ablation variant."""
     calibrated = _metric_set(payload.get("calibrated_metrics")).average_precision
-    no_aqi = _metric_set(payload.get("no_aqi_metrics")).average_precision
-    if calibrated is None or no_aqi is None:
+    ablation = _metric_set(payload.get(ablation_key)).average_precision
+    if calibrated is None or ablation is None:
         return None
-    return calibrated - no_aqi
+    return calibrated - ablation
 
 
 def _coerce_best_params(value: object) -> dict[str, Any]:

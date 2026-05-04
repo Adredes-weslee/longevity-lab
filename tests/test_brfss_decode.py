@@ -31,9 +31,13 @@ def test_decode_brfss_person_happy_path() -> None:
             "PA3MIN_": [150, 118602],
             "_MICHD": [1, 2],
             "CHCCOPD3": [1, 7],
+            "ASTHMA3": [1, 2],
+            "ASTHNOW": [1, 7],
             "CVDSTRK3": [2, 9],
             "ADDEPEV3": [1, 2],
             "DIABETE4": [1, 4],
+            "CHCKDNY2": [1, 2],
+            "HAVARTH4": [1, 2],
             "_LLCPWT": [123.4, 0.5],
         }
     )
@@ -85,6 +89,9 @@ def test_decode_brfss_person_happy_path() -> None:
     assert decoded.loc[0, "label_chronic_lung_disease"] == 1
     assert pd.isna(decoded.loc[1, "label_chronic_lung_disease"])
 
+    assert decoded.loc[0, "label_asthma"] == 1
+    assert decoded.loc[1, "label_asthma"] == 0
+
     assert decoded.loc[0, "label_stroke"] == 0
     assert pd.isna(decoded.loc[1, "label_stroke"])
 
@@ -93,6 +100,12 @@ def test_decode_brfss_person_happy_path() -> None:
 
     assert decoded.loc[0, "label_diabetes"] == 1
     assert decoded.loc[1, "label_diabetes"] == 0
+
+    assert decoded.loc[0, "label_kidney_disease"] == 1
+    assert decoded.loc[1, "label_kidney_disease"] == 0
+
+    assert decoded.loc[0, "label_arthritis"] == 1
+    assert decoded.loc[1, "label_arthritis"] == 0
 
 
 def test_decode_brfss_person_clamps_outliers() -> None:
@@ -115,9 +128,13 @@ def test_decode_brfss_person_clamps_outliers() -> None:
             "PA3MIN_": [5000],  # clamp to 2000
             "_MICHD": [2],
             "CHCCOPD3": [2],
+            "ASTHMA3": [2],
+            "ASTHNOW": [7],
             "CVDSTRK3": [2],
             "ADDEPEV3": [2],
             "DIABETE4": [3],
+            "CHCKDNY2": [2],
+            "HAVARTH4": [2],
             "_LLCPWT": [1.0],
         }
     )
@@ -149,9 +166,13 @@ def test_decode_brfss_person_rounds_exercise_minutes() -> None:
             "PA3MIN_": [5.397605346934028e-79],
             "_MICHD": [2],
             "CHCCOPD3": [2],
+            "ASTHMA3": [2],
+            "ASTHNOW": [7],
             "CVDSTRK3": [2],
             "ADDEPEV3": [2],
             "DIABETE4": [3],
+            "CHCKDNY2": [2],
+            "HAVARTH4": [2],
             "_LLCPWT": [1.0],
         }
     )

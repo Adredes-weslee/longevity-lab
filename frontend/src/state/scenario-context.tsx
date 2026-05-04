@@ -41,6 +41,8 @@ export const defaultBaseline: FeatureProfile = {
   alcohol_servings_per_week: 10,
   exercise_minutes_per_week: 60,
   annual_aqi: 80,
+  pm25_mean: 9,
+  ozone_mean: 0.04,
 }
 
 export const defaultCandidate: FeatureProfile = {
@@ -50,6 +52,8 @@ export const defaultCandidate: FeatureProfile = {
   alcohol_servings_per_week: 4,
   exercise_minutes_per_week: 180,
   annual_aqi: 55,
+  pm25_mean: 7.5,
+  ozone_mean: 0.035,
 }
 
 const ScenarioContext = createContext<ScenarioContextValue | undefined>(undefined)

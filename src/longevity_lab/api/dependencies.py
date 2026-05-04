@@ -4,6 +4,7 @@ from typing import cast
 
 from fastapi import Request
 
+from longevity_lab.services.evidence_service import EvidenceService
 from longevity_lab.services.metadata_service import MetadataService
 from longevity_lab.services.model_card_service import ModelCardService
 from longevity_lab.services.scenario_service import ScenarioService
@@ -22,3 +23,8 @@ def get_scenario_service(request: Request) -> ScenarioService:
 def get_model_card_service(request: Request) -> ModelCardService:
     """Return the app-scoped model-card service."""
     return cast(ModelCardService, request.app.state.model_card_service)
+
+
+def get_evidence_service(request: Request) -> EvidenceService:
+    """Return the app-scoped evidence-status service."""
+    return cast(EvidenceService, request.app.state.evidence_service)

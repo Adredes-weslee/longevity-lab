@@ -36,9 +36,11 @@ def _places_raw_rows() -> list[dict[str, str]]:
             6.0,
             8.0,
         ),
+        ("CASTHMA", "Current asthma among adults", "Health Outcomes", 9.0, 8.0, 10.0),
         ("STROKE", "Stroke among adults", "Health Outcomes", 3.0, 2.0, 4.0),
         ("DEPRESSION", "Depression among adults", "Health Outcomes", 20.0, 18.0, 22.0),
         ("DIABETES", "Diagnosed diabetes among adults", "Health Outcomes", 10.0, 9.0, 11.0),
+        ("ARTHRITIS", "Arthritis among adults", "Health Outcomes", 26.0, 24.0, 28.0),
         (
             "CSMOKING",
             "Current cigarette smoking among adults",
@@ -134,7 +136,15 @@ def test_places_measure_contract_covers_conditions_and_behaviors() -> None:
     condition_measure_ids = {spec.measure_id for spec in PLACES_CONDITION_MEASURES.values()}
     context_measure_ids = {spec.measure_id for spec in PLACES_CONTEXT_MEASURES}
 
-    assert condition_measure_ids == {"CHD", "COPD", "STROKE", "DEPRESSION", "DIABETES"}
+    assert condition_measure_ids == {
+        "ARTHRITIS",
+        "CASTHMA",
+        "CHD",
+        "COPD",
+        "STROKE",
+        "DEPRESSION",
+        "DIABETES",
+    }
     assert {"CSMOKING", "BINGE", "LPA", "OBESITY", "SLEEP"}.issubset(context_measure_ids)
     assert set(SCENARIO_EDITABLE_COLUMNS).isdisjoint(
         {f"places_{spec.feature_prefix}_crude_prevalence" for spec in PLACES_CONTEXT_MEASURES}
@@ -163,6 +173,8 @@ def test_build_places_county_context_table_pivots_crude_prevalence(tmp_path: Pat
     assert first["places_coronary_heart_disease_crude_prevalence"] == pytest.approx(5.0)
     assert first["places_coronary_heart_disease_crude_prevalence_low"] == pytest.approx(4.0)
     assert first["places_coronary_heart_disease_crude_prevalence_high"] == pytest.approx(6.0)
+    assert first["places_current_asthma_crude_prevalence"] == pytest.approx(9.0)
+    assert first["places_arthritis_crude_prevalence"] == pytest.approx(26.0)
     assert first["places_current_smoking_crude_prevalence"] == pytest.approx(15.0)
 
     second = table.iloc[1]
