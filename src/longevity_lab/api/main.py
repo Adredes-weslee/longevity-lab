@@ -63,7 +63,7 @@ def _try_load_auto_artifact_engine(
 
 def _select_engine(
     settings: Settings,
-) -> tuple[ScenarioEngine, RuntimeMetadataResponse, ModelMetadataResponse]:
+) -> tuple[ScenarioEngine, RuntimeMetadataResponse, ModelMetadataResponse, tuple[str, ...] | None]:
     """Select the runtime engine and metadata from settings and local artifacts."""
     store = ArtifactStore(settings.artifacts_dir / "models")
 
@@ -77,6 +77,7 @@ def _select_engine(
                 message="Demo scoring mode is active because LONGEVITY_LAB_ENGINE=demo.",
             ),
             build_demo_model_metadata(),
+            None,
         )
 
     if settings.engine == "artifact":
@@ -91,6 +92,7 @@ def _select_engine(
                 message="Artifact-backed scoring mode is active.",
             ),
             build_artifact_model_metadata(bundle, artifact_id=artifact_id),
+            _bundle_condition_ids(bundle),
         )
 
     for auto_bundle in store.try_resolve_all(settings.artifact_bundle):
@@ -113,6 +115,7 @@ def _select_engine(
                     ),
                 ),
                 build_artifact_model_metadata(auto_bundle, artifact_id=artifact_id),
+                _bundle_condition_ids(auto_bundle),
             )
 
     return (
@@ -124,17 +127,24 @@ def _select_engine(
             message="Demo scoring mode is active because no valid local artifact bundle was found.",
         ),
         build_demo_model_metadata(),
+        None,
     )
+
+
+def _bundle_condition_ids(bundle: ArtifactBundle) -> tuple[str, ...]:
+    """Return condition IDs explicitly served by a model bundle."""
+    return tuple(condition.condition_id for condition in bundle.manifest.conditions)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize app-scoped services once per process."""
     settings = get_settings()
-    engine, runtime, model_metadata = _select_engine(settings)
+    engine, runtime, model_metadata, condition_ids = _select_engine(settings)
     app.state.metadata_service = MetadataService(
         runtime=runtime,
         model_metadata=model_metadata,
+        condition_ids=condition_ids,
     )
     app.state.model_card_service = ModelCardService(
         artifact_store=ArtifactStore(settings.artifacts_dir / "models"),

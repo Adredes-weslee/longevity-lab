@@ -24,6 +24,7 @@ from longevity_lab.api.schemas import (
 )
 from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
 from longevity_lab.config import Settings
+from longevity_lab.config_files import config_file_path
 from longevity_lab.pipeline.ingest import build_ingest_paths
 from longevity_lab.pipeline.sources import load_data_source_registry
 
@@ -450,7 +451,7 @@ class EvidenceService:
 
     @staticmethod
     def _read_training_config() -> dict[str, Any]:
-        path = Path(__file__).resolve().parents[3] / "conf" / "train.yaml"
+        path = config_file_path("train.yaml")
         try:
             payload = yaml.safe_load(path.read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError):
@@ -459,7 +460,7 @@ class EvidenceService:
 
     @staticmethod
     def _available_context_features() -> list[str]:
-        path = Path(__file__).resolve().parents[3] / "conf" / "context_features.yaml"
+        path = config_file_path("context_features.yaml")
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):

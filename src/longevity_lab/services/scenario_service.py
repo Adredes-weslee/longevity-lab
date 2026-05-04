@@ -160,15 +160,13 @@ class ScenarioService:
 
         organ_deltas: list[OrganDeltaResponse] = []
         baseline_organs = {organ.organ_id: organ for organ in baseline_eval.organs}
-        candidate_organs = {organ.organ_id: organ for organ in candidate_eval.organs}
-        for organ in ORGANS:
-            baseline_summary = baseline_organs[organ.organ_id]
-            candidate_summary = candidate_organs[organ.organ_id]
+        for candidate_summary in candidate_eval.organs:
+            baseline_summary = baseline_organs[candidate_summary.organ_id]
             delta = round(candidate_summary.score - baseline_summary.score, 4)
             organ_deltas.append(
                 OrganDeltaResponse(
-                    organ_id=organ.organ_id,
-                    label=organ.label,
+                    organ_id=candidate_summary.organ_id,
+                    label=candidate_summary.label,
                     baseline_score=baseline_summary.score,
                     candidate_score=candidate_summary.score,
                     score_delta=delta,
@@ -214,7 +212,10 @@ class ScenarioService:
             grouped[condition.organ_id].append(condition)
 
         organ_summaries: list[OrganSummaryResponse] = []
+        served_organ_ids = {condition.organ_id for condition in condition_scores}
         for organ in ORGANS:
+            if organ.organ_id not in served_organ_ids:
+                continue
             grouped_scores = grouped.get(organ.organ_id, [])
             organ_score = self._average_probability(grouped_scores)
             top_conditions = [
@@ -235,9 +236,10 @@ class ScenarioService:
                 )
             )
 
-        summary_score = round(
-            sum(item.score for item in organ_summaries) / len(organ_summaries) * 100,
-            2,
+        summary_score = (
+            round(sum(item.score for item in organ_summaries) / len(organ_summaries) * 100, 2)
+            if organ_summaries
+            else 0.0
         )
         return ScenarioEvaluationResponse(
             summary_score=summary_score,

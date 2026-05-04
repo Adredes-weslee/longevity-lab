@@ -55,3 +55,15 @@ def test_condition_band_aligns_with_returned_probability(
     condition = response.baseline.conditions[0]
     assert condition.probability == expected_probability
     assert condition.band == expected_band
+
+
+def test_compare_omits_unserved_organs_from_subset_engines() -> None:
+    """Subset artifacts should not present unserved organs as low-risk zeroes."""
+    service = ScenarioService(engine=StubEngine(0.2))
+    profile = FeatureProfile()
+
+    response = service.compare(profile, profile)
+
+    assert [organ.organ_id for organ in response.baseline.organs] == ["heart"]
+    assert [delta.organ_id for delta in response.organ_deltas] == ["heart"]
+    assert response.baseline.summary_score == 20.0

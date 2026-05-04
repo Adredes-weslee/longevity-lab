@@ -496,6 +496,8 @@ def test_metadata_bootstrap_explicit_artifact_uses_selected_bundle(
         assert runtime["engine_mode"] == "artifact"
         assert runtime["engine_source"] == "explicit"
         assert runtime["artifact_bundle_id"] == bundle_id
+        assert [item["condition_id"] for item in response.json()["conditions"]] == ["heart_disease"]
+        assert [item["organ_id"] for item in response.json()["organs"]] == ["heart"]
 
 
 def test_metadata_bootstrap_auto_falls_back_on_invalid_bundle(
@@ -571,6 +573,10 @@ def test_scenario_compare_auto_selected_artifact_reports_model_metadata(
         assert payload["model_metadata"]["explanation_methods"] == []
         assert payload["baseline"]["conditions"][0]["explanations"] == []
         assert payload["model_metadata"]["contextual_geography"]["levels"] == ["state"]
+        assert [item["condition_id"] for item in payload["candidate"]["conditions"]] == [
+            "heart_disease"
+        ]
+        assert [item["organ_id"] for item in payload["organ_deltas"]] == ["heart"]
 
 
 def test_metadata_bootstrap_auto_falls_back_on_wrong_object_bundle(
