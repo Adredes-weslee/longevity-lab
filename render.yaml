@@ -18,7 +18,7 @@ services:
       - key: LONGEVITY_LAB_ARTIFACT_URL
         value: https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260504-full/real-20260504-full.zip
       - key: LONGEVITY_LAB_ARTIFACT_SHA256
-        value: 964b7d217a64c99f7f15c6084a0dfae2450d3f250c8d684aef87f389b8911ba3
+        value: 289e3e6981a9140cc5fdf727d19c64d430703f860c84755f98842fb8a6272440
       - key: LONGEVITY_LAB_CORS_ALLOW_ORIGINS
         value: https://longevity-lab-frontend.onrender.com
       - key: LONGEVITY_LAB_DATA_DIR
