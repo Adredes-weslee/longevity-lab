@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import {
   compareScenarios,
   fetchBootstrap,
+  fetchEvidenceStatus,
   fetchModelCards,
-  fetchPipelineStatus,
 } from './api/client'
 import { DataEvidencePage } from './pages/DataEvidencePage'
 import { ExplorerPage } from './pages/ExplorerPage'
@@ -15,7 +15,7 @@ import type {
   HeatmapMode,
   MetadataBootstrapResponse,
   ModelCardBundleResponse,
-  PipelineStatusResponse,
+  EvidenceStatusResponse,
   ScenarioCompareResponse,
 } from './types'
 
@@ -50,9 +50,9 @@ function App(): JSX.Element {
   const [bootstrap, setBootstrap] = useState<MetadataBootstrapResponse | null>(null)
   const [bootstrapLoading, setBootstrapLoading] = useState(false)
   const [comparison, setComparison] = useState<ScenarioCompareResponse | null>(null)
-  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatusResponse | null>(null)
-  const [pipelineError, setPipelineError] = useState<string | null>(null)
-  const [pipelineLoading, setPipelineLoading] = useState(false)
+  const [evidenceStatus, setEvidenceStatus] = useState<EvidenceStatusResponse | null>(null)
+  const [evidenceError, setEvidenceError] = useState<string | null>(null)
+  const [evidenceLoading, setEvidenceLoading] = useState(false)
   const [modelCards, setModelCards] = useState<ModelCardBundleResponse | null>(null)
   const [modelCardsError, setModelCardsError] = useState<string | null>(null)
   const [modelCardsLoading, setModelCardsLoading] = useState(false)
@@ -111,18 +111,18 @@ function App(): JSX.Element {
     }
   }, [dispatch, state.baseline, state.candidate, state.selectedOrganId])
 
-  const loadPipelineStatus = useCallback(async (): Promise<void> => {
-    setPipelineLoading(true)
-    setPipelineError(null)
+  const loadEvidenceStatus = useCallback(async (): Promise<void> => {
+    setEvidenceLoading(true)
+    setEvidenceError(null)
     try {
-      const status = await fetchPipelineStatus(2023)
-      setPipelineStatus(status)
+      const status = await fetchEvidenceStatus(2023)
+      setEvidenceStatus(status)
     } catch (error) {
-      setPipelineError(
-        error instanceof Error ? error.message : 'Pipeline status unavailable.',
+      setEvidenceError(
+        error instanceof Error ? error.message : 'Evidence status unavailable.',
       )
     } finally {
-      setPipelineLoading(false)
+      setEvidenceLoading(false)
     }
   }, [])
 
@@ -156,9 +156,9 @@ function App(): JSX.Element {
 
   useEffect(() => {
     if (view === 'data') {
-      void loadPipelineStatus()
+      void loadEvidenceStatus()
     }
-  }, [loadPipelineStatus, view])
+  }, [loadEvidenceStatus, view])
 
   useEffect(() => {
     if (view === 'models') {
@@ -221,10 +221,10 @@ function App(): JSX.Element {
           {view === 'data' ? (
             <DataEvidencePage
               bootstrap={bootstrap}
-              error={pipelineError}
-              loading={pipelineLoading}
-              onRetry={() => void loadPipelineStatus()}
-              status={pipelineStatus}
+              error={evidenceError}
+              loading={evidenceLoading}
+              onRetry={() => void loadEvidenceStatus()}
+              status={evidenceStatus}
             />
           ) : null}
           {view === 'models' ? (

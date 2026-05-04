@@ -70,8 +70,8 @@ required from the frontend.
 | `alcohol_servings_per_week` | scenario-editable | int | drinks/week (rounded) | `_DRNKWK2` has 2 implied decimals (e.g., 1400=14.00); use `round(_DRNKWK2 / 100)`, clamp 0-70 |
 | `exercise_minutes_per_week` | scenario-editable | int | minutes/week | from `PA3MIN_`, clamp 0-2000; round before Int64 cast |
 | `annual_aqi` | scenario-editable | int | AQI 0-500 | derived from EPA `Median AQI`, aggregated to state-year |
-| `pm25_mean` | context | float | micrograms/cubic meter | PM2.5 annual mean from complete EPA annual concentration monitor rows; nullable |
-| `ozone_mean` | context | float | parts per million | Ozone annual mean from complete EPA annual concentration monitor rows; nullable |
+| `pm25_mean` | scenario-editable environmental | float | micrograms/cubic meter | PM2.5 annual mean from complete EPA annual concentration monitor rows; nullable in data, defaulted in API |
+| `ozone_mean` | scenario-editable environmental | float | parts per million | Ozone annual mean from complete EPA annual concentration monitor rows; nullable in data, defaulted in API |
 | `sex` | adjustment | string | male/female | `SEXVAR`; nullable for unsupported/missing values |
 | `race_ethnicity` | adjustment | string | imputed race/ethnicity category | `_IMPRACE`; nullable for unsupported/missing values |
 | `has_healthcare_coverage` | adjustment | bool | any current coverage | from `PRIMINS1` |
@@ -123,9 +123,11 @@ PLACES context fields are county-level modeled aggregate estimates from the CDC 
 | `places_total_pop_18plus` | int | adults | raw `totalpop18plus`; used for aggregate validation weighting |
 | `places_coronary_heart_disease_crude_prevalence` | float | percent | PLACES `CHD`, `datavaluetypeid == CrdPrv` |
 | `places_chronic_obstructive_pulmonary_disease_crude_prevalence` | float | percent | PLACES `COPD`, crude prevalence |
+| `places_current_asthma_crude_prevalence` | float | percent | PLACES `CASTHMA`, crude prevalence |
 | `places_stroke_crude_prevalence` | float | percent | PLACES `STROKE`, crude prevalence |
 | `places_depression_crude_prevalence` | float | percent | PLACES `DEPRESSION`, crude prevalence |
 | `places_diabetes_crude_prevalence` | float | percent | PLACES `DIABETES`, crude prevalence |
+| `places_arthritis_crude_prevalence` | float | percent | PLACES `ARTHRITIS`, crude prevalence |
 | `places_current_smoking_crude_prevalence` | float | percent | PLACES `CSMOKING`, crude prevalence |
 | `places_binge_drinking_crude_prevalence` | float | percent | PLACES `BINGE`, crude prevalence |
 | `places_no_leisure_time_physical_activity_crude_prevalence` | float | percent | PLACES `LPA`, crude prevalence |
@@ -142,9 +144,12 @@ Processed outputs should include binary label columns aligned to condition IDs i
 |---|---|---|
 | `heart_disease` | `label_heart_disease` | `_MICHD == 1` |
 | `chronic_lung_disease` | `label_chronic_lung_disease` | `CHCCOPD3 == 1` |
+| `asthma` | `label_asthma` | current asthma from `ASTHMA3` and `ASTHNOW` |
 | `stroke` | `label_stroke` | `CVDSTRK3 == 1` |
 | `depression` | `label_depression` | `ADDEPEV3 == 1` |
 | `diabetes` | `label_diabetes` | `DIABETE4 == 1` |
+| `kidney_disease` | `label_kidney_disease` | `CHCKDNY2 == 1` |
+| `arthritis` | `label_arthritis` | `HAVARTH4 == 1` |
 
 ## Canonical processed tables (v2 targets)
 
@@ -176,9 +181,12 @@ Required columns (v2):
 | `mental_health_days` | int | yes | BRFSS | decode `MENTHLTH` | 1-30 days, 88->0, 77/99/blank->null |
 | `label_heart_disease` | int (0/1) | yes | BRFSS | decode `_MICHD` | 1->1, 2->0, blank->null |
 | `label_chronic_lung_disease` | int (0/1) | yes | BRFSS | decode `CHCCOPD3` | 1->1, 2->0, 7/9/blank->null |
+| `label_asthma` | int (0/1) | yes | BRFSS | decode `ASTHMA3` + `ASTHNOW` | current asthma yes -> 1; never asthma or not current -> 0; unknown/refused -> null when unresolved |
 | `label_stroke` | int (0/1) | yes | BRFSS | decode `CVDSTRK3` | 1->1, 2->0, 7/9/blank->null |
 | `label_depression` | int (0/1) | yes | BRFSS | decode `ADDEPEV3` | 1->1, 2->0, 7/9/blank->null |
 | `label_diabetes` | int (0/1) | yes | BRFSS | decode `DIABETE4` | 1->1, 3->0; 2/4 treated as 0; 7/9/blank->null |
+| `label_kidney_disease` | int (0/1) | yes | BRFSS | decode `CHCKDNY2` | 1->1, 2->0, 7/9/blank->null |
+| `label_arthritis` | int (0/1) | yes | BRFSS | decode `HAVARTH4` | 1->1, 2->0, 7/9/blank->null |
 | `survey_weight` | float | yes | BRFSS | passthrough `_LLCPWT` | final raked weight; sample weight only |
 
 #### BRFSS v2 decode details (2023)
@@ -222,8 +230,9 @@ Race/ethnicity (`_IMPRACE` -> `race_ethnicity`):
 
 Leakage exclusions:
 
-- `physical_health_days` is excluded from heart disease, chronic lung disease, stroke, and diabetes
-  models because recent poor physical health can be a symptom or consequence of those labels.
+- `physical_health_days` is excluded from heart disease, chronic lung disease, asthma, stroke,
+  diabetes, chronic kidney disease, and arthritis models because recent poor physical health can be
+  a symptom or consequence of those labels.
 - `mental_health_days` is excluded from depression models because recent poor mental health overlaps
   the depression outcome construct.
 - `survey_weight` is used only as a sample weight in training/evaluation and is not included in the

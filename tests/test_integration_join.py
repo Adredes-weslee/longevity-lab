@@ -20,6 +20,9 @@ def _with_v2_covariates(payload: dict[str, list[object]]) -> dict[str, list[obje
             "sleep_hours_per_night": [7] * rows,
             "physical_health_days": [0] * rows,
             "mental_health_days": [0] * rows,
+            "label_asthma": [0] * rows,
+            "label_kidney_disease": [0] * rows,
+            "label_arthritis": [0] * rows,
         }
     )
     return payload
@@ -79,9 +82,12 @@ def test_integrate_brfss_epa_preserves_v2_brfss_covariates() -> None:
             "mental_health_days": [2],
             "label_heart_disease": [0],
             "label_chronic_lung_disease": [0],
+            "label_asthma": [0],
             "label_stroke": [0],
             "label_depression": [0],
             "label_diabetes": [0],
+            "label_kidney_disease": [0],
+            "label_arthritis": [0],
             "survey_weight": [1.0],
         }
     )
@@ -164,9 +170,12 @@ def test_integrate_brfss_epa_rejects_stale_v1_brfss_table() -> None:
             "exercise_minutes_per_week": [150],
             "label_heart_disease": [0],
             "label_chronic_lung_disease": [0],
+            "label_asthma": [0],
             "label_stroke": [0],
             "label_depression": [0],
             "label_diabetes": [0],
+            "label_kidney_disease": [0],
+            "label_arthritis": [0],
             "survey_weight": [1.0],
         }
     )

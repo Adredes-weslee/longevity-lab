@@ -142,6 +142,42 @@ def test_validate_external_context_writes_report_outputs_and_provenance(tmp_path
     assert "not independent person-level labels" in provenance["places_context_caveat"]
 
 
+def test_validate_external_context_accepts_bundle_prediction_files(tmp_path: Path) -> None:
+    """The validation path should consume per-condition prediction parquet files from a bundle."""
+    base_dir = tmp_path / "data"
+    places_path = places_county_year_parquet(base_dir)
+    places_path.parent.mkdir(parents=True, exist_ok=True)
+    _places_context_frame().to_parquet(places_path, index=False)
+
+    bundle_dir = tmp_path / "artifact-bundle"
+    bundle_dir.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "state_fips": "06",
+                "predicted_probability": 0.07,
+                "survey_weight": 1.0,
+            }
+        ]
+    ).to_parquet(bundle_dir / "heart_disease_predictions.parquet", index=False)
+
+    validate_external_context(
+        base_dir=base_dir,
+        places_year=2025,
+        model_aggregate_path=None,
+        bundle_dir=bundle_dir,
+        force=False,
+        dry_run=False,
+    )
+
+    payload = json.loads(
+        places_external_validation_report_json_path(base_dir, places_year=2025).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert [row["condition_id"] for row in payload["rows"]] == ["heart_disease"]
+
+
 def test_bundle_prediction_aggregates_use_survey_weights() -> None:
     """Raw bundle predictions should aggregate with persisted BRFSS survey weights."""
     model_rows = pd.DataFrame(

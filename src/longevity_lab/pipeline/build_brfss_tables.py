@@ -48,6 +48,9 @@ BRFSS_LABEL_FEATURE_EXCLUSIONS: dict[str, tuple[str, ...]] = {
     "stroke": ("physical_health_days",),
     "depression": ("mental_health_days",),
     "diabetes": ("physical_health_days",),
+    "asthma": ("physical_health_days",),
+    "kidney_disease": ("physical_health_days",),
+    "arthritis": ("physical_health_days",),
 }
 
 BRFSS_REQUIRED_RAW_COLUMNS: tuple[str, ...] = (
@@ -67,9 +70,13 @@ BRFSS_REQUIRED_RAW_COLUMNS: tuple[str, ...] = (
     "PA3MIN_",
     "_MICHD",
     "CHCCOPD3",
+    "ASTHMA3",
+    "ASTHNOW",
     "CVDSTRK3",
     "ADDEPEV3",
     "DIABETE4",
+    "CHCKDNY2",
+    "HAVARTH4",
     "_LLCPWT",
 )
 
@@ -202,6 +209,10 @@ def decode_brfss_person(frame: pd.DataFrame, *, year: int) -> pd.DataFrame:
     output["label_chronic_lung_disease"] = _decode_yes_no_unknown(
         pd.to_numeric(frame["CHCCOPD3"], errors="coerce")
     )
+    output["label_asthma"] = _decode_current_asthma(
+        ever_values=pd.to_numeric(frame["ASTHMA3"], errors="coerce"),
+        current_values=pd.to_numeric(frame["ASTHNOW"], errors="coerce"),
+    )
     output["label_stroke"] = _decode_yes_no_unknown(
         pd.to_numeric(frame["CVDSTRK3"], errors="coerce")
     )
@@ -209,6 +220,12 @@ def decode_brfss_person(frame: pd.DataFrame, *, year: int) -> pd.DataFrame:
         pd.to_numeric(frame["ADDEPEV3"], errors="coerce")
     )
     output["label_diabetes"] = _decode_diabetes(pd.to_numeric(frame["DIABETE4"], errors="coerce"))
+    output["label_kidney_disease"] = _decode_yes_no_unknown(
+        pd.to_numeric(frame["CHCKDNY2"], errors="coerce")
+    )
+    output["label_arthritis"] = _decode_yes_no_unknown(
+        pd.to_numeric(frame["HAVARTH4"], errors="coerce")
+    )
 
     output["survey_weight"] = pd.to_numeric(frame["_LLCPWT"], errors="coerce").astype("float64")
 
@@ -265,6 +282,14 @@ def _decode_yes_no_unknown(values: pd.Series) -> pd.Series:
     result = pd.Series(pd.NA, index=values.index, dtype="Int64")
     result = result.mask(values == 1, 1)
     result = result.mask(values == 2, 0)
+    return result
+
+
+def _decode_current_asthma(*, ever_values: pd.Series, current_values: pd.Series) -> pd.Series:
+    """Decode current asthma using BRFSS ever-asthma and still-have-asthma fields."""
+    result = pd.Series(pd.NA, index=ever_values.index, dtype="Int64")
+    result = result.mask(current_values == 1, 1)
+    result = result.mask((ever_values == 2) | (current_values == 2), 0)
     return result
 
 
@@ -337,9 +362,12 @@ def build_brfss_tables(
             "mental_health_days",
             "label_heart_disease",
             "label_chronic_lung_disease",
+            "label_asthma",
             "label_stroke",
             "label_depression",
             "label_diabetes",
+            "label_kidney_disease",
+            "label_arthritis",
             "survey_weight",
         ]
 

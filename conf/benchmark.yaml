@@ -25,6 +25,8 @@
       "alcohol_servings_per_week",
       "exercise_minutes_per_week",
       "annual_aqi",
+      "pm25_mean",
+      "ozone_mean",
       "sex",
       "race_ethnicity",
       "has_healthcare_coverage",
@@ -43,7 +45,9 @@
         "smoker",
         "alcohol_servings_per_week",
         "exercise_minutes_per_week",
-        "annual_aqi"
+        "annual_aqi",
+        "pm25_mean",
+        "ozone_mean"
       ],
       "adjustment_features": [
         "sex",
@@ -61,17 +65,23 @@
       "label_feature_exclusions": {
         "heart_disease": ["physical_health_days"],
         "chronic_lung_disease": ["physical_health_days"],
+        "asthma": ["physical_health_days"],
         "stroke": ["physical_health_days"],
         "depression": ["mental_health_days"],
-        "diabetes": ["physical_health_days"]
+        "diabetes": ["physical_health_days"],
+        "kidney_disease": ["physical_health_days"],
+        "arthritis": ["physical_health_days"]
       }
     },
     "conditions": {
       "heart_disease": "label_heart_disease",
       "chronic_lung_disease": "label_chronic_lung_disease",
+      "asthma": "label_asthma",
       "stroke": "label_stroke",
       "depression": "label_depression",
-      "diabetes": "label_diabetes"
+      "diabetes": "label_diabetes",
+      "kidney_disease": "label_kidney_disease",
+      "arthritis": "label_arthritis"
     },
     "training": {
       "random_state": 42,
@@ -136,7 +146,9 @@
         "smoker": 1,
         "alcohol_servings_per_week": 0,
         "exercise_minutes_per_week": -1,
-        "annual_aqi": 1
+        "annual_aqi": 1,
+        "pm25_mean": 1,
+        "ozone_mean": 1
       }
     },
     {
@@ -159,7 +171,9 @@
         "smoker": 1,
         "alcohol_servings_per_week": 0,
         "exercise_minutes_per_week": -1,
-        "annual_aqi": 1
+        "annual_aqi": 1,
+        "pm25_mean": 1,
+        "ozone_mean": 1
       }
     }
   ],
@@ -170,6 +184,11 @@
       "drop_features": ["annual_aqi"]
     },
     {
+      "variant_id": "no_pollutants",
+      "display_name": "Drop PM2.5 and ozone",
+      "drop_features": ["pm25_mean", "ozone_mean"]
+    },
+    {
       "variant_id": "scenario_editable_only",
       "display_name": "Scenario-editable inputs only",
       "keep_features": [
@@ -178,7 +197,9 @@
         "smoker",
         "alcohol_servings_per_week",
         "exercise_minutes_per_week",
-        "annual_aqi"
+        "annual_aqi",
+        "pm25_mean",
+        "ozone_mean"
       ]
     }
   ],

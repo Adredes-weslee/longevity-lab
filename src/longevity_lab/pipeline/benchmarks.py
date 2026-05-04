@@ -19,6 +19,7 @@ from sklearn.model_selection import train_test_split  # type: ignore[import-unty
 from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
 from sklearn.tree import DecisionTreeClassifier  # type: ignore[import-untyped]
 
+from longevity_lab.config_files import config_file_path
 from longevity_lab.pipeline.modeling import (
     FeaturePreprocessor,
     OptionalModelDependencyError,
@@ -97,7 +98,7 @@ class BenchmarkResult:
 
 def default_benchmark_config_path() -> Path:
     """Return the repo-local benchmark config path."""
-    return Path(__file__).resolve().parents[3] / "conf" / "benchmark.yaml"
+    return config_file_path("benchmark.yaml")
 
 
 def load_benchmark_spec(path: Path | None = None) -> BenchmarkSpec:

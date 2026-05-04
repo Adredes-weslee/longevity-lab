@@ -6,6 +6,8 @@ benchmarking, and serving.
 ## Current predictive baseline
 
 - The default artifact bundle trains one calibrated model per condition using `conf/train.yaml`.
+  Current direct BRFSS labels cover heart disease, chronic lung disease, asthma, stroke,
+  depression, diabetes, chronic kidney disease, and arthritis.
 - Training uses the shared `FeaturePreprocessor` pipeline so persisted artifacts and API inference use
   the same feature ordering, imputation, boolean coercion, and categorical encoding.
 - The decision-tree baseline remains interpretable and produces tree-path explanation artifacts.
@@ -34,7 +36,7 @@ Outputs are written under `reports/benchmarks/<benchmark_id>/` and are intention
 
 The benchmark grid includes logistic regression, the calibrated decision-tree baseline,
 `HistGradientBoostingClassifier`, and optional XGBoost candidates plus ablations for dropping
-`annual_aqi` and using only scenario-editable features. All candidates use the same
+`annual_aqi`, dropping PM2.5/ozone pollutant features, and using only scenario-editable features. All candidates use the same
 `FeaturePreprocessor` pipeline and the same train/test split per condition.
 
 Histogram gradient boosting uses scikit-learn's `class_weight="balanced"` by default and can apply

@@ -7,8 +7,8 @@ Longevity Lab is a local-first product prototype for interactive organ-level lif
 This repo is intentionally usable *today* (end-to-end UI <-> API), and it now includes a real local training/evaluation path for tree-based artifact bundles.
 
 - Current state: typed API + runnable UI + explicit compare/apply UX + a reference-based silhouette
-  heatmap + BRFSS/EPA pipeline + Hydra/Optuna training entrypoints that write calibrated per-condition
-  artifact bundles with metrics, prediction samples, and explanation trees.
+  heatmap + BRFSS/EPA/PLACES/ACS/SVI evidence pipeline + Hydra/Optuna training entrypoints that write calibrated per-condition
+  artifact bundles with metrics, prediction samples, explanation trees, and ablation metrics.
 - Default serving mode is `auto`: the backend uses a valid local artifact bundle when present and
   otherwise falls back to clearly labeled demo scoring.
 - Target end state: BRFSS/EPA ingest -> trained + calibrated tree models -> artifact-backed API by
@@ -112,8 +112,9 @@ See `docs/quickstart.md` for common workflows (tests, lint, running both).
 Use the Explorer page for the organ heatmap + drill-down flow. Current and what-if inputs stay
 visible side by side, and the scores update live as sliders move. Use the `Delta | Baseline |
 Scenario` toggle to switch the body view.
-Use the Data Evidence page to verify whether raw and processed artifacts exist locally. Use Model
-Cards to inspect active model metadata and Scenario Lab to summarize the current what-if comparison.
+Use the Data Evidence page to distinguish active scoring inputs from local-only data, generated
+reports, validation context, and inactive geography features. Use Model Cards to inspect active
+model metadata and Scenario Lab to summarize the current what-if comparison.
 
 ## Deployment
 
@@ -188,10 +189,12 @@ $env:LONGEVITY_LAB_ENGINE='artifact'
 Optional:
 
 ```powershell
-$env:LONGEVITY_LAB_ARTIFACT_BUNDLE='bundle-20260326-real'
+$env:LONGEVITY_LAB_ARTIFACT_BUNDLE='real-20260504-full'
 ```
 
-Bundled outputs are written under `artifacts/models/<bundle_id>/` (gitignored) and include:
+The default training scope covers eight BRFSS-derived conditions: heart disease, chronic lung
+disease, asthma, stroke, depression, diabetes, chronic kidney disease, and arthritis. Bundled
+outputs are written under `artifacts/models/<bundle_id>/` (gitignored) and include:
 
 - `manifest.json`
 - `training_summary.json`

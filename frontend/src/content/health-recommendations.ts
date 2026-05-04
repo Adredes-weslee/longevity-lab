@@ -77,4 +77,37 @@ export const healthRecommendations: Partial<Record<string, HealthRecommendation>
       },
     ],
   },
+  asthma: {
+    title: 'General public-health guidance',
+    recommendation:
+      'CDC asthma guidance emphasizes knowing personal triggers, reducing smoke exposure, and following a clinician-provided asthma action plan. This app only communicates modeled risk patterns.',
+    citations: [
+      {
+        title: 'CDC: Asthma',
+        url: 'https://www.cdc.gov/asthma/',
+      },
+    ],
+  },
+  kidney_disease: {
+    title: 'General public-health guidance',
+    recommendation:
+      'CDC kidney disease guidance emphasizes managing diabetes and blood pressure risks, not smoking, and discussing kidney testing with a clinician when risk is elevated.',
+    citations: [
+      {
+        title: 'CDC: Chronic Kidney Disease',
+        url: 'https://www.cdc.gov/kidney-disease/',
+      },
+    ],
+  },
+  arthritis: {
+    title: 'General public-health guidance',
+    recommendation:
+      'CDC arthritis guidance highlights physical activity, weight management where appropriate, self-management education, and joint-injury prevention as general public-health steps.',
+    citations: [
+      {
+        title: 'CDC: Arthritis',
+        url: 'https://www.cdc.gov/arthritis/',
+      },
+    ],
+  },
 }

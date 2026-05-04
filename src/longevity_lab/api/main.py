@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from longevity_lab.api.middleware import request_logging_middleware
-from longevity_lab.api.routes import health, metadata, models, pipeline, scenario
+from longevity_lab.api.routes import evidence, health, metadata, models, pipeline, scenario
 from longevity_lab.api.schemas import FeatureProfile, ModelMetadataResponse, RuntimeMetadataResponse
 from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
 from longevity_lab.config import Settings, get_settings
@@ -18,6 +18,7 @@ from longevity_lab.services.contract_metadata import (
     build_demo_model_metadata,
 )
 from longevity_lab.services.engine_types import ScenarioEngine
+from longevity_lab.services.evidence_service import EvidenceService
 from longevity_lab.services.metadata_service import MetadataService
 from longevity_lab.services.model_card_service import ModelCardService
 from longevity_lab.services.scenario_service import DemoScenarioEngine, ScenarioService
@@ -62,7 +63,7 @@ def _try_load_auto_artifact_engine(
 
 def _select_engine(
     settings: Settings,
-) -> tuple[ScenarioEngine, RuntimeMetadataResponse, ModelMetadataResponse]:
+) -> tuple[ScenarioEngine, RuntimeMetadataResponse, ModelMetadataResponse, tuple[str, ...] | None]:
     """Select the runtime engine and metadata from settings and local artifacts."""
     store = ArtifactStore(settings.artifacts_dir / "models")
 
@@ -76,6 +77,7 @@ def _select_engine(
                 message="Demo scoring mode is active because LONGEVITY_LAB_ENGINE=demo.",
             ),
             build_demo_model_metadata(),
+            None,
         )
 
     if settings.engine == "artifact":
@@ -90,6 +92,7 @@ def _select_engine(
                 message="Artifact-backed scoring mode is active.",
             ),
             build_artifact_model_metadata(bundle, artifact_id=artifact_id),
+            _bundle_condition_ids(bundle),
         )
 
     for auto_bundle in store.try_resolve_all(settings.artifact_bundle):
@@ -112,6 +115,7 @@ def _select_engine(
                     ),
                 ),
                 build_artifact_model_metadata(auto_bundle, artifact_id=artifact_id),
+                _bundle_condition_ids(auto_bundle),
             )
 
     return (
@@ -123,20 +127,32 @@ def _select_engine(
             message="Demo scoring mode is active because no valid local artifact bundle was found.",
         ),
         build_demo_model_metadata(),
+        None,
     )
+
+
+def _bundle_condition_ids(bundle: ArtifactBundle) -> tuple[str, ...]:
+    """Return condition IDs explicitly served by a model bundle."""
+    return tuple(condition.condition_id for condition in bundle.manifest.conditions)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize app-scoped services once per process."""
     settings = get_settings()
-    engine, runtime, model_metadata = _select_engine(settings)
+    engine, runtime, model_metadata, condition_ids = _select_engine(settings)
     app.state.metadata_service = MetadataService(
         runtime=runtime,
         model_metadata=model_metadata,
+        condition_ids=condition_ids,
     )
     app.state.model_card_service = ModelCardService(
         artifact_store=ArtifactStore(settings.artifacts_dir / "models"),
+        model_metadata=model_metadata,
+    )
+    app.state.evidence_service = EvidenceService(
+        settings=settings,
+        runtime=runtime,
         model_metadata=model_metadata,
     )
     app.state.scenario_service = ScenarioService(
@@ -163,6 +179,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix=settings.api_prefix)
     app.include_router(metadata.router, prefix=settings.api_prefix)
     app.include_router(models.router, prefix=settings.api_prefix)
+    app.include_router(evidence.router, prefix=settings.api_prefix)
     app.include_router(pipeline.router, prefix=settings.api_prefix)
     app.include_router(scenario.router, prefix=settings.api_prefix)
     return app

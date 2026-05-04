@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from longevity_lab.config_files import config_file_path
+
 
 class YearSupport(BaseModel):
     """Supported year declaration for a public data source."""
@@ -103,7 +105,7 @@ class DataSourceRegistry(BaseModel):
 
 def default_registry_path() -> Path:
     """Return the repo-local registry path."""
-    return Path(__file__).resolve().parents[3] / "conf" / "data_sources.yaml"
+    return config_file_path("data_sources.yaml")
 
 
 def load_data_source_registry(path: Path | None = None) -> DataSourceRegistry:

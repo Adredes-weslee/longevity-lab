@@ -357,7 +357,7 @@ def _load_bundle_model_aggregates(bundle_dir: Path) -> pd.DataFrame:
         rows.append(frame)
     if not rows:
         raise FileNotFoundError(f"No per-condition prediction parquet files found in {bundle_dir}.")
-    return normalize_model_aggregates(pd.concat(rows, ignore_index=True))
+    return pd.concat(rows, ignore_index=True)
 
 
 def _report_payload(report: pd.DataFrame, *, places_year: int) -> dict[str, Any]:

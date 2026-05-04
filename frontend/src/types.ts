@@ -13,6 +13,8 @@ export interface FeatureProfile {
   alcohol_servings_per_week: number
   exercise_minutes_per_week: number
   annual_aqi: number
+  pm25_mean: number
+  ozone_mean: number
 }
 
 export interface FeatureDefinition {
@@ -95,7 +97,9 @@ export interface ConditionModelCardResponse {
   base_metrics: ModelMetricSetResponse
   calibrated_metrics: ModelMetricSetResponse
   no_aqi_metrics: ModelMetricSetResponse
+  no_pollutants_metrics: ModelMetricSetResponse
   aqi_average_precision_delta: number | null
+  pollutant_average_precision_delta: number | null
 }
 
 export interface ModelCardBundleResponse {
@@ -194,4 +198,86 @@ export interface PipelineStatusResponse {
   year: number
   artifacts: PipelineArtifactStatus[]
   provenance: PipelineProvenanceSummary[]
+}
+
+export interface EvidenceSourceSummary {
+  source_id: string
+  title: string
+  geography: string
+  expected_file_pattern: string
+  local_landing_path: string
+  active_in_model: boolean
+  role: 'active_model' | 'pipeline_context' | 'external_validation' | 'local_workflow'
+  caveat: string | null
+}
+
+export interface EvidenceAssetStatus {
+  asset_id: string
+  label: string
+  kind: 'raw' | 'processed' | 'provenance' | 'duckdb' | 'artifact' | 'report'
+  path: string
+  exists: boolean
+  bytes: number | null
+  modified_at: string | null
+  source_ids: string[]
+  caveat: string | null
+}
+
+export interface EvidenceAssetGroup {
+  group_id: string
+  label: string
+  ready_count: number
+  total_count: number
+  assets: EvidenceAssetStatus[]
+}
+
+export interface EvidenceReportSummary {
+  report_id: string
+  label: string
+  path: string
+  exists: boolean
+  bytes: number | null
+  modified_at: string | null
+  caveat: string | null
+}
+
+export interface EvidenceProductionArtifactSummary {
+  active_bundle_id: string | null
+  configured_bundle_id: string | null
+  url_configured: boolean
+  sha256_configured: boolean
+  local_bundle_exists: boolean
+  release_download_configured: boolean
+}
+
+export interface EvidenceFeatureInventory {
+  scenario_editable: string[]
+  active_model_features: string[]
+  active_model_features_by_condition: Record<string, string[]>
+  training_config_features: string[]
+  training_context_features: string[]
+  available_pipeline_context_features: string[]
+  report_only_features: string[]
+}
+
+export interface EvidenceInactiveGap {
+  gap_id: string
+  label: string
+  status: 'implemented_not_active' | 'local_only' | 'not_generated' | 'not_served'
+  evidence: string[]
+  explanation: string
+  next_action: string | null
+}
+
+export interface EvidenceStatusResponse {
+  contract_version: ApiContractVersion
+  year: number
+  runtime: RuntimeMetadataResponse
+  model_metadata: ModelMetadataResponse
+  sources: EvidenceSourceSummary[]
+  asset_groups: EvidenceAssetGroup[]
+  reports: EvidenceReportSummary[]
+  production_artifact: EvidenceProductionArtifactSummary
+  feature_inventory: EvidenceFeatureInventory
+  inactive_gaps: EvidenceInactiveGap[]
 }

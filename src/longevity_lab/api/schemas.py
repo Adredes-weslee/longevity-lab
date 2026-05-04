@@ -35,6 +35,8 @@ class FeatureProfile(BaseModel):
     alcohol_servings_per_week: int = Field(default=10, ge=0, le=70)
     exercise_minutes_per_week: int = Field(default=60, ge=0, le=2000)
     annual_aqi: int = Field(default=80, ge=0, le=500)
+    pm25_mean: float = Field(default=9.0, ge=0, le=50)
+    ozone_mean: float = Field(default=0.04, ge=0, le=0.2)
 
 
 class FeatureDefinition(BaseModel):
@@ -256,6 +258,120 @@ class PipelineStatusResponse(BaseModel):
     provenance: list[PipelineProvenanceSummary]
 
 
+class EvidenceSourceSummary(BaseModel):
+    """A configured public source from the source registry."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str
+    title: str
+    geography: str
+    expected_file_pattern: str
+    local_landing_path: str
+    active_in_model: bool
+    role: Literal["active_model", "pipeline_context", "external_validation", "local_workflow"]
+    caveat: str | None = None
+
+
+class EvidenceAssetStatus(BaseModel):
+    """Filesystem status for one evidence asset."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    asset_id: str
+    label: str
+    kind: Literal["raw", "processed", "provenance", "duckdb", "artifact", "report"]
+    path: str
+    exists: bool
+    bytes: int | None = None
+    modified_at: str | None = None
+    source_ids: list[str] = Field(default_factory=list)
+    caveat: str | None = None
+
+
+class EvidenceAssetGroup(BaseModel):
+    """Grouped evidence assets for UI display."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    group_id: str
+    label: str
+    ready_count: int
+    total_count: int
+    assets: list[EvidenceAssetStatus]
+
+
+class EvidenceReportSummary(BaseModel):
+    """Status for generated report outputs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    report_id: str
+    label: str
+    path: str
+    exists: bool
+    bytes: int | None = None
+    modified_at: str | None = None
+    caveat: str | None = None
+
+
+class EvidenceProductionArtifactSummary(BaseModel):
+    """Artifact deployment status without exposing release URLs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    active_bundle_id: str | None
+    configured_bundle_id: str | None
+    url_configured: bool
+    sha256_configured: bool
+    local_bundle_exists: bool
+    release_download_configured: bool
+
+
+class EvidenceFeatureInventory(BaseModel):
+    """Active-vs-available feature inventory."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenario_editable: list[str]
+    active_model_features: list[str]
+    active_model_features_by_condition: dict[str, list[str]] = Field(default_factory=dict)
+    training_config_features: list[str]
+    training_context_features: list[str]
+    available_pipeline_context_features: list[str]
+    report_only_features: list[str]
+
+
+class EvidenceInactiveGap(BaseModel):
+    """A known gap between implemented pipeline capability and active scoring."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    gap_id: str
+    label: str
+    status: Literal["implemented_not_active", "local_only", "not_generated", "not_served"]
+    evidence: list[str]
+    explanation: str
+    next_action: str | None = None
+
+
+class EvidenceStatusResponse(BaseModel):
+    """Comprehensive evidence and runtime status for the product UI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_version: ApiContractVersion = API_CONTRACT_VERSION
+    year: int
+    runtime: RuntimeMetadataResponse
+    model_metadata: ModelMetadataResponse
+    sources: list[EvidenceSourceSummary]
+    asset_groups: list[EvidenceAssetGroup]
+    reports: list[EvidenceReportSummary]
+    production_artifact: EvidenceProductionArtifactSummary
+    feature_inventory: EvidenceFeatureInventory
+    inactive_gaps: list[EvidenceInactiveGap]
+
+
 class ModelMetricSetResponse(BaseModel):
     """A small set of model performance metrics."""
 
@@ -285,7 +401,9 @@ class ConditionModelCardResponse(BaseModel):
     base_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
     calibrated_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
     no_aqi_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
+    no_pollutants_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
     aqi_average_precision_delta: float | None = None
+    pollutant_average_precision_delta: float | None = None
 
 
 class ModelCardBundleResponse(BaseModel):

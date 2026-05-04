@@ -1,4 +1,5 @@
 import type {
+  EvidenceStatusResponse,
   MetadataBootstrapResponse,
   ModelCardBundleResponse,
   PipelineStatusResponse,
@@ -67,6 +68,12 @@ export async function fetchPipelineStatus(
   year = 2023,
 ): Promise<PipelineStatusResponse> {
   return requestJson<PipelineStatusResponse>(`/pipeline/status?year=${year}`)
+}
+
+export async function fetchEvidenceStatus(
+  year = 2023,
+): Promise<EvidenceStatusResponse> {
+  return requestJson<EvidenceStatusResponse>(`/evidence/status?year=${year}`)
 }
 
 export async function fetchModelCards(): Promise<ModelCardBundleResponse> {

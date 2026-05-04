@@ -10,9 +10,10 @@ import hydra  # type: ignore[import-untyped]
 from omegaconf import DictConfig, OmegaConf  # type: ignore[import-untyped]
 
 from longevity_lab.artifacts.store import ArtifactStore
+from longevity_lab.config_files import config_dir_path
 from longevity_lab.pipeline.modeling import evaluate_bundle, evaluate_bundle_slices
 
-CONFIG_PATH = str(Path(__file__).resolve().parents[3] / "conf")
+CONFIG_PATH = str(config_dir_path())
 
 
 @hydra.main(version_base="1.3", config_path=CONFIG_PATH, config_name="evaluate")

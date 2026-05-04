@@ -27,9 +27,12 @@ BRFSS_REQUIRED_COLUMNS: list[str] = [
     "exercise_minutes_per_week",
     "label_heart_disease",
     "label_chronic_lung_disease",
+    "label_asthma",
     "label_stroke",
     "label_depression",
     "label_diabetes",
+    "label_kidney_disease",
+    "label_arthritis",
     "survey_weight",
 ]
 
@@ -79,9 +82,12 @@ INTEGRATED_COLUMNS: list[str] = [
     "mental_health_days",
     "label_heart_disease",
     "label_chronic_lung_disease",
+    "label_asthma",
     "label_stroke",
     "label_depression",
     "label_diabetes",
+    "label_kidney_disease",
+    "label_arthritis",
     "survey_weight",
 ]
 

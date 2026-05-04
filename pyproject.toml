@@ -46,6 +46,9 @@ train = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/longevity_lab"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"conf" = "longevity_lab/conf"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

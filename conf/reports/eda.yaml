@@ -46,9 +46,12 @@
     "labels": {
       "heart_disease": "label_heart_disease",
       "chronic_lung_disease": "label_chronic_lung_disease",
+      "asthma": "label_asthma",
       "stroke": "label_stroke",
       "depression": "label_depression",
-      "diabetes": "label_diabetes"
+      "diabetes": "label_diabetes",
+      "kidney_disease": "label_kidney_disease",
+      "arthritis": "label_arthritis"
     }
   }
 }

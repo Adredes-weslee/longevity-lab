@@ -88,9 +88,9 @@ Open `http://localhost:4173` and verify:
 Public deployments can run artifact-backed scoring by downloading a trusted zipped bundle during the
 Render build. The current release asset is:
 
-- `LONGEVITY_LAB_ARTIFACT_BUNDLE=real-20260502-full`
-- `LONGEVITY_LAB_ARTIFACT_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260502-full/real-20260502-full.zip`
-- `LONGEVITY_LAB_ARTIFACT_SHA256=e7d60079aefddbdbc5059ce24a015f35b95786708ceeb1c3cad14768a802c212`
+- `LONGEVITY_LAB_ARTIFACT_BUNDLE=real-20260504-full`
+- `LONGEVITY_LAB_ARTIFACT_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260504-full/real-20260504-full.zip`
+- `LONGEVITY_LAB_ARTIFACT_SHA256=289e3e6981a9140cc5fdf727d19c64d430703f860c84755f98842fb8a6272440`
 
 The build command runs `scripts/download_model_bundle.py`, which downloads the zip, verifies SHA256,
 rejects unsafe zip paths, and extracts the bundle under `artifacts/models/`. Production can then set

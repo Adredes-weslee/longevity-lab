@@ -33,6 +33,8 @@ class DemoScenarioEngine:
         alcohol_pressure = min(profile.alcohol_servings_per_week / 21.0, 1.0)
         exercise_pressure = max(150 - profile.exercise_minutes_per_week, 0) / 150.0
         aqi_pressure = max(profile.annual_aqi - 50, 0) / 150.0
+        pm25_pressure = max(profile.pm25_mean - 8.0, 0) / 12.0
+        ozone_pressure = max(profile.ozone_mean - 0.035, 0) / 0.05
 
         weights = {
             "heart_disease": {
@@ -42,13 +44,25 @@ class DemoScenarioEngine:
                 "smoker": 0.16,
                 "exercise": 0.14,
                 "aqi": 0.08,
+                "pm25": 0.04,
             },
             "chronic_lung_disease": {
                 "base": 0.04,
                 "smoker": 0.36,
                 "aqi": 0.20,
+                "pm25": 0.10,
+                "ozone": 0.08,
                 "exercise": 0.05,
                 "age": 0.08,
+            },
+            "asthma": {
+                "base": 0.07,
+                "smoker": 0.12,
+                "aqi": 0.16,
+                "pm25": 0.08,
+                "ozone": 0.10,
+                "exercise": 0.04,
+                "age": 0.04,
             },
             "stroke": {
                 "base": 0.03,
@@ -71,6 +85,20 @@ class DemoScenarioEngine:
                 "age": 0.12,
                 "alcohol": 0.04,
             },
+            "kidney_disease": {
+                "base": 0.03,
+                "age": 0.14,
+                "bmi": 0.10,
+                "smoker": 0.05,
+                "exercise": 0.05,
+            },
+            "arthritis": {
+                "base": 0.10,
+                "age": 0.20,
+                "bmi": 0.12,
+                "exercise": 0.06,
+                "smoker": 0.03,
+            },
         }
 
         factor_values = {
@@ -80,6 +108,8 @@ class DemoScenarioEngine:
             "alcohol": alcohol_pressure,
             "exercise": exercise_pressure,
             "aqi": aqi_pressure,
+            "pm25": pm25_pressure,
+            "ozone": ozone_pressure,
         }
 
         by_condition = {condition.condition_id: condition for condition in CONDITIONS}
@@ -130,15 +160,13 @@ class ScenarioService:
 
         organ_deltas: list[OrganDeltaResponse] = []
         baseline_organs = {organ.organ_id: organ for organ in baseline_eval.organs}
-        candidate_organs = {organ.organ_id: organ for organ in candidate_eval.organs}
-        for organ in ORGANS:
-            baseline_summary = baseline_organs[organ.organ_id]
-            candidate_summary = candidate_organs[organ.organ_id]
+        for candidate_summary in candidate_eval.organs:
+            baseline_summary = baseline_organs[candidate_summary.organ_id]
             delta = round(candidate_summary.score - baseline_summary.score, 4)
             organ_deltas.append(
                 OrganDeltaResponse(
-                    organ_id=organ.organ_id,
-                    label=organ.label,
+                    organ_id=candidate_summary.organ_id,
+                    label=candidate_summary.label,
                     baseline_score=baseline_summary.score,
                     candidate_score=candidate_summary.score,
                     score_delta=delta,
@@ -184,7 +212,10 @@ class ScenarioService:
             grouped[condition.organ_id].append(condition)
 
         organ_summaries: list[OrganSummaryResponse] = []
+        served_organ_ids = {condition.organ_id for condition in condition_scores}
         for organ in ORGANS:
+            if organ.organ_id not in served_organ_ids:
+                continue
             grouped_scores = grouped.get(organ.organ_id, [])
             organ_score = self._average_probability(grouped_scores)
             top_conditions = [
@@ -205,9 +236,10 @@ class ScenarioService:
                 )
             )
 
-        summary_score = round(
-            sum(item.score for item in organ_summaries) / len(organ_summaries) * 100,
-            2,
+        summary_score = (
+            round(sum(item.score for item in organ_summaries) / len(organ_summaries) * 100, 2)
+            if organ_summaries
+            else 0.0
         )
         return ScenarioEvaluationResponse(
             summary_score=summary_score,

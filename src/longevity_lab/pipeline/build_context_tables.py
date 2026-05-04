@@ -11,6 +11,7 @@ from typing import Any
 
 import pandas as pd  # type: ignore[import-untyped]
 
+from longevity_lab.config_files import config_file_path
 from longevity_lab.pipeline.common import (
     FileProvenance,
     add_common_pipeline_args,
@@ -84,7 +85,7 @@ class ContextFeatureConfig:
 
 def default_context_config_path() -> Path:
     """Return the repo-local context feature config path."""
-    return Path(__file__).resolve().parents[3] / "conf" / "context_features.yaml"
+    return config_file_path("context_features.yaml")
 
 
 def _as_tuple(payload: dict[str, Any], key: str) -> tuple[str, ...]:
