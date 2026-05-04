@@ -90,7 +90,7 @@ Render build. The current release asset is:
 
 - `LONGEVITY_LAB_ARTIFACT_BUNDLE=real-20260504-full`
 - `LONGEVITY_LAB_ARTIFACT_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260504-full/real-20260504-full.zip`
-- `LONGEVITY_LAB_ARTIFACT_SHA256=289e3e6981a9140cc5fdf727d19c64d430703f860c84755f98842fb8a6272440`
+- `LONGEVITY_LAB_ARTIFACT_SHA256=49349ae45e07adad1b80aa70102dfe23fb17ce0d7e6d26469c3f00af4529ec33`
 
 The build command runs `scripts/download_model_bundle.py`, which downloads the zip, verifies SHA256,
 rejects unsafe zip paths, and extracts the bundle under `artifacts/models/`. Production can then set
