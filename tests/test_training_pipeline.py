@@ -416,6 +416,9 @@ def test_train_bundle_persists_context_feature_manifest_and_lookup(
     """Context-aware training should persist exact state-year lookup provenance."""
     input_path = tmp_path / "training.csv"
     _write_training_frame(input_path)
+    frame = pd.read_csv(input_path)
+    frame["context_data_year"] = 2022
+    frame.to_csv(input_path, index=False)
     context_features = CONTEXT_FEATURES
     raw_cfg = _base_raw_cfg(
         tmp_path=tmp_path,
@@ -433,6 +436,10 @@ def test_train_bundle_persists_context_feature_manifest_and_lookup(
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["context_features"]["feature_names"] == context_features
     assert manifest["context_features"]["join_keys"] == ["state_fips", "year"]
+    assert (
+        manifest["context_features"]["data_vintage"]
+        == "State-year ACS/SVI context vintage 2022 joined to BRFSS 2023 serving keys"
+    )
     assert manifest["context_features"]["source_ids"] == [
         "census_acs5_api_context",
         "cdc_atsdr_svi_us_county_csv",
@@ -446,6 +453,7 @@ def test_train_bundle_persists_context_feature_manifest_and_lookup(
         ("06", 2023),
         ("13", 2023),
     }
+    assert {row["context_data_year"] for row in lookup["rows"]} == {2022}
 
     summary = json.loads(result.training_summary_path.read_text(encoding="utf-8"))
     assert summary["feature_contract"]["context_features"] == context_features

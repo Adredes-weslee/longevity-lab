@@ -35,6 +35,8 @@ Legend:
   lookup.
 - [DONE] Context-aware artifact training and serving activation for manifest-declared state-year
   ACS/SVI features, with county-level context kept inactive.
+- [DONE] Context-aware artifact manifests record explicit ACS/SVI context vintage when
+  `context_data_year` differs from the BRFSS label year.
 - [DONE] Context transparency UX separates editable personal inputs from background state-year
   context across Explorer, Data Evidence, Model Cards, and Scenario Lab.
 

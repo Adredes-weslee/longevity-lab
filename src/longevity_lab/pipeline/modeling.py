@@ -91,6 +91,7 @@ FEATURE_LABELS: dict[str, str] = {
 }
 
 CONTEXT_JOIN_KEYS: tuple[str, str] = ("state_fips", "year")
+CONTEXT_DATA_YEAR_COLUMN = "context_data_year"
 CONTEXT_DEFAULT_LOOKUP_NAME = "context_state_year_lookup.json"
 STATE_YEAR_CONTEXT_CAVEAT = (
     "State-year context is background geography context, not a personal behavior."
@@ -770,7 +771,10 @@ def _write_context_feature_lookup(
             f"Context-aware training requires state-year join keys and context columns: {missing}"
         )
 
-    lookup_frame = data_frame.loc[:, required].copy()
+    lookup_columns = [*required]
+    if CONTEXT_DATA_YEAR_COLUMN in data_frame.columns:
+        lookup_columns.append(CONTEXT_DATA_YEAR_COLUMN)
+    lookup_frame = data_frame.loc[:, lookup_columns].copy()
     lookup_frame["state_fips"] = lookup_frame["state_fips"].map(_normalize_state_fips)
     lookup_frame["year"] = pd.to_numeric(lookup_frame["year"], errors="coerce")
     if lookup_frame["state_fips"].isna().any() or lookup_frame["year"].isna().any():
@@ -789,13 +793,14 @@ def _write_context_feature_lookup(
 
     rows: list[dict[str, object]] = []
     for _, row in unique_rows.sort_values(list(CONTEXT_JOIN_KEYS)).iterrows():
-        rows.append(
-            {
-                "state_fips": str(row["state_fips"]),
-                "year": int(row["year"]),
-                **{feature: _json_safe_scalar(row[feature]) for feature in context_features},
-            }
-        )
+        payload: dict[str, object] = {
+            "state_fips": str(row["state_fips"]),
+            "year": int(row["year"]),
+            **{feature: _json_safe_scalar(row[feature]) for feature in context_features},
+        }
+        if CONTEXT_DATA_YEAR_COLUMN in lookup_frame.columns:
+            payload[CONTEXT_DATA_YEAR_COLUMN] = _json_safe_scalar(row[CONTEXT_DATA_YEAR_COLUMN])
+        rows.append(payload)
 
     lookup_path = bundle_dir / CONTEXT_DEFAULT_LOOKUP_NAME
     lookup_path.write_text(
@@ -815,10 +820,35 @@ def _write_context_feature_lookup(
         feature_names=list(context_features),
         source_ids=_context_source_ids(context_features),
         join_keys=list(CONTEXT_JOIN_KEYS),
-        data_vintage=f"State-year ACS/SVI context aligned to BRFSS {spec.year}",
+        data_vintage=_context_data_vintage(data_frame, brfss_year=spec.year),
         lookup_path=lookup_path.name,
         default_values=_context_default_values(data_frame, context_features),
         caveats=[STATE_YEAR_CONTEXT_CAVEAT],
+    )
+
+
+def _context_data_vintage(frame: pd.DataFrame, *, brfss_year: int) -> str:
+    """Return explicit ACS/SVI context vintage copy for artifact manifests."""
+    if CONTEXT_DATA_YEAR_COLUMN not in frame.columns:
+        return f"State-year ACS/SVI context aligned to BRFSS {brfss_year}"
+    years = pd.to_numeric(frame[CONTEXT_DATA_YEAR_COLUMN], errors="coerce").dropna()
+    context_years = sorted({int(value) for value in years.unique().tolist()})
+    if not context_years:
+        return f"State-year ACS/SVI context unavailable for BRFSS {brfss_year}"
+    if len(context_years) == 1:
+        context_year = context_years[0]
+        if context_year == brfss_year:
+            return (
+                f"State-year ACS/SVI context vintage {context_year} aligned to BRFSS {brfss_year}"
+            )
+        return (
+            f"State-year ACS/SVI context vintage {context_year} joined to "
+            f"BRFSS {brfss_year} serving keys"
+        )
+    context_years_text = ", ".join(str(year) for year in context_years)
+    return (
+        f"State-year ACS/SVI context vintages {context_years_text} joined to "
+        f"BRFSS {brfss_year} serving keys"
     )
 
 
