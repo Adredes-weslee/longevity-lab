@@ -105,6 +105,31 @@ def estimate_causal_effect(
     }
 
 
+def run_effect_diagnostics_for_frame(
+    frame: pd.DataFrame,
+    config: CausalWorkbenchConfig,
+) -> dict[str, Any]:
+    """Compute diagnostic gate inputs for one analysis frame."""
+    propensities = _fit_propensity_scores(frame, config)
+    overlap = _propensity_overlap(frame, propensities, config)
+    smd = _standardized_mean_differences(frame, config)
+    return {
+        "diagnostic_gate": _diagnostic_gate(overlap, smd, config),
+        "propensity_overlap": overlap,
+        "top_standardized_mean_differences": smd,
+    }
+
+
+def estimate_effect_for_frame(
+    frame: pd.DataFrame,
+    config: CausalWorkbenchConfig,
+    *,
+    adjustment_columns: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """Estimate the configured g-computation contrast for one analysis frame."""
+    return _estimate_effect_core(frame, config, adjustment_columns=adjustment_columns)
+
+
 def _diagnostic_gate(
     overlap: dict[str, Any],
     smd: list[dict[str, float | str]],

@@ -22,6 +22,27 @@ common:
     - Confirm excluded variables do not enter the adjustment set.
     - Confirm positivity and overlap before estimating effects.
     - Report missingness, exclusion counts, diagnostics, and limitations.
+  heterogeneity_reporting:
+    status: non_serving_report_only
+    candidate_strata:
+      - age_band_from_age
+      - sex
+      - race_ethnicity
+      - state_fips
+      - survey_year_when_multiple_levels
+      - annual_aqi_context_band
+      - acs_svi_epa_context_bands_when_present
+    minimum_total_rows: 50
+    minimum_treated_rows: 25
+    minimum_control_rows: 25
+    minimum_rows_inside_configured_overlap: 50
+    optional_methods:
+      - name: causal_forest_dml
+        dependency: econml
+        default_install_behavior: skipped_method_record
+      - name: dowhy_heterogeneity_refuters
+        dependency: dowhy
+        default_install_behavior: skipped_or_not_run_method_record
   prohibited_adjustment_fields:
     - outcome labels and their direct components
     - model predictions or explanation values
