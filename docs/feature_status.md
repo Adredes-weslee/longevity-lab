@@ -116,7 +116,7 @@ Legend:
 - [DONE] Named product pages separate the Explorer, data evidence, active model-card metadata, and scenario summary workflows (`frontend/src/pages/`).
 - [DONE] Better "what changed" deltas per organ/condition through visible changed-input chips and drill-down delta summaries.
 - [DONE] Basic accessibility pass for keyboard-selectable anatomy overlays and text-supported color legends.
-- [DEMO] Mobile/responsive layout pass.
+- [DONE] Mobile/responsive layout pass.
 
 ### Reproducibility
 

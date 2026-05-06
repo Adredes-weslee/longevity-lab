@@ -1,9 +1,11 @@
 .app-shell {
+  box-sizing: border-box;
   display: grid;
   gap: 1.5rem;
   margin: 0 auto;
-  max-width: min(1960px, calc(100vw - 1.5rem));
-  padding: 1.5rem 1.75rem 2rem;
+  max-width: 1960px;
+  padding: 1.5rem clamp(1rem, 2vw, 1.75rem) 2rem;
+  width: 100%;
 }
 
 .topbar {
@@ -30,6 +32,53 @@
   margin: 0;
 }
 
+.app-shell > *,
+.topbar > *,
+.overview-card,
+.panel,
+.side-panel,
+.explorer-side-column,
+.explorer-main,
+.inspector-panel,
+.profile-grid > *,
+.control-panel,
+.control-field,
+.page-card-grid > *,
+.page-stat-grid > *,
+.metric-card-grid > *,
+.page-stat,
+.info-card,
+.metric-card,
+.condition-card {
+  min-width: 0;
+}
+
+.side-panel,
+.geography-context-panel,
+.control-panel,
+.control-group,
+.control-stack,
+.control-field,
+.summary-panel,
+.heatmap-preview-summary,
+.inspector-panel,
+.recommendation-panel,
+.recommendation-card,
+.condition-card,
+.explanation-block,
+.data-page,
+.page-stack,
+.page-hero,
+.page-stat,
+.info-card,
+.metadata-list,
+.metadata-list div,
+.comparison-list,
+.comparison-list li,
+.metric-card {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .hero-copy,
 .panel-header p,
 .muted,
@@ -49,6 +98,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.topbar-nav {
+  justify-content: flex-end;
+  max-width: 100%;
 }
 
 .nav-pill,
@@ -80,6 +134,10 @@
   padding: 0.65rem 1rem;
 }
 
+.nav-pill {
+  white-space: nowrap;
+}
+
 .nav-pill:hover,
 .impact-chip:hover,
 .profile-tab:hover,
@@ -100,15 +158,16 @@
 .overview-strip {
   display: grid;
   gap: 1rem;
-  grid-template-columns: 640px minmax(620px, 1fr) 380px;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.45fr) minmax(0, 0.7fr);
 }
 
 .runtime-banner {
-  align-items: center;
+  align-items: flex-start;
   background: rgba(14, 18, 34, 0.82);
   border: 1px solid var(--border-subtle);
   border-radius: 1rem;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.85rem;
   padding: 0.85rem 1rem;
 }
@@ -126,11 +185,13 @@
 
 .runtime-banner p {
   color: var(--text-muted);
+  flex: 1 1 20rem;
   margin: 0;
+  min-width: 0;
 }
 
 .runtime-contract {
-  flex-basis: 100%;
+  flex: 1 1 100%;
   font-size: 0.86rem;
 }
 
@@ -202,12 +263,16 @@
   align-items: start;
   display: grid;
   gap: 1rem;
-  grid-template-columns: 640px minmax(620px, 1fr) 380px;
+  grid-template-areas:
+    "controls main"
+    "controls inspector";
+  grid-template-columns: minmax(0, 34rem) minmax(0, 1fr);
 }
 
 .explorer-side-column {
   display: grid;
   gap: 1rem;
+  grid-area: controls;
 }
 
 .scenario-form {
@@ -249,6 +314,7 @@
 .geography-context-header {
   align-items: start;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.8rem;
   justify-content: space-between;
 }
@@ -372,6 +438,8 @@
 .control-panel-header {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   justify-content: space-between;
 }
 
@@ -571,6 +639,7 @@
 .explorer-main {
   display: grid;
   gap: 1rem;
+  grid-area: main;
 }
 
 .summary-panel {
@@ -643,6 +712,10 @@
 }
 
 .pipeline-status-list li span:last-child {
+  grid-column: 1 / -1;
+}
+
+.pipeline-status-list li .muted {
   grid-column: 1 / -1;
 }
 
@@ -772,7 +845,7 @@
   display: block;
   margin: 0 auto;
   max-width: 520px;
-  overflow: visible;
+  overflow: hidden;
   width: 100%;
 }
 
@@ -813,6 +886,12 @@
   filter: drop-shadow(0 0 12px rgba(248, 250, 252, 0.16));
   stroke: #f8fafc;
   stroke-width: 2.4;
+}
+
+.organ:focus-visible path {
+  filter: drop-shadow(0 0 14px rgba(248, 250, 252, 0.24));
+  stroke: #f8fafc;
+  stroke-width: 2.8;
 }
 
 .organ.selected .organ-label {
@@ -864,6 +943,11 @@
 
 .organ-callout:focus-visible {
   outline: none;
+}
+
+.organ-callout:focus-visible .organ-callout-box {
+  stroke: #f8fafc;
+  stroke-width: 2;
 }
 
 .organ-callout.selected .organ-callout-line {
@@ -949,6 +1033,7 @@
 .inspector-panel {
   display: grid;
   gap: 1rem;
+  grid-area: inspector;
   min-width: 0;
   position: sticky;
   top: 1.25rem;
@@ -1372,6 +1457,24 @@
   margin: 0;
 }
 
+.hero-copy,
+.runtime-banner p,
+.side-panel-copy,
+.control-field-helper,
+.metric-copy,
+.condition-description,
+.muted,
+.metric-card p,
+.metadata-list dd,
+.comparison-list strong,
+.pipeline-status-list span,
+.page-stat strong,
+.metric-card h4,
+.condition-card h4 {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .comparison-list strong {
   color: var(--text-main);
   font-variant-numeric: tabular-nums;
@@ -1420,15 +1523,27 @@
   padding: 0.875rem 1rem;
 }
 
-@media (max-width: 1480px) {
+@media (min-width: 1600px) {
   .explorer-layout {
+    grid-template-areas: "controls main inspector";
+    grid-template-columns: minmax(34rem, 40rem) minmax(38rem, 1fr) minmax(20rem, 24rem);
+  }
+
+  .inspector-panel {
+    position: sticky;
+  }
+}
+
+@media (max-width: 1280px) {
+  .explorer-layout {
+    grid-template-areas:
+      "controls"
+      "main"
+      "inspector";
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .overview-strip {
-    grid-template-columns: 1fr;
-  }
-
+  .side-panel,
   .inspector-panel {
     position: static;
   }
@@ -1436,13 +1551,18 @@
 
 @media (max-width: 1180px) {
   .overview-strip {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 980px) {
   .app-shell {
     padding: 1rem;
+  }
+
+  .topbar-nav {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .topbar,
@@ -1454,20 +1574,20 @@
   .page-card-grid,
   .metric-card-grid,
   .page-stat-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .heatmap-status-bar,
   .heatmap-view-toggle {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .profile-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .profile-grid .control-stack {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .side-panel,
@@ -1479,10 +1599,32 @@
 @media (max-width: 720px) {
   .delta-strip,
   .toggle-group {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .body-map {
     max-width: 320px;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-nav {
+    display: grid;
+    gap: 0.55rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .nav-pill {
+    padding: 0.6rem 0.7rem;
+    white-space: normal;
+  }
+
+  .runtime-banner p,
+  .runtime-contract {
+    flex-basis: 100%;
+  }
+
+  .body-map {
+    max-width: min(100%, 340px);
   }
 }

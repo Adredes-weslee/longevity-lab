@@ -1,4 +1,101 @@
-import { expect, test } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
+
+const responsiveViewports = [
+  { height: 844, name: 'mobile', narrow: true, width: 390 },
+  { height: 1024, name: 'tablet', narrow: true, width: 768 },
+  { height: 1200, name: 'desktop', narrow: false, width: 1440 },
+] as const
+
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const root = document.documentElement
+          return Math.ceil(
+            Math.max(
+              root.scrollWidth - root.clientWidth,
+              document.body.scrollWidth - window.innerWidth,
+            ),
+          )
+        }),
+      { message: 'page should not create horizontal overflow' },
+    )
+    .toBeLessThanOrEqual(1)
+}
+
+async function expectTrackedElementsWithinViewport(page: Page): Promise<void> {
+  const overflowLabels = await page
+    .locator(
+      [
+        '.nav-pill',
+        '.overview-card',
+        '.panel',
+        '.side-panel',
+        '.metric-card',
+        '.info-card',
+        '.page-stat',
+        '.metadata-list dd',
+        '.comparison-list strong',
+        '.pipeline-status-list span',
+        '.body-map',
+      ].join(', '),
+    )
+    .evaluateAll((elements) => {
+      const viewportWidth = document.documentElement.clientWidth
+      return elements
+        .filter((element) => {
+          const rect = element.getBoundingClientRect()
+          const style = window.getComputedStyle(element)
+          return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            rect.width > 0 &&
+            (rect.left < -1 || rect.right > viewportWidth + 1)
+          )
+        })
+        .map((element) => {
+          const className =
+            typeof element.className === 'string' ? element.className : element.tagName
+          return `${element.tagName.toLowerCase()}.${className}`
+        })
+    })
+
+  expect(overflowLabels).toEqual([])
+}
+
+async function expectStacked(first: Locator, second: Locator): Promise<void> {
+  const firstBox = await first.boundingBox()
+  const secondBox = await second.boundingBox()
+
+  expect(firstBox).not.toBeNull()
+  expect(secondBox).not.toBeNull()
+  expect(secondBox!.y).toBeGreaterThan(firstBox!.y + firstBox!.height - 4)
+}
+
+async function expectSideBySide(first: Locator, second: Locator): Promise<void> {
+  const firstBox = await first.boundingBox()
+  const secondBox = await second.boundingBox()
+
+  expect(firstBox).not.toBeNull()
+  expect(secondBox).not.toBeNull()
+  expect(Math.abs(secondBox!.y - firstBox!.y)).toBeLessThan(24)
+  expect(secondBox!.x).toBeGreaterThan(firstBox!.x + firstBox!.width - 4)
+}
+
+async function expectCardFlowForViewport(
+  cards: Locator,
+  narrow: boolean,
+): Promise<void> {
+  await expect(cards.first()).toBeVisible()
+  await expect(cards.nth(1)).toBeVisible()
+
+  if (narrow) {
+    await expectStacked(cards.first(), cards.nth(1))
+  } else {
+    await expectSideBySide(cards.first(), cards.nth(1))
+  }
+}
 
 test('loads the app and renders scenario compare output', async ({ page }) => {
   await page.goto('/')
@@ -336,3 +433,56 @@ test('keeps drill-down content aligned with the selected heatmap mode', async ({
   await expect(page.getByTestId('health-guidance')).toBeVisible()
   await expect(page.getByText('Guidance for what-if risk')).toBeVisible()
 })
+
+for (const viewport of responsiveViewports) {
+  test(`keeps primary layouts readable at ${viewport.name} ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ height: viewport.height, width: viewport.width })
+    await page.goto('/')
+
+    await expect(page.getByRole('heading', { name: 'Longevity Lab' })).toBeVisible()
+    await expect(
+      page.getByTestId('overview-whatif').locator('.metric-value'),
+    ).toHaveText(/\d/, { timeout: 15000 })
+    await expect(page.getByTestId('scenario-form')).toBeVisible()
+    await expectNoHorizontalOverflow(page)
+    await expectTrackedElementsWithinViewport(page)
+
+    const currentProfile = page.getByTestId('profile-baseline')
+    const whatIfProfile = page.getByTestId('profile-candidate')
+    const leftColumnStart = page.getByTestId('explorer-disclaimer')
+    const bodyHeatmap = page.getByTestId('body-heatmap')
+    if (viewport.narrow) {
+      await expectStacked(currentProfile, whatIfProfile)
+      await expectStacked(leftColumnStart, bodyHeatmap)
+    } else {
+      await expectSideBySide(currentProfile, whatIfProfile)
+      await expectSideBySide(leftColumnStart, bodyHeatmap)
+    }
+
+    const bodyMapBox = await page.locator('.body-map').boundingBox()
+    expect(bodyMapBox).not.toBeNull()
+    expect(bodyMapBox!.width).toBeGreaterThan(viewport.narrow ? 300 : 420)
+
+    await page.getByTestId('organ-callout-brain').focus()
+    await expect(page.getByTestId('organ-callout-brain')).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('condition-stroke')).toBeVisible()
+    await expectNoHorizontalOverflow(page)
+
+    await page.getByRole('button', { name: 'Data evidence' }).click()
+    await expect(page.getByTestId('data-evidence-page')).toBeVisible()
+    await expect(page.getByTestId('source-registry')).toBeVisible({ timeout: 15000 })
+    await expectCardFlowForViewport(page.locator('.page-card-grid > .info-card'), viewport.narrow)
+    await expectNoHorizontalOverflow(page)
+    await expectTrackedElementsWithinViewport(page)
+
+    await page.getByRole('button', { name: 'Model cards' }).click()
+    await expect(page.getByTestId('model-cards-page')).toBeVisible()
+    await expect(page.getByTestId('model-card-metrics')).toBeVisible({ timeout: 15000 })
+    await expectCardFlowForViewport(page.locator('.page-card-grid > .info-card'), viewport.narrow)
+    await expectNoHorizontalOverflow(page)
+    await expectTrackedElementsWithinViewport(page)
+  })
+}
