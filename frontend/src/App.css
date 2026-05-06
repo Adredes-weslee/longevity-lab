@@ -319,6 +319,13 @@
   padding-left: 0.35rem;
 }
 
+.ethics-panel {
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.1), transparent 44%),
+    var(--surface-panel);
+  border-color: rgba(147, 197, 253, 0.32);
+}
+
 .control-panel {
   display: grid;
   gap: 1rem;

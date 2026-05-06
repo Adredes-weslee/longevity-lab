@@ -17,6 +17,12 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await expect(page.getByTestId('explorer-disclaimer')).toContainText(
     'Educational use only',
   )
+  await expect(page.getByTestId('explorer-disclaimer')).toContainText(
+    'not medical advice, diagnosis, screening, or treatment guidance',
+  )
+  await expect(page.getByTestId('explorer-disclaimer')).toContainText(
+    'not personal behaviors',
+  )
   await expect(page.getByTestId('contract-metadata')).toContainText('API v2')
   await expect(page.getByTestId('contract-metadata')).toContainText('explanations:')
   await expect(page.getByTestId('pipeline-status')).toHaveCount(0)
@@ -57,6 +63,12 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Data evidence' }).click()
   await expect(page.getByTestId('data-evidence-page')).toBeVisible()
+  await expect(page.getByTestId('data-disclaimer')).toContainText(
+    'Self-reporting bias, missing data, aggregation, and subgroup coverage',
+  )
+  await expect(page.getByTestId('data-disclaimer')).toContainText(
+    'Do not use it for clinical decisions',
+  )
   await expect(page.getByTestId('source-registry')).toBeVisible()
   await expect(page.getByTestId('asset-group-raw_sources')).toBeVisible()
   await expect(page.getByTestId('inactive-gaps')).toBeVisible()
@@ -64,6 +76,12 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await page.getByRole('button', { name: 'Model cards' }).click()
   await expect(page.getByTestId('model-cards-page')).toBeVisible()
   await expect(page.getByText('Active scoring contract')).toBeVisible()
+  await expect(page.getByTestId('model-disclaimer')).toContainText(
+    'not clinical confidence intervals',
+  )
+  await expect(page.getByTestId('model-disclaimer')).toContainText(
+    'not causal claims',
+  )
   await expect(page.getByTestId('model-card-metrics')).toBeVisible()
   await expect(
     page.getByText('Model-card metrics require an active artifact-backed bundle.'),
@@ -72,6 +90,9 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await page.getByRole('button', { name: 'Scenario lab' }).click()
   await expect(page.getByTestId('scenario-lab-page')).toBeVisible()
   await expect(page.getByText('Current what-if comparison')).toBeVisible()
+  await expect(page.getByTestId('scenario-disclaimer')).toContainText(
+    'predictive comparisons, not causal claims',
+  )
 })
 
 test('clamps invalid numeric input to the supported feature range', async ({ page }) => {
@@ -188,7 +209,10 @@ test('shows CDC-backed guidance when a selected organ is in the high-risk band',
 
   await page.getByTestId('organ-callout-lungs').click()
   await expect(page.getByTestId('health-guidance')).toBeVisible()
-  await expect(page.getByText('What may help')).toBeVisible()
+  await expect(page.getByText('Public-health guidance')).toBeVisible()
+  await expect(page.getByTestId('health-guidance')).toContainText(
+    'not personalized medical advice',
+  )
   await expect(page.getByText('Guidance for current and what-if risk')).toBeVisible()
   await expect(page.getByRole('link', { name: /CDC: Health Effects of Cigarettes - COPD/i })).toBeVisible()
 })

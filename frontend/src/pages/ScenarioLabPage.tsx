@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 
+import { disclaimers } from '../content/disclaimers'
 import { useScenario } from '../state/scenario-context'
 import type {
   FeatureProfile,
@@ -145,6 +146,15 @@ export function ScenarioLabPage({
             </p>
           )}
         </article>
+      </section>
+
+      <section className="panel ethics-panel" data-testid="scenario-disclaimer">
+        <div className="panel-header">
+          <p className="section-kicker">Scenario interpretation</p>
+          <h3>{disclaimers.prediction.title}</h3>
+          <p>{disclaimers.prediction.body}</p>
+          <p>{disclaimers.causal.body}</p>
+        </div>
       </section>
     </section>
   )

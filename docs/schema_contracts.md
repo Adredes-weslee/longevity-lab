@@ -153,6 +153,22 @@ Explanation methods must match the artifact:
 Uncertainty intervals are artifact-declared calibration summaries for communication, not clinical
 confidence intervals for an individual.
 
+## Shared disclaimer contract
+
+The frontend keeps repeated safety language in `frontend/src/content/disclaimers.ts`. Pages that
+show scores, model metadata, evidence assets, scenario exports, or public-health links should reuse
+that shared copy instead of creating divergent warnings.
+
+Required interpretation boundaries:
+
+- Scores and probabilities are educational predictive estimates, not diagnosis, screening,
+  treatment guidance, emergency triage, or personalized medical advice.
+- Scenario deltas are predictive comparisons, not causal claims.
+- Geography, environmental, ACS/SVI, and validation-context fields are background context unless a
+  trusted artifact explicitly declares active context features.
+- Uncertainty intervals are model communication summaries, not clinical confidence intervals.
+- Public-health guidance links are general cited resources and do not replace clinicians.
+
 ## DuckDB (optional convenience)
 
 DuckDB outputs are also gitignored. If used, the canonical DB file is:

@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 
+import { disclaimers } from '../content/disclaimers'
 import type {
   EvidenceAssetGroup,
   EvidenceAssetStatus,
@@ -184,6 +185,15 @@ export function DataEvidencePage({
             <span>Organs</span>
             <strong>{organCount}</strong>
           </div>
+        </div>
+      </section>
+
+      <section className="panel ethics-panel" data-testid="data-disclaimer">
+        <div className="panel-header">
+          <p className="section-kicker">Use limits</p>
+          <h3>{disclaimers.dataLimitations.title}</h3>
+          <p>{disclaimers.dataLimitations.body}</p>
+          <p>{disclaimers.intendedUse.body}</p>
         </div>
       </section>
 
