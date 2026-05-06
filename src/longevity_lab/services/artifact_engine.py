@@ -7,6 +7,7 @@ loads trained per-condition pipelines and returns condition probabilities.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,8 +19,16 @@ from longevity_lab.api.schemas import FeatureProfile, ScenarioGeographySelection
 from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
 from longevity_lab.domain.catalog import CONDITIONS
 from longevity_lab.services.engine_types import ConditionScore, ScenarioEngine
-from longevity_lab.services.explanations import build_explanation_records
+from longevity_lab.services.explanations import ExplanationRecord, build_explanation_records
 from longevity_lab.services.uncertainty import build_uncertainty_summary
+
+
+@dataclass(frozen=True, slots=True)
+class LoadedExplanationArtifact:
+    """A loaded model-matched explanation artifact."""
+
+    method: str
+    artifact: object
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +37,7 @@ class LoadedConditionModel:
 
     condition_id: str
     pipeline: object
-    explanation_pipeline: object | None = None
+    explanation_artifacts: tuple[LoadedExplanationArtifact, ...] = ()
     uncertainty_payload: dict[str, object] | None = None
 
 
@@ -88,10 +97,9 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 condition_id=condition.condition_id,
             )
             meta = self._by_condition[condition.condition_id]
-            explanations = build_explanation_records(
+            explanations = _build_first_available_explanations(
                 frame=frame,
-                method=condition.explanation_method,
-                explanation_artifact=model.explanation_pipeline,
+                artifacts=model.explanation_artifacts,
             )
             key_drivers = [record.display_name for record in explanations]
             uncertainty = build_uncertainty_summary(
@@ -169,23 +177,16 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 raise FileNotFoundError(
                     f"Missing pipeline artifact for {condition.condition_id}: {pipeline_path}"
                 )
-            explanation_pipeline: object | None = None
-            if condition.explanation_path:
-                explanation_path = ArtifactScenarioEngine._safe_bundle_path(
-                    bundle.path,
-                    condition.explanation_path,
-                    label=f"explanation_path for {condition.condition_id}",
-                )
-                if not explanation_path.exists():
-                    raise FileNotFoundError(
-                        "Missing explanation artifact for "
-                        f"{condition.condition_id}: {explanation_path}"
-                    )
-                explanation_pipeline = joblib.load(explanation_path)
             models[condition.condition_id] = LoadedConditionModel(
                 condition_id=condition.condition_id,
                 pipeline=joblib.load(pipeline_path),
-                explanation_pipeline=explanation_pipeline,
+                explanation_artifacts=ArtifactScenarioEngine._load_explanation_artifacts(
+                    bundle=bundle,
+                    condition_id=condition.condition_id,
+                    legacy_method=condition.explanation_method,
+                    legacy_path=condition.explanation_path,
+                    records=condition.explanation_artifacts,
+                ),
                 uncertainty_payload=ArtifactScenarioEngine._load_uncertainty_payload(
                     bundle=bundle,
                     condition_id=condition.condition_id,
@@ -194,6 +195,64 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 ),
             )
         return models
+
+    @staticmethod
+    def _load_explanation_artifacts(
+        *,
+        bundle: ArtifactBundle,
+        condition_id: str,
+        legacy_method: str,
+        legacy_path: str | None,
+        records: Sequence[object],
+    ) -> tuple[LoadedExplanationArtifact, ...]:
+        loaded: list[LoadedExplanationArtifact] = []
+        seen_paths: set[str] = set()
+        for record in sorted(
+            records,
+            key=lambda item: 0 if getattr(item, "method", "") == "shap" else 1,
+        ):
+            method = str(getattr(record, "method", ""))
+            artifact_path = str(getattr(record, "artifact_path", ""))
+            if not method or not artifact_path:
+                continue
+            artifact = ArtifactScenarioEngine._load_explanation_artifact_path(
+                bundle=bundle,
+                condition_id=condition_id,
+                relative_path=artifact_path,
+            )
+            loaded.append(LoadedExplanationArtifact(method=method, artifact=artifact))
+            seen_paths.add(artifact_path)
+
+        if legacy_path and legacy_path not in seen_paths:
+            loaded.append(
+                LoadedExplanationArtifact(
+                    method=legacy_method,
+                    artifact=ArtifactScenarioEngine._load_explanation_artifact_path(
+                        bundle=bundle,
+                        condition_id=condition_id,
+                        relative_path=legacy_path,
+                    ),
+                )
+            )
+        return tuple(loaded)
+
+    @staticmethod
+    def _load_explanation_artifact_path(
+        *,
+        bundle: ArtifactBundle,
+        condition_id: str,
+        relative_path: str,
+    ) -> object:
+        explanation_path = ArtifactScenarioEngine._safe_bundle_path(
+            bundle.path,
+            relative_path,
+            label=f"explanation_path for {condition_id}",
+        )
+        if not explanation_path.exists():
+            raise FileNotFoundError(
+                f"Missing explanation artifact for {condition_id}: {explanation_path}"
+            )
+        return joblib.load(explanation_path)
 
     @staticmethod
     def _load_context_feature_lookup(bundle: ArtifactBundle) -> LoadedContextFeatureLookup | None:
@@ -349,3 +408,23 @@ def _normalize_year(value: object) -> int | None:
         return int(float(str(value).strip()))
     except ValueError:
         return None
+
+
+def _build_first_available_explanations(
+    *,
+    frame: pd.DataFrame,
+    artifacts: tuple[LoadedExplanationArtifact, ...],
+) -> list[ExplanationRecord]:
+    """Return the first non-empty explanation list from manifest-declared artifacts."""
+    for artifact in artifacts:
+        try:
+            records = build_explanation_records(
+                frame=frame,
+                method=artifact.method,
+                explanation_artifact=artifact.artifact,
+            )
+        except Exception:
+            continue
+        if records:
+            return records
+    return []

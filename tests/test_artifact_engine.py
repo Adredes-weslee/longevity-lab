@@ -21,6 +21,7 @@ from longevity_lab.artifacts.manifest import (
     ConditionArtifact,
     ContextFeatureManifest,
     DatasetInfo,
+    ExplanationArtifactManifest,
     save_manifest,
 )
 from longevity_lab.artifacts.store import ArtifactStore
@@ -337,6 +338,307 @@ def test_shap_explanations_use_optional_tree_explainer(
     assert records[0].direction == "increases"
     assert records[1].direction == "decreases"
     assert records[0].method == "shap"
+
+
+def test_shap_explanations_use_compact_background_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SHAP explanation payloads should carry compact background data, not raw full tables."""
+    frame = pd.DataFrame({"age": [65.0], "bmi": [31.0]})
+    background = pd.DataFrame({"age": [40.0, 70.0], "bmi": [24.0, 35.0]})
+    seen_background: list[pd.DataFrame] = []
+
+    class _FakeExplainer:
+        def __init__(self, model: object, data: pd.DataFrame | None = None) -> None:
+            self.model = model
+            if data is not None:
+                seen_background.append(data)
+
+        def shap_values(self, transformed: pd.DataFrame) -> np.ndarray:
+            assert list(transformed.columns) == ["age", "bmi"]
+            return np.array([[0.25, 0.05]])
+
+    class _IdentityPreprocess:
+        def transform(self, values: pd.DataFrame) -> pd.DataFrame:
+            return values
+
+        def get_feature_names_out(self) -> list[str]:
+            return ["age", "bmi"]
+
+    pipeline = SimpleNamespace(
+        named_steps={
+            "preprocess": _IdentityPreprocess(),
+            "model": object(),
+        }
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "shap",
+        SimpleNamespace(TreeExplainer=_FakeExplainer),
+    )
+
+    records = build_explanation_records(
+        method="shap",
+        explanation_artifact={
+            "kind": "tree_shap",
+            "pipeline": pipeline,
+            "background": background,
+            "feature_names": ["age", "bmi"],
+        },
+        frame=frame,
+    )
+
+    assert seen_background
+    assert len(seen_background[0]) == 2
+    assert [record.method for record in records] == ["shap", "shap"]
+
+
+def test_artifact_engine_prefers_manifest_declared_shap_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Artifact scoring should select manifest-declared SHAP when the artifact is present."""
+    base_dir = tmp_path / "models"
+    bundle_id = "bundle-shap"
+    bundle_dir = base_dir / bundle_id
+    bundle_dir.mkdir(parents=True)
+    frame = pd.DataFrame(
+        [
+            {
+                "age": 65,
+                "bmi": 31.0,
+                "smoker": True,
+                "alcohol_servings_per_week": 8,
+                "exercise_minutes_per_week": 20,
+                "annual_aqi": 95,
+            },
+            {
+                "age": 30,
+                "bmi": 22.0,
+                "smoker": False,
+                "alcohol_servings_per_week": 1,
+                "exercise_minutes_per_week": 240,
+                "annual_aqi": 40,
+            },
+            {
+                "age": 72,
+                "bmi": 35.0,
+                "smoker": True,
+                "alcohol_servings_per_week": 10,
+                "exercise_minutes_per_week": 5,
+                "annual_aqi": 120,
+            },
+            {
+                "age": 44,
+                "bmi": 24.0,
+                "smoker": False,
+                "alcohol_servings_per_week": 2,
+                "exercise_minutes_per_week": 160,
+                "annual_aqi": 55,
+            },
+        ]
+    )
+    labels = [1, 0, 1, 0]
+    pipeline = SampleWeightPipeline(
+        [
+            ("preprocess", FeaturePreprocessor(feature_names=tuple(frame.columns))),
+            ("model", DecisionTreeClassifier(max_depth=2, random_state=7)),
+        ]
+    )
+    pipeline.fit(frame, pd.Series(labels))
+    pipeline_path = bundle_dir / "heart_disease.joblib"
+    tree_path = bundle_dir / "heart_disease_explanation.joblib"
+    shap_path = bundle_dir / "heart_disease_shap_explanation.joblib"
+    joblib.dump(pipeline, pipeline_path)
+    joblib.dump(pipeline, tree_path)
+    joblib.dump(
+        {
+            "kind": "tree_shap",
+            "pipeline": pipeline,
+            "background": frame.head(2),
+            "feature_names": list(frame.columns),
+        },
+        shap_path,
+    )
+
+    class _FakeExplainer:
+        def __init__(self, model: object, data: pd.DataFrame | None = None) -> None:
+            self.model = model
+            self.data = data
+
+        def shap_values(self, transformed: pd.DataFrame) -> np.ndarray:
+            return np.array([[0.4, -0.2, 0.1, 0.0, 0.0, 0.0]])
+
+    monkeypatch.setitem(sys.modules, "shap", SimpleNamespace(TreeExplainer=_FakeExplainer))
+    save_manifest(
+        ArtifactManifest(
+            dataset=DatasetInfo(name="brfss", version="test"),
+            features=list(frame.columns),
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path=pipeline_path.name,
+                    explanation_path=tree_path.name,
+                    explanation_method="tree_path",
+                    explanation_artifacts=[
+                        ExplanationArtifactManifest(
+                            method="tree_path",
+                            artifact_path=tree_path.name,
+                            feature_names=list(frame.columns),
+                        ),
+                        ExplanationArtifactManifest(
+                            method="shap",
+                            artifact_path=shap_path.name,
+                            background_sample_size=2,
+                            feature_names=list(frame.columns),
+                        ),
+                    ],
+                )
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+
+    engine = ArtifactScenarioEngine(store=ArtifactStore(base_dir), bundle_id=bundle_id)
+    scores = engine.evaluate(
+        FeatureProfile(
+            age=65,
+            bmi=31.0,
+            smoker=True,
+            alcohol_servings_per_week=8,
+            exercise_minutes_per_week=20,
+            annual_aqi=95,
+        )
+    )
+
+    assert scores[0].explanations
+    assert scores[0].explanations[0].method == "shap"
+
+
+def test_artifact_engine_falls_back_when_shap_artifact_is_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bad SHAP payload should not abort scoring when tree-path fallback is declared."""
+    base_dir = tmp_path / "models"
+    bundle_id = "bundle-shap-fallback"
+    bundle_dir = base_dir / bundle_id
+    bundle_dir.mkdir(parents=True)
+    frame = pd.DataFrame(
+        [
+            {
+                "age": 65,
+                "bmi": 31.0,
+                "smoker": True,
+                "alcohol_servings_per_week": 8,
+                "exercise_minutes_per_week": 20,
+                "annual_aqi": 95,
+            },
+            {
+                "age": 30,
+                "bmi": 22.0,
+                "smoker": False,
+                "alcohol_servings_per_week": 1,
+                "exercise_minutes_per_week": 240,
+                "annual_aqi": 40,
+            },
+            {
+                "age": 72,
+                "bmi": 35.0,
+                "smoker": True,
+                "alcohol_servings_per_week": 10,
+                "exercise_minutes_per_week": 5,
+                "annual_aqi": 120,
+            },
+            {
+                "age": 44,
+                "bmi": 24.0,
+                "smoker": False,
+                "alcohol_servings_per_week": 2,
+                "exercise_minutes_per_week": 160,
+                "annual_aqi": 55,
+            },
+        ]
+    )
+    labels = [1, 0, 1, 0]
+    pipeline = SampleWeightPipeline(
+        [
+            ("preprocess", FeaturePreprocessor(feature_names=tuple(frame.columns))),
+            ("model", DecisionTreeClassifier(max_depth=2, random_state=7)),
+        ]
+    )
+    pipeline.fit(frame, pd.Series(labels))
+    pipeline_path = bundle_dir / "heart_disease.joblib"
+    tree_path = bundle_dir / "heart_disease_explanation.joblib"
+    shap_path = bundle_dir / "heart_disease_shap_explanation.joblib"
+    joblib.dump(pipeline, pipeline_path)
+    joblib.dump(pipeline, tree_path)
+    joblib.dump(
+        {
+            "kind": "tree_shap",
+            "pipeline": pipeline,
+            "background": frame.head(2),
+            "feature_names": list(frame.columns),
+        },
+        shap_path,
+    )
+
+    class _ExplodingExplainer:
+        def __init__(self, model: object, data: pd.DataFrame | None = None) -> None:
+            self.model = model
+            self.data = data
+
+        def shap_values(self, transformed: pd.DataFrame) -> np.ndarray:
+            raise Exception("simulated shap explainer failure")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "shap",
+        SimpleNamespace(TreeExplainer=_ExplodingExplainer),
+    )
+    save_manifest(
+        ArtifactManifest(
+            dataset=DatasetInfo(name="brfss", version="test"),
+            features=list(frame.columns),
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path=pipeline_path.name,
+                    explanation_path=tree_path.name,
+                    explanation_method="tree_path",
+                    explanation_artifacts=[
+                        ExplanationArtifactManifest(
+                            method="shap",
+                            artifact_path=shap_path.name,
+                            background_sample_size=2,
+                            feature_names=list(frame.columns),
+                        ),
+                        ExplanationArtifactManifest(
+                            method="tree_path",
+                            artifact_path=tree_path.name,
+                            feature_names=list(frame.columns),
+                        ),
+                    ],
+                )
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+
+    engine = ArtifactScenarioEngine(store=ArtifactStore(base_dir), bundle_id=bundle_id)
+    scores = engine.evaluate(
+        FeatureProfile(
+            age=65,
+            bmi=31.0,
+            smoker=True,
+            alcohol_servings_per_week=8,
+            exercise_minutes_per_week=20,
+            annual_aqi=95,
+        )
+    )
+
+    assert scores[0].explanations
+    assert scores[0].explanations[0].method == "tree_path"
 
 
 def test_artifact_engine_selects_positive_class_probability(tmp_path: Path) -> None:

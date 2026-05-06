@@ -65,6 +65,18 @@ class ContextFeatureManifest(BaseModel):
         return self
 
 
+class ExplanationArtifactManifest(BaseModel):
+    """Metadata for one model-matched explanation artifact."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    method: ExplanationMethod
+    artifact_path: str
+    background_sample_size: int | None = None
+    feature_names: list[str] = Field(default_factory=list)
+    caveats: list[str] = Field(default_factory=list)
+
+
 class ConditionArtifact(BaseModel):
     """One condition model artifact entry inside a bundle."""
 
@@ -75,6 +87,7 @@ class ConditionArtifact(BaseModel):
     explanation_path: str | None = None
     metrics_path: str | None = None
     explanation_method: ExplanationMethod = "tree_path"
+    explanation_artifacts: list[ExplanationArtifactManifest] = Field(default_factory=list)
     uncertainty_method: UncertaintyMethod = "none"
     uncertainty_path: str | None = None
     notes: str | None = None

@@ -35,6 +35,7 @@ from longevity_lab.artifacts.manifest import (
     ConditionArtifact,
     ContextFeatureManifest,
     DatasetInfo,
+    ExplanationArtifactManifest,
     save_manifest,
 )
 from longevity_lab.pipeline.common import default_data_dir
@@ -178,6 +179,9 @@ class TrainingSpec:
     tuning_timeout_seconds: int | None
     tuning_cv_folds: int
     tuning_sample_size: int | None
+    model_family: str
+    model_params: dict[str, Any]
+    model_monotonic_constraints: dict[str, int]
     model_criterion: str
     model_class_weight: str | dict[int, float] | None
     search_space: dict[str, dict[str, float | int]]
@@ -191,11 +195,14 @@ class ConditionTrainingResult:
     condition_id: str
     label_column: str
     pipeline_path: Path
-    explanation_path: Path
+    explanation_path: Path | None
     metrics_path: Path
     predictions_path: Path
     feature_importance_path: Path
     tree_text_path: Path
+    shap_explanation_path: Path | None
+    shap_skip_path: Path | None
+    explanation_artifacts: tuple[ExplanationArtifactManifest, ...]
     metrics: dict[str, Any]
 
 
@@ -561,11 +568,12 @@ def build_training_spec(raw_cfg: dict[str, Any]) -> TrainingSpec:
         tuning_sample_size=(
             int(tuning_cfg["sample_size"]) if tuning_cfg.get("sample_size") else None
         ),
-        model_criterion=str(model_cfg["criterion"]),
+        model_family=_model_family_from_config(model_cfg),
+        model_params=_model_params_from_config(model_cfg),
+        model_monotonic_constraints=_model_monotonic_constraints_from_config(model_cfg),
+        model_criterion=str(model_cfg.get("criterion", "gini")),
         model_class_weight=model_cfg.get("class_weight"),
-        search_space={
-            str(key): dict(value) for key, value in dict(model_cfg["search_space"]).items()
-        },
+        search_space=_tree_search_space_from_config(model_cfg),
         git_commit=_detect_git_commit(),
     )
 
@@ -623,6 +631,46 @@ def _validate_feature_contract(
         )
 
 
+def _model_family_from_config(model_cfg: dict[str, Any]) -> str:
+    """Return the configured training model family across legacy and benchmark configs."""
+    return str(
+        model_cfg.get("family") or model_cfg.get("kind") or model_cfg.get("name") or "decision_tree"
+    )
+
+
+def _model_params_from_config(model_cfg: dict[str, Any]) -> dict[str, Any]:
+    """Return model-family parameters from benchmark-style configs when present."""
+    params = model_cfg.get("params", {})
+    return dict(params) if isinstance(params, dict) else {}
+
+
+def _model_monotonic_constraints_from_config(model_cfg: dict[str, Any]) -> dict[str, int]:
+    """Return validated monotonic constraints from model config."""
+    raw_constraints = model_cfg.get("monotonic_constraints", {})
+    if not isinstance(raw_constraints, dict):
+        return {}
+    return _validate_monotonic_constraints(
+        {str(key): int(value) for key, value in raw_constraints.items()}
+    )
+
+
+def _tree_search_space_from_config(
+    model_cfg: dict[str, Any],
+) -> dict[str, dict[str, float | int]]:
+    """Return decision-tree search space defaults for non-tree training configs."""
+    default_space: dict[str, dict[str, float | int]] = {
+        "max_depth": {"low": 2, "high": 8},
+        "min_samples_split": {"low": 10, "high": 300},
+        "min_samples_leaf": {"low": 5, "high": 120},
+        "max_leaf_nodes": {"low": 4, "high": 80},
+        "ccp_alpha": {"low": 0.00001, "high": 0.01},
+    }
+    search_space = model_cfg.get("search_space", default_space)
+    if not isinstance(search_space, dict):
+        return default_space
+    return {str(key): dict(value) for key, value in search_space.items()}
+
+
 def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
     """Train a calibrated per-condition bundle and write bundle artifacts."""
     data_frame, dataset_path = load_training_frame(spec)
@@ -653,9 +701,12 @@ def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
             ConditionArtifact(
                 condition_id=result.condition_id,
                 pipeline_path=result.pipeline_path.name,
-                explanation_path=result.explanation_path.name,
+                explanation_path=(
+                    result.explanation_path.name if result.explanation_path is not None else None
+                ),
                 metrics_path=result.metrics_path.name,
                 explanation_method="tree_path",
+                explanation_artifacts=list(result.explanation_artifacts),
             )
             for result in condition_results
         ],
@@ -1178,7 +1229,7 @@ def _train_condition(
         feature_names=condition_features,
         sample_weight=sample_weight_train,
     )
-    explanation_pipeline = _make_tree_pipeline(
+    explanation_pipeline = _make_training_pipeline(
         condition_features,
         spec=spec,
         overrides=tuned_params,
@@ -1256,7 +1307,10 @@ def _train_condition(
     tree_text_path = bundle_dir / f"{condition_prefix}_tree.txt"
 
     joblib.dump(calibrated_pipeline, pipeline_path)
-    joblib.dump(explanation_pipeline, explanation_path)
+    tree_explanation_path: Path | None = None
+    if _supports_tree_path_explanations(explanation_pipeline):
+        joblib.dump(explanation_pipeline, explanation_path)
+        tree_explanation_path = explanation_path
 
     test_predictions = x_test.copy()
     test_predictions[label_column] = y_test.to_numpy()
@@ -1279,12 +1333,32 @@ def _train_condition(
     importances = _feature_importances(explanation_pipeline)
     feature_importance_path.write_text(json.dumps(importances, indent=2) + "\n", encoding="utf-8")
 
-    tree_model = explanation_pipeline.named_steps["model"]
-    tree_text = export_text(
-        tree_model,
-        feature_names=list(explanation_pipeline.named_steps["preprocess"].get_feature_names_out()),
-    )
+    tree_text = _tree_text_or_model_summary(explanation_pipeline)
     tree_text_path.write_text(tree_text + "\n", encoding="utf-8")
+    shap_explanation_path, shap_skip_path, shap_record = _write_shap_explanation_artifact(
+        explanation_pipeline,
+        x_train,
+        bundle_dir=bundle_dir,
+        condition_id=condition_id,
+        random_state=spec.random_state,
+    )
+    explanation_artifacts: list[ExplanationArtifactManifest] = []
+    if tree_explanation_path is not None:
+        explanation_artifacts.append(
+            ExplanationArtifactManifest(
+                method="tree_path",
+                artifact_path=tree_explanation_path.name,
+                feature_names=list(
+                    explanation_pipeline.named_steps["preprocess"].get_feature_names_out()
+                ),
+                caveats=[
+                    "Decision-tree rule-path split; direction compares branch positive-class "
+                    "risk, not a causal effect.",
+                ],
+            ),
+        )
+    if shap_record is not None:
+        explanation_artifacts.append(shap_record)
 
     metrics_payload = {
         "condition_id": condition_id,
@@ -1317,6 +1391,11 @@ def _train_condition(
         "no_context_metrics": no_context_metrics,
         "no_aqi_metrics": no_aqi_metrics,
         "no_pollutants_metrics": no_pollutants_metrics,
+        "shap_explanation": _shap_explanation_metric_payload(
+            shap_explanation_path=shap_explanation_path,
+            shap_skip_path=shap_skip_path,
+            shap_record=shap_record,
+        ),
     }
     metrics_path.write_text(json.dumps(metrics_payload, indent=2) + "\n", encoding="utf-8")
 
@@ -1324,13 +1403,165 @@ def _train_condition(
         condition_id=condition_id,
         label_column=label_column,
         pipeline_path=pipeline_path,
-        explanation_path=explanation_path,
+        explanation_path=tree_explanation_path,
         metrics_path=metrics_path,
         predictions_path=predictions_path,
         feature_importance_path=feature_importance_path,
         tree_text_path=tree_text_path,
+        shap_explanation_path=shap_explanation_path,
+        shap_skip_path=shap_skip_path,
+        explanation_artifacts=tuple(explanation_artifacts),
         metrics=metrics_payload,
     )
+
+
+def _write_shap_explanation_artifact(
+    pipeline: Pipeline,
+    training_frame: pd.DataFrame,
+    *,
+    bundle_dir: Path,
+    condition_id: str,
+    random_state: int,
+    background_sample_size: int = 128,
+) -> tuple[Path | None, Path | None, ExplanationArtifactManifest | None]:
+    """Persist compact TreeSHAP serving metadata for supported tree-ensemble pipelines."""
+    if not _supports_tree_shap(pipeline):
+        skip_path = bundle_dir / f"{condition_id}_shap_explanation_skipped.json"
+        skip_path.write_text(
+            json.dumps(
+                {
+                    "status": "skipped",
+                    "reason": (
+                        "TreeSHAP packaging is not applicable to the decision-tree "
+                        "rule-path baseline."
+                    ),
+                    "model_type": type(pipeline.named_steps.get("model")).__name__,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return None, skip_path, None
+    if not _shap_dependency_available():
+        skip_path = bundle_dir / f"{condition_id}_shap_explanation_skipped.json"
+        skip_path.write_text(
+            json.dumps(
+                {
+                    "status": "skipped",
+                    "reason": "Optional SHAP dependency is not installed.",
+                    "install": "pdm install -G explainability",
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return None, skip_path, None
+
+    sample_size = min(background_sample_size, len(training_frame))
+    background = training_frame.sample(n=sample_size, random_state=random_state).reset_index(
+        drop=True
+    )
+    feature_names = [
+        str(item) for item in pipeline.named_steps["preprocess"].get_feature_names_out()
+    ]
+    artifact_path = bundle_dir / f"{condition_id}_shap_explanation.joblib"
+    caveat = (
+        "TreeSHAP attribution from a compact training background sample; correlated "
+        "features can share attribution."
+    )
+    joblib.dump(
+        {
+            "kind": "tree_shap",
+            "pipeline": pipeline,
+            "background": background,
+            "feature_names": feature_names,
+            "caveats": [caveat],
+        },
+        artifact_path,
+    )
+    return (
+        artifact_path,
+        None,
+        ExplanationArtifactManifest(
+            method="shap",
+            artifact_path=artifact_path.name,
+            background_sample_size=sample_size,
+            feature_names=feature_names,
+            caveats=[caveat],
+        ),
+    )
+
+
+def _tree_text_or_model_summary(pipeline: Pipeline) -> str:
+    """Return decision-tree text when available, otherwise a compact model-family summary."""
+    model = pipeline.named_steps["model"]
+    if isinstance(model, DecisionTreeClassifier):
+        return cast(
+            str,
+            export_text(
+                model,
+                feature_names=list(pipeline.named_steps["preprocess"].get_feature_names_out()),
+            ),
+        )
+    return (
+        f"{type(model).__name__} does not expose a single decision-tree rule path. "
+        "Use manifest-declared explanation artifacts for model-matched explanations."
+    )
+
+
+def _supports_tree_path_explanations(pipeline: Pipeline) -> bool:
+    """Return whether a fitted pipeline exposes scikit-learn decision-tree path APIs."""
+    model = pipeline.named_steps.get("model")
+    return all(hasattr(model, name) for name in ("decision_path", "tree_", "apply"))
+
+
+def _supports_tree_shap(pipeline: Pipeline) -> bool:
+    """Return whether a fitted pipeline's model family should opt into TreeSHAP packaging."""
+    model = pipeline.named_steps.get("model")
+    model_type = str(type(model).__name__)
+    return model_type in {
+        "HistGradientBoostingClassifier",
+        "GradientBoostingClassifier",
+        "RandomForestClassifier",
+        "ExtraTreesClassifier",
+        "XGBClassifier",
+    }
+
+
+def _shap_dependency_available() -> bool:
+    """Return whether the optional SHAP dependency can be imported."""
+    try:
+        import shap  # type: ignore[import-not-found, unused-ignore]
+    except ImportError:
+        return False
+    return shap is not None
+
+
+def _shap_explanation_metric_payload(
+    *,
+    shap_explanation_path: Path | None,
+    shap_skip_path: Path | None,
+    shap_record: ExplanationArtifactManifest | None,
+) -> dict[str, Any]:
+    """Return truthful metrics metadata for SHAP packaging status."""
+    if shap_explanation_path is not None and shap_record is not None:
+        return {
+            "status": "available",
+            "artifact_path": shap_explanation_path.name,
+            "background_sample_size": shap_record.background_sample_size,
+        }
+    reason = "TreeSHAP packaging was skipped."
+    if shap_skip_path is not None and shap_skip_path.exists():
+        payload = json.loads(shap_skip_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and payload.get("reason"):
+            reason = str(payload["reason"])
+    return {
+        "status": "skipped",
+        "artifact_path": shap_skip_path.name if shap_skip_path is not None else None,
+        "reason": reason,
+    }
 
 
 def _fit_feature_ablation(
@@ -1366,12 +1597,26 @@ def _fit_feature_ablation(
     return _binary_metrics(y_test, probabilities, sample_weight=sample_weight_test), probabilities
 
 
-def _make_tree_pipeline(
+def _make_training_pipeline(
     feature_names: tuple[str, ...],
     *,
     spec: TrainingSpec,
     overrides: dict[str, Any] | None = None,
 ) -> SampleWeightPipeline:
+    if spec.model_family == "hist_gradient_boosting":
+        params: dict[str, Any] = dict(spec.model_params)
+        if overrides:
+            params.update(overrides)
+        params.setdefault("max_iter", 20)
+        params.setdefault("min_samples_leaf", 20)
+        return make_hist_gradient_boosting_pipeline(
+            feature_names=feature_names,
+            params=params,
+            monotonic_constraints=spec.model_monotonic_constraints,
+            random_state=spec.random_state,
+        )
+    if spec.model_family != "decision_tree":
+        raise ValueError(f"Unsupported training model family: {spec.model_family}")
     params = {
         "criterion": spec.model_criterion,
         "class_weight": spec.model_class_weight,
@@ -1396,7 +1641,7 @@ def _fit_calibrated_pipeline(
     feature_names: tuple[str, ...] | None = None,
     sample_weight: pd.Series | None = None,
 ) -> CalibratedClassifierCV | Pipeline:
-    base_pipeline = _make_tree_pipeline(
+    base_pipeline = _make_training_pipeline(
         feature_names or spec.features,
         spec=spec,
         overrides=overrides,
@@ -1423,6 +1668,8 @@ def _tune_tree_params(
     sample_weight: pd.Series | None,
 ) -> dict[str, Any]:
     if not spec.tuning_enabled:
+        return {}
+    if spec.model_family != "decision_tree":
         return {}
 
     try:
@@ -1499,7 +1746,7 @@ def _tune_tree_params(
                 if tuning_weights is not None
                 else None
             )
-            pipeline = _make_tree_pipeline(feature_names, spec=spec, overrides=params)
+            pipeline = _make_training_pipeline(feature_names, spec=spec, overrides=params)
             pipeline.fit(fold_train, fold_y_train, sample_weight=fold_weights)
             probabilities = _predict_positive_class(pipeline, fold_valid)
             metric_value = _score_tuning_metric(

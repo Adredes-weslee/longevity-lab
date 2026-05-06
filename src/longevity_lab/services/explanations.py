@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, Protocol, cast
 
@@ -10,6 +11,14 @@ import pandas as pd  # type: ignore[import-untyped]
 
 ExplanationDirection = Literal["increases", "decreases", "neutral"]
 ExplanationMethod = Literal["demo", "tree_path", "shap"]
+
+EXPLANATION_UNAVAILABLE_EXCEPTIONS = (
+    RuntimeError,
+    ValueError,
+    TypeError,
+    AttributeError,
+    IndexError,
+)
 
 FEATURE_LABELS: dict[str, str] = {
     "age": "Age",
@@ -59,7 +68,11 @@ class ShapTreeExplainer(Protocol):
 class ShapExplainerFactory(Protocol):
     """Callable factory for optional SHAP explainers."""
 
-    def __call__(self, model: object) -> ShapTreeExplainer:
+    def __call__(
+        self,
+        model: object,
+        data: pd.DataFrame | np.ndarray | None = None,
+    ) -> ShapTreeExplainer:
         """Build a tree explainer for a fitted model."""
 
 
@@ -112,7 +125,10 @@ def build_explanation_records(
     if method == "tree_path":
         return _tree_path_explanations(explanation_artifact, frame=frame, limit=limit)
     if method == "shap":
-        return _shap_explanations(explanation_artifact, frame=frame, limit=limit)
+        try:
+            return _shap_explanations(explanation_artifact, frame=frame, limit=limit)
+        except EXPLANATION_UNAVAILABLE_EXCEPTIONS:
+            return []
     return []
 
 
@@ -225,10 +241,13 @@ def _shap_explanations(
     limit: int,
 ) -> list[ExplanationRecord]:
     shap_module = _import_shap_module()
-    transformed, model, feature_names = _model_and_transformed_frame(explanation_artifact, frame)
+    transformed, model, feature_names, background = _model_and_transformed_frame(
+        explanation_artifact,
+        frame,
+    )
     if model is None:
         return []
-    explainer = shap_module.TreeExplainer(model)
+    explainer = _build_tree_explainer(shap_module, model=model, background=background)
     raw_values = explainer.shap_values(transformed)
     values = _first_shap_row(raw_values)
     ranked = sorted(
@@ -265,19 +284,61 @@ def _import_shap_module() -> ShapModule:
     return cast(ShapModule, shap)
 
 
+def _build_tree_explainer(
+    shap_module: ShapModule,
+    *,
+    model: object,
+    background: pd.DataFrame | np.ndarray | None,
+) -> ShapTreeExplainer:
+    """Build a SHAP TreeExplainer, using compact background data when available."""
+    if background is None:
+        return shap_module.TreeExplainer(model)
+    try:
+        return shap_module.TreeExplainer(model, background)
+    except TypeError:
+        return shap_module.TreeExplainer(model)
+
+
 def _model_and_transformed_frame(
     explanation_artifact: object,
     frame: pd.DataFrame,
-) -> tuple[pd.DataFrame | np.ndarray, object | None, list[str]]:
+) -> tuple[pd.DataFrame | np.ndarray, object | None, list[str], pd.DataFrame | np.ndarray | None]:
+    if _is_shap_artifact_payload(explanation_artifact):
+        payload = cast(Mapping[str, object], explanation_artifact)
+        pipeline = payload.get("pipeline")
+        background = payload.get("background")
+        if pipeline is None:
+            return frame, None, list(frame.columns), None
+        transformed, model, feature_names, _ = _model_and_transformed_frame(pipeline, frame)
+        background_transformed: pd.DataFrame | np.ndarray | None = None
+        if isinstance(background, pd.DataFrame):
+            background_transformed, _, _, _ = _model_and_transformed_frame(pipeline, background)
+        return (
+            transformed,
+            model,
+            _payload_feature_names(payload, feature_names),
+            background_transformed,
+        )
     if hasattr(explanation_artifact, "named_steps"):
         named_steps = explanation_artifact.named_steps  # type: ignore[attr-defined]
         preprocess = named_steps.get("preprocess")
         model = named_steps.get("model")
         if preprocess is None or model is None:
-            return frame, None, list(frame.columns)
+            return frame, None, list(frame.columns), None
         transformed = preprocess.transform(frame)
-        return transformed, model, _transformed_feature_names(preprocess, model, transformed)
-    return frame, explanation_artifact, list(frame.columns)
+        return transformed, model, _transformed_feature_names(preprocess, model, transformed), None
+    return frame, explanation_artifact, list(frame.columns), None
+
+
+def _is_shap_artifact_payload(value: object) -> bool:
+    return isinstance(value, Mapping) and value.get("kind") == "tree_shap"
+
+
+def _payload_feature_names(payload: Mapping[str, object], fallback: list[str]) -> list[str]:
+    raw_names = payload.get("feature_names")
+    if isinstance(raw_names, list) and all(isinstance(item, str) for item in raw_names):
+        return [str(item) for item in raw_names]
+    return fallback
 
 
 def _transformed_feature_names(

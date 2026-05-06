@@ -12,6 +12,7 @@ from longevity_lab.artifacts.manifest import (
     ConditionArtifact,
     ContextFeatureManifest,
     DatasetInfo,
+    ExplanationArtifactManifest,
     load_manifest,
     save_manifest,
 )
@@ -84,6 +85,44 @@ def test_manifest_roundtrip_with_context_feature_lookup(tmp_path: Path) -> None:
     ]
     assert loaded.context_features.join_keys == ["state_fips", "year"]
     assert loaded.context_features.lookup_path == "context_state_year_lookup.json"
+
+
+def test_manifest_roundtrip_with_shap_explanation_record(tmp_path: Path) -> None:
+    """Manifest explanation artifact records should preserve SHAP metadata."""
+    manifest = ArtifactManifest(
+        dataset=DatasetInfo(name="integrated_person_year", version="2023"),
+        features=["age", "bmi"],
+        conditions=[
+            ConditionArtifact(
+                condition_id="heart_disease",
+                pipeline_path="heart_disease.joblib",
+                explanation_path="heart_disease_shap_explanation.joblib",
+                explanation_method="shap",
+                explanation_artifacts=[
+                    ExplanationArtifactManifest(
+                        method="shap",
+                        artifact_path="heart_disease_shap_explanation.joblib",
+                        background_sample_size=12,
+                        feature_names=["age", "bmi"],
+                        caveats=[
+                            "TreeSHAP attribution from a compact training background sample.",
+                        ],
+                    )
+                ],
+            )
+        ],
+    )
+    path = tmp_path / "manifest.json"
+    save_manifest(manifest, path)
+
+    loaded = load_manifest(path)
+
+    record = loaded.conditions[0].explanation_artifacts[0]
+    assert record.method == "shap"
+    assert record.artifact_path == "heart_disease_shap_explanation.joblib"
+    assert record.background_sample_size == 12
+    assert record.feature_names == ["age", "bmi"]
+    assert "compact training background" in record.caveats[0]
 
 
 def test_context_feature_manifest_requires_explicit_serving_contract() -> None:
