@@ -514,6 +514,7 @@ def test_evaluate_bundle_returns_condition_summary(tmp_path: Path) -> None:
         "test_average_precision",
         "test_roc_auc",
         "test_brier_score",
+        "test_average_precision_no_context",
         "test_average_precision_no_aqi",
         "test_average_precision_no_pollutants",
         "positive_rate",

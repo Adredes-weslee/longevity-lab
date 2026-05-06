@@ -150,10 +150,12 @@ def _context_features(
 ) -> list[str]:
     if bundle.manifest.context_features is None:
         return []
+    declared_features = list(bundle.manifest.context_features.feature_names)
     payload_features = payload.get("context_features")
     if isinstance(payload_features, list):
-        return [str(item) for item in payload_features]
-    return list(bundle.manifest.context_features.feature_names)
+        payload_feature_set = {str(item) for item in payload_features}
+        return [feature for feature in declared_features if feature in payload_feature_set]
+    return declared_features
 
 
 def _safe_bundle_path(bundle_dir: Path, relative_path: str) -> Path | None:

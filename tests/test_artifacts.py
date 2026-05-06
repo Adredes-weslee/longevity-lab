@@ -5,6 +5,8 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 
+import pytest
+
 from longevity_lab.artifacts.manifest import (
     ArtifactManifest,
     ConditionArtifact,
@@ -82,3 +84,36 @@ def test_manifest_roundtrip_with_context_feature_lookup(tmp_path: Path) -> None:
     ]
     assert loaded.context_features.join_keys == ["state_fips", "year"]
     assert loaded.context_features.lookup_path == "context_state_year_lookup.json"
+
+
+def test_context_feature_manifest_requires_explicit_serving_contract() -> None:
+    """Context scoring should not activate without explicit provenance and defaults."""
+    with pytest.raises(ValueError, match="source_ids"):
+        ContextFeatureManifest(
+            feature_names=["acs_poverty_percent"],
+            join_keys=["state_fips", "year"],
+            data_vintage="ACS 2023 5-year",
+            lookup_path="context_state_year_lookup.json",
+            default_values={"acs_poverty_percent": 12.0},
+            caveats=["State-year context caveat."],
+        )
+
+    with pytest.raises(ValueError, match="default_values"):
+        ContextFeatureManifest(
+            feature_names=["acs_poverty_percent"],
+            source_ids=["census_acs5_api_context"],
+            join_keys=["state_fips", "year"],
+            data_vintage="ACS 2023 5-year",
+            lookup_path="context_state_year_lookup.json",
+            caveats=["State-year context caveat."],
+        )
+
+    with pytest.raises(ValueError, match="caveats"):
+        ContextFeatureManifest(
+            feature_names=["acs_poverty_percent"],
+            source_ids=["census_acs5_api_context"],
+            join_keys=["state_fips", "year"],
+            data_vintage="ACS 2023 5-year",
+            lookup_path="context_state_year_lookup.json",
+            default_values={"acs_poverty_percent": 12.0},
+        )

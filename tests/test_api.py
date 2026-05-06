@@ -157,7 +157,11 @@ def _write_context_api_bundle(artifacts_dir: Path, bundle_id: str = "bundle-cont
                 "rows_test": 1,
                 "target_positive_rate": 0.5,
                 "features": list(frame.columns),
-                "context_features": ["acs_poverty_percent", "svi_overall_percentile"],
+                "context_features": [
+                    "acs_poverty_percent",
+                    "svi_overall_percentile",
+                    "county_context_not_manifest_declared",
+                ],
                 "context_feature_count": 2,
                 "best_params": {"max_depth": 2},
                 "base_metrics": {"average_precision": 0.6},

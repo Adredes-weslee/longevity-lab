@@ -834,6 +834,10 @@ def evaluate_bundle(bundle_dir: Path) -> pd.DataFrame:
                 "test_average_precision": metrics["calibrated_metrics"]["average_precision"],
                 "test_roc_auc": metrics["calibrated_metrics"]["roc_auc"],
                 "test_brier_score": metrics["calibrated_metrics"]["brier_score"],
+                "test_average_precision_no_context": metrics.get(
+                    "no_context_metrics",
+                    {},
+                ).get("average_precision"),
                 "test_average_precision_no_aqi": metrics["no_aqi_metrics"]["average_precision"],
                 "test_average_precision_no_pollutants": metrics.get(
                     "no_pollutants_metrics",
