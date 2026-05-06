@@ -7,6 +7,7 @@ import { useScenario } from '../state/scenario-context'
 import type {
   FeatureProfile,
   HeatmapMode,
+  GeographyOptionsResponse,
   MetadataBootstrapResponse,
   ScenarioCompareResponse,
 } from '../types'
@@ -15,6 +16,9 @@ interface ExplorerPageProps {
   bootstrap: MetadataBootstrapResponse
   busy: boolean
   comparison: ScenarioCompareResponse | null
+  geographies: GeographyOptionsResponse | null
+  geographiesLoading: boolean
+  geographiesError: string | null
   heatmapMode: HeatmapMode
   onChangeHeatmapMode: (mode: HeatmapMode) => void
 }
@@ -52,6 +56,9 @@ export function ExplorerPage({
   bootstrap,
   busy,
   comparison,
+  geographies,
+  geographiesLoading,
+  geographiesError,
   heatmapMode,
   onChangeHeatmapMode,
 }: ExplorerPageProps): JSX.Element {
@@ -142,7 +149,13 @@ export function ExplorerPage({
             </div>
           </section>
 
-          <ScenarioForm busy={busy} features={bootstrap.features} />
+          <ScenarioForm
+            busy={busy}
+            features={bootstrap.features}
+            geographyError={geographiesError}
+            geographyLoading={geographiesLoading}
+            geographyOptions={geographies}
+          />
         </div>
 
         <div className="explorer-main">

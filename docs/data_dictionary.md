@@ -348,6 +348,16 @@ Required columns:
 
 State-level SVI values are compact descriptive context only. They are not CDC/ATSDR state-specific SVI ranks.
 
+Serving contract:
+
+- The API exposes explicit state-year geography selection through `GET /api/context/geographies`
+  and optional `geography` metadata on scenario-compare requests.
+- The serving geography level is state only in PR 19. County-level ACS/SVI and PLACES rows remain
+  context, validation, or future-map data because BRFSS 2023 LLCP person rows do not expose county
+  identifiers.
+- Geography context is not scenario-editable behavior. Selecting a state does not change scores
+  until a later trusted artifact manifest declares state-year context features and lookup assets.
+
 ### `places_county_year` (one row per county per PLACES release)
 
 Path (gitignored):

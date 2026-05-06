@@ -1,5 +1,6 @@
 import type {
   EvidenceStatusResponse,
+  GeographyOptionsResponse,
   MetadataBootstrapResponse,
   ModelCardBundleResponse,
   PipelineStatusResponse,
@@ -62,6 +63,12 @@ export async function compareScenarios(
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export async function fetchContextGeographies(
+  year = 2023,
+): Promise<GeographyOptionsResponse> {
+  return requestJson<GeographyOptionsResponse>(`/context/geographies?year=${year}`)
 }
 
 export async function fetchPipelineStatus(

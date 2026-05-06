@@ -17,4 +17,8 @@ def compare(
     scenario_service: Annotated[ScenarioService, Depends(get_scenario_service)],
 ) -> ScenarioCompareResponse:
     """Compare baseline and candidate profiles."""
-    return scenario_service.compare(payload.baseline, payload.candidate)
+    return scenario_service.compare(
+        payload.baseline,
+        payload.candidate,
+        geography=payload.geography,
+    )

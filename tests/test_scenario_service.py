@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from longevity_lab.api.schemas import FeatureProfile, RiskBand
+from longevity_lab.api.schemas import FeatureProfile, RiskBand, ScenarioGeographySelection
 from longevity_lab.services.engine_types import ConditionScore
 from longevity_lab.services.scenario_service import ScenarioService
 
@@ -16,8 +16,14 @@ class StubEngine:
         """Store the probability to return."""
         self._probability = probability
 
-    def evaluate(self, profile: FeatureProfile) -> list[ConditionScore]:
+    def evaluate(
+        self,
+        profile: FeatureProfile,
+        geography: ScenarioGeographySelection | None = None,
+    ) -> list[ConditionScore]:
         """Return a single condition score for the provided profile."""
+        _ = profile
+        _ = geography
         return [
             ConditionScore(
                 condition_id="heart_disease",

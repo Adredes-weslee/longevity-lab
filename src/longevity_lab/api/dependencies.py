@@ -4,6 +4,7 @@ from typing import cast
 
 from fastapi import Request
 
+from longevity_lab.services.context_lookup import ContextLookupService
 from longevity_lab.services.evidence_service import EvidenceService
 from longevity_lab.services.metadata_service import MetadataService
 from longevity_lab.services.model_card_service import ModelCardService
@@ -18,6 +19,11 @@ def get_metadata_service(request: Request) -> MetadataService:
 def get_scenario_service(request: Request) -> ScenarioService:
     """Return the app-scoped scenario service."""
     return cast(ScenarioService, request.app.state.scenario_service)
+
+
+def get_context_lookup_service(request: Request) -> ContextLookupService:
+    """Return the app-scoped geography context lookup service."""
+    return cast(ContextLookupService, request.app.state.context_lookup_service)
 
 
 def get_model_card_service(request: Request) -> ModelCardService:
