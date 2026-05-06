@@ -1549,7 +1549,7 @@ def _supports_tree_shap(pipeline: Pipeline) -> bool:
 def _shap_dependency_available() -> bool:
     """Return whether the optional SHAP dependency can be imported."""
     try:
-        import shap  # type: ignore[import-not-found, unused-ignore]
+        import shap  # type: ignore[import-not-found, import-untyped, unused-ignore]
     except ImportError:
         return False
     return shap is not None
