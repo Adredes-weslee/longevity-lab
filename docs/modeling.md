@@ -59,3 +59,24 @@ attribution and that explanations are not causal effects.
 Prediction uncertainty is shown only when a condition artifact declares an uncertainty method in the
 manifest. The first supported method is `calibration_interval`, backed by an artifact-side JSON
 configuration such as `half_width`, `confidence_level`, and `caveat`.
+
+## Ethics and interpretation limits
+
+The predictive application is intentionally non-diagnostic. Model probabilities and organ summaries
+are for educational risk communication and scenario comparison only; they are not medical advice,
+diagnosis, screening, treatment guidance, or individual clinical risk certification.
+
+Predictive scenario deltas must not be described as causal effects. Offline causal workbench reports
+use separate assumptions, diagnostics, and outputs, and the Explorer does not consume those causal
+estimates. SHAP or rule-path explanations are model attributions, not proof that changing a feature
+will cause the displayed delta.
+
+Data limitations should be visible wherever users inspect results: BRFSS labels and predictors are
+self-reported, environmental and social-context fields can be aggregated, and subgroup coverage can
+vary. Public-health guidance links are general cited resources rather than personalized medical
+instructions.
+
+Artifact trust boundaries are part of the modeling contract. Trained bundles are trusted local
+outputs or verified release assets; they should not be loaded from arbitrary user uploads or
+unverified URLs because joblib/pickle-style deserialization is unsafe for untrusted inputs. Deployment
+artifact downloads should pin the bundle id and SHA256 digest before enabling artifact mode.

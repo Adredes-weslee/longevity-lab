@@ -1,6 +1,7 @@
 import type { CSSProperties, JSX } from 'react'
 
 import { healthRecommendations } from '../content/health-recommendations'
+import { disclaimers } from '../content/disclaimers'
 import type {
   ConditionDefinition,
   ExplanationRecordResponse,
@@ -246,11 +247,8 @@ export function ConditionInspector({
           {recommendationConditions.length ? (
             <section className="recommendation-panel" data-testid="health-guidance">
               <div className="panel-header">
-                <h3>What may help</h3>
-                <p>
-                  The CDC links below are general public-health guidance, not personal medical
-                  advice.
-                </p>
+                <h3>Public-health guidance</h3>
+                <p>{disclaimers.publicHealthGuidance.body}</p>
               </div>
               <ul className="recommendation-list">
                 {recommendationConditions.map((condition) => {
@@ -325,6 +323,7 @@ export function ConditionInspector({
                   </div>
                   <div className="explanation-block">
                     <p className="condition-driver-label">Model explanation caveats</p>
+                    <p className="muted explanation-empty">{disclaimers.causal.body}</p>
                     {condition.explanations.length ? (
                       <ul className="explanation-list">
                         {condition.explanations.map((explanation) => (
@@ -346,10 +345,14 @@ export function ConditionInspector({
                         Calibrated uncertainty: {formatUncertainty(condition.uncertainty)}.
                         {' '}
                         {condition.uncertainty.caveat}
+                        {' '}
+                        {disclaimers.uncertainty.body}
                       </p>
                     ) : (
                       <p className="uncertainty-note">
                         No calibrated uncertainty interval is declared for this condition.
+                        {' '}
+                        {disclaimers.uncertainty.body}
                       </p>
                     )}
                   </div>

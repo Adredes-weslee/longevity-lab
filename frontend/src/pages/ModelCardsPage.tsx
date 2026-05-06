@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 
+import { disclaimers } from '../content/disclaimers'
 import type {
   ConditionModelCardResponse,
   MetadataBootstrapResponse,
@@ -169,6 +170,16 @@ export function ModelCardsPage({
             </div>
           </dl>
         </article>
+      </section>
+
+      <section className="panel ethics-panel" data-testid="model-disclaimer">
+        <div className="panel-header">
+          <p className="section-kicker">Interpretation limits</p>
+          <h3>{disclaimers.prediction.title}</h3>
+          <p>{disclaimers.prediction.body}</p>
+          <p>{disclaimers.uncertainty.body}</p>
+          <p>{disclaimers.causal.body}</p>
+        </div>
       </section>
 
       <section className="panel" data-testid="model-card-metrics">

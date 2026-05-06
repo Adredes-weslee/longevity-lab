@@ -68,6 +68,22 @@ to show whether expected raw/processed pipeline artifacts exist locally.
 3. Open `#/data` and confirm the pipeline status page loads.
 4. Open `#/models` and confirm active model metadata plus model-card metrics are visible when an artifact bundle is active.
 
+## Intended use and safety language
+
+Longevity Lab is an educational, non-diagnostic risk-communication app. It is suitable for
+inspecting model provenance and comparing broad predictive scenario patterns. It is not suitable
+for diagnosis, screening, treatment decisions, emergency triage, insurance/employment decisions, or
+individual eligibility decisions.
+
+Explorer scenario deltas are predictive model comparisons, not causal estimates. Public-health
+links are general cited guidance, not personalized medical advice. Geography and environmental
+fields are background context where available, not personal behaviors.
+
+Artifact bundles are trusted local outputs only. Do not load model bundles from unknown sources:
+Python/joblib artifacts can execute code during deserialization. Production downloads should use
+known release URLs plus SHA256 verification, and local development should keep raw data and trained
+artifacts in gitignored directories.
+
 ## Backend checks
 
 ```powershell

@@ -132,7 +132,7 @@ Legend:
 - [TODO] One-command dev bootstrap for Windows and macOS.
 - [DONE] Artifact-backed runtime no longer requires Optuna just to load packaged bundles (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Dataset sources and provenance docs (`docs/datasets.md`, `docs/data_dictionary.md`).
-- [TODO] Finalize ethics and health disclaimer language across the UI and documentation.
+- [DONE] Finalize ethics and health disclaimer language across the UI and documentation through shared frontend copy, E2E assertions, and docs interpretation limits.
 
 ## Highest-ROI next tasks
 
@@ -142,4 +142,3 @@ Detailed PR scopes and Codex prompts are in `docs/superpowers/plans/2026-05-06-r
 2. Extend typed explanation and uncertainty coverage as new artifact families are trained.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
 4. Add one-command dev bootstrap for Windows and macOS.
-5. Finalize ethics and health disclaimer language across the UI and documentation.

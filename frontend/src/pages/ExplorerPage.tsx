@@ -3,6 +3,7 @@ import { useMemo, type JSX } from 'react'
 import { BodyHeatmap } from '../components/body-heatmap'
 import { ConditionInspector } from '../components/condition-inspector'
 import { ScenarioForm } from '../components/scenario-form'
+import { disclaimers } from '../content/disclaimers'
 import { useScenario } from '../state/scenario-context'
 import type {
   FeatureProfile,
@@ -141,11 +142,9 @@ export function ExplorerPage({
         <div className="explorer-side-column">
           <section className="panel explorer-disclaimer" data-testid="explorer-disclaimer">
             <div className="panel-header compact">
-              <h2>Educational use only</h2>
-              <p>
-                Compare lifestyle scenarios here, but do not treat these scores as medical
-                advice or diagnosis.
-              </p>
+              <h2>{disclaimers.prediction.title}</h2>
+              <p>{disclaimers.prediction.body}</p>
+              <p>{disclaimers.context.body}</p>
             </div>
           </section>
 
