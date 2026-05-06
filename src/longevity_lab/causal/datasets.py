@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,6 +9,10 @@ from typing import Any
 import pandas as pd  # type: ignore[import-untyped]
 import yaml  # type: ignore[import-untyped]
 
+from longevity_lab.causal.registry import (
+    default_config_path_for_question,
+    load_question_spec,
+)
 from longevity_lab.pipeline.ingest import build_ingest_paths
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -20,12 +23,14 @@ class CausalWorkbenchConfig:
     """Configuration for one scripted causal analysis."""
 
     schema_version: int
+    config_path: Path
     question_id: str
     title: str
     source_question_registry: Path
     treatment_name: str
     treatment_contrast: str
     treatment_column: str
+    treatment_derivation: dict[str, Any]
     outcome_name: str
     outcome_timing: str
     outcome_column: str
@@ -34,6 +39,7 @@ class CausalWorkbenchConfig:
     adjustment_columns: tuple[str, ...]
     categorical_columns: tuple[str, ...]
     excluded_columns: tuple[str, ...]
+    exclusion_rules: tuple[dict[str, Any], ...]
     negative_control_outcomes: tuple[str, ...]
     negative_control_exposures: tuple[str, ...]
     sensitivity_checks: tuple[str, ...]
@@ -72,6 +78,12 @@ class PreparedCausalDataset:
     weight_imputation: dict[str, float | int]
 
 
+@dataclass(frozen=True, slots=True)
+class _DerivedTreatment:
+    values: pd.Series
+    exclusion_masks: dict[str, pd.Series]
+
+
 def default_smoking_lung_config_path() -> Path:
     """Return the repo-local smoking-to-lung-disease workbench config path."""
     return REPO_ROOT / "conf" / "causal" / "smoking_lung.yaml"
@@ -80,8 +92,21 @@ def default_smoking_lung_config_path() -> Path:
 def load_smoking_lung_config(path: Path | None = None) -> CausalWorkbenchConfig:
     """Load the JSON-compatible config for the PR12 smoking causal prototype."""
     config_path = resolve_repo_path(path) if path else default_smoking_lung_config_path()
-    payload = json.loads(config_path.read_text(encoding="utf-8"))
-    return _config_from_payload(payload)
+    return load_causal_workbench_config(config_path)
+
+
+def load_causal_workbench_config(path: Path) -> CausalWorkbenchConfig:
+    """Load one concrete causal workbench run config."""
+    config_path = resolve_repo_path(path)
+    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Causal workbench config is not a mapping: {config_path}")
+    return _config_from_payload(payload, config_path=config_path)
+
+
+def load_causal_config_for_question(question_id_or_alias: str) -> CausalWorkbenchConfig:
+    """Load the default concrete run config for a registry question id or alias."""
+    return load_causal_workbench_config(default_config_path_for_question(question_id_or_alias))
 
 
 def resolve_repo_path(path: Path) -> Path:
@@ -96,18 +121,32 @@ def prepare_smoking_lung_dataset(
 ) -> PreparedCausalDataset:
     """Prepare the smoking-to-lung-disease analysis dataset from processed person rows."""
     causal_config = config or load_smoking_lung_config()
+    return prepare_causal_dataset(input_path=input_path, config=causal_config)
+
+
+def prepare_causal_dataset(
+    *,
+    config: CausalWorkbenchConfig,
+    input_path: Path | None = None,
+) -> PreparedCausalDataset:
+    """Prepare an analysis dataset for one configured non-serving causal question."""
+    causal_config = config
     source_path = _resolve_input_path(input_path=input_path, config=causal_config)
     frame = _read_person_year_table(source_path)
     _require_columns(frame, causal_config.required_columns)
 
     input_rows = len(frame)
     working = frame.copy()
-    working[causal_config.treatment_column] = _coerce_binary(
-        working[causal_config.treatment_column]
-    )
+    derived_treatment = _derive_treatment(working, causal_config)
+    working[causal_config.treatment_column] = derived_treatment.values
     working[causal_config.outcome_column] = _coerce_binary(working[causal_config.outcome_column])
 
     exclusions: dict[str, int] = {}
+    for name, mask in derived_treatment.exclusion_masks.items():
+        aligned = mask.reindex(working.index, fill_value=False)
+        exclusions[name] = int(aligned.sum())
+        working = working.loc[~aligned].copy()
+
     missing_treatment = working[causal_config.treatment_column].isna()
     exclusions["missing_treatment"] = int(missing_treatment.sum())
     working = working.loc[~missing_treatment].copy()
@@ -116,10 +155,7 @@ def prepare_smoking_lung_dataset(
     exclusions["missing_outcome"] = int(missing_outcome.sum())
     working = working.loc[~missing_outcome].copy()
 
-    age = pd.to_numeric(working["age"], errors="coerce")
-    outside_adult_age = age.isna() | (age < 18) | (age > 100)
-    exclusions["outside_adult_age_range"] = int(outside_adult_age.sum())
-    working = working.loc[~outside_adult_age].copy()
+    working = _apply_exclusion_rules(working, causal_config, exclusions)
 
     analysis_columns = _analysis_columns(causal_config)
     working = working.loc[:, analysis_columns].reset_index(drop=True)
@@ -145,38 +181,44 @@ def prepare_smoking_lung_dataset(
     )
 
 
-def _config_from_payload(payload: dict[str, Any]) -> CausalWorkbenchConfig:
+def _config_from_payload(
+    payload: dict[str, Any],
+    *,
+    config_path: Path,
+) -> CausalWorkbenchConfig:
     columns = payload["columns"]
     diagnostics = payload["diagnostics"]
     data = payload["data"]
     reports = payload["reports"]
     estimator = payload["estimator"]
     registry_path = resolve_repo_path(Path(str(payload["source_question_registry"])))
-    registry_question = _load_registry_question(registry_path, str(payload["question_id"]))
-    dag = registry_question["dag_assumptions"]
+    registry_question = load_question_spec(str(payload["question_id"]), path=registry_path)
     return CausalWorkbenchConfig(
         schema_version=int(payload["schema_version"]),
-        question_id=str(payload["question_id"]),
-        title=str(registry_question["title"]),
+        config_path=config_path,
+        question_id=registry_question.question_id,
+        title=str(registry_question.title),
         source_question_registry=registry_path,
-        treatment_name=str(registry_question["treatment"]["name"]),
-        treatment_contrast=str(registry_question["treatment"]["contrast"]),
+        treatment_name=str(registry_question.treatment_name),
+        treatment_contrast=str(registry_question.treatment_contrast),
         treatment_column=str(columns["treatment"]),
-        outcome_name=str(registry_question["outcome"]["name"]),
-        outcome_timing=str(registry_question["outcome"]["timing"]),
+        treatment_derivation=dict(payload.get("treatment_derivation", {"kind": "direct_binary"})),
+        outcome_name=str(registry_question.outcome_name),
+        outcome_timing=str(registry_question.outcome_timing),
         outcome_column=str(columns["outcome"]),
         sample_weight_column=str(columns["sample_weight"]),
         required_columns=_tuple(columns["required"]),
         adjustment_columns=_tuple(columns["adjustment"]),
         categorical_columns=_tuple(columns.get("categorical", [])),
         excluded_columns=_tuple(columns["excluded"]),
-        negative_control_outcomes=_tuple(registry_question["negative_controls"]["outcomes"]),
-        negative_control_exposures=_tuple(registry_question["negative_controls"]["exposures"]),
-        sensitivity_checks=_tuple(registry_question["sensitivity_checks"]),
-        dag_version=str(dag["version"]),
-        dag_edges=_tuple(dag["key_edges"]),
-        residual_risks=_tuple(dag["residual_risks"]),
-        estimand=dict(registry_question["estimand"]),
+        exclusion_rules=_tuple_of_mappings(payload.get("exclusion_rules", [])),
+        negative_control_outcomes=registry_question.negative_control_outcomes,
+        negative_control_exposures=registry_question.negative_control_exposures,
+        sensitivity_checks=registry_question.sensitivity_checks,
+        dag_version=str(registry_question.dag_version),
+        dag_edges=registry_question.dag_edges,
+        residual_risks=registry_question.residual_risks,
+        estimand=dict(registry_question.estimand),
         assumptions=_tuple(payload["assumptions"]),
         random_state=int(estimator["random_state"]),
         min_propensity=float(diagnostics["min_propensity"]),
@@ -199,23 +241,21 @@ def _config_from_payload(payload: dict[str, Any]) -> CausalWorkbenchConfig:
     )
 
 
-def _load_registry_question(registry_path: Path, question_id: str) -> dict[str, Any]:
-    registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
-    if not isinstance(registry, dict):
-        raise ValueError(f"Causal question registry is not a mapping: {registry_path}")
-    questions = registry.get("questions")
-    if not isinstance(questions, list):
-        raise ValueError(f"Causal question registry has no questions list: {registry_path}")
-    for question in questions:
-        if isinstance(question, dict) and question.get("id") == question_id:
-            return question
-    raise ValueError(f"Causal question registry has no question id: {question_id}")
-
-
 def _tuple(value: object) -> tuple[str, ...]:
     if not isinstance(value, list):
         raise ValueError("Expected a list in causal workbench config.")
     return tuple(str(item) for item in value)
+
+
+def _tuple_of_mappings(value: object) -> tuple[dict[str, Any], ...]:
+    if not isinstance(value, list):
+        raise ValueError("Expected a list of mappings in causal workbench config.")
+    mappings: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("Expected a mapping in causal workbench config.")
+        mappings.append(dict(item))
+    return tuple(mappings)
 
 
 def _resolve_input_path(
@@ -275,6 +315,79 @@ def _analysis_columns(config: CausalWorkbenchConfig) -> list[str]:
         seen.add(column)
         ordered.append(column)
     return ordered
+
+
+def _derive_treatment(frame: pd.DataFrame, config: CausalWorkbenchConfig) -> _DerivedTreatment:
+    derivation = config.treatment_derivation
+    kind = str(derivation.get("kind", "direct_binary"))
+    if kind == "direct_binary":
+        source_column = str(derivation.get("source_column", config.treatment_column))
+        return _DerivedTreatment(
+            values=_coerce_binary(frame[source_column]),
+            exclusion_masks={},
+        )
+    if kind == "minimum_threshold":
+        source_column = str(derivation["source_column"])
+        threshold = float(derivation["threshold"])
+        numeric = pd.to_numeric(frame[source_column], errors="coerce")
+        values = pd.Series(pd.NA, index=frame.index, dtype="Float64")
+        values = values.mask(numeric < threshold, 0.0)
+        values = values.mask(numeric >= threshold, 1.0)
+        return _DerivedTreatment(values=values.astype("float64"), exclusion_masks={})
+    if kind == "bmi_obesity_vs_normal":
+        source_column = str(derivation["source_column"])
+        bmi = pd.to_numeric(frame[source_column], errors="coerce")
+        normal_min = float(derivation.get("normal_min", 18.5))
+        normal_max = float(derivation.get("normal_max", 25.0))
+        obesity_min = float(derivation.get("obesity_min", 30.0))
+        normal = (bmi >= normal_min) & (bmi < normal_max)
+        obese = bmi >= obesity_min
+        outside_contrast = bmi.notna() & ~(normal | obese)
+        values = pd.Series(pd.NA, index=frame.index, dtype="Float64")
+        values = values.mask(normal, 0.0)
+        values = values.mask(obese, 1.0)
+        return _DerivedTreatment(
+            values=values.astype("float64"),
+            exclusion_masks={"outside_bmi_obesity_vs_normal_contrast": outside_contrast},
+        )
+    if kind == "heavy_alcohol_by_sex":
+        source_column = str(derivation["source_column"])
+        sex_column = str(derivation.get("sex_column", "sex"))
+        female_threshold = float(derivation.get("female_threshold", 7.0))
+        male_threshold = float(derivation.get("male_threshold", 14.0))
+        drinks = pd.to_numeric(frame[source_column], errors="coerce")
+        sex = frame[sex_column].astype("string").str.lower()
+        female = sex == "female"
+        male = sex == "male"
+        heavy = (female & (drinks > female_threshold)) | (male & (drinks > male_threshold))
+        not_heavy = (female | male) & drinks.notna() & ~heavy
+        values = pd.Series(pd.NA, index=frame.index, dtype="Float64")
+        values = values.mask(not_heavy, 0.0)
+        values = values.mask(heavy, 1.0)
+        return _DerivedTreatment(values=values.astype("float64"), exclusion_masks={})
+    raise ValueError(f"Unsupported causal treatment derivation kind: {kind}")
+
+
+def _apply_exclusion_rules(
+    frame: pd.DataFrame,
+    config: CausalWorkbenchConfig,
+    exclusions: dict[str, int],
+) -> pd.DataFrame:
+    working = frame
+    for rule in config.exclusion_rules:
+        kind = str(rule["kind"])
+        name = str(rule.get("name", kind))
+        if kind == "numeric_range":
+            column = str(rule["column"])
+            lower = float(rule["min"])
+            upper = float(rule["max"])
+            values = pd.to_numeric(working[column], errors="coerce")
+            mask = values.isna() | (values < lower) | (values > upper)
+        else:
+            raise ValueError(f"Unsupported causal exclusion rule kind: {kind}")
+        exclusions[name] = int(mask.sum())
+        working = working.loc[~mask].copy()
+    return working
 
 
 def _coerce_binary(series: pd.Series) -> pd.Series:

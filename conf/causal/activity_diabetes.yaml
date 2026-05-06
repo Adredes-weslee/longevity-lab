@@ -1,0 +1,88 @@
+schema_version: 1
+question_id: physical_activity_diabetes
+title: Meeting physical-activity guidance and diagnosed diabetes
+source_question_registry: conf/causal/questions.yaml
+data:
+  year: 2023
+  base_dir: data
+  input_path: null
+  sample_path: data/sample/integrated_person_year_sample.csv
+  use_sample_if_missing: true
+treatment_derivation:
+  kind: minimum_threshold
+  source_column: exercise_minutes_per_week
+  threshold: 150
+outcome:
+  label_field: label_diabetes
+columns:
+  treatment: meets_physical_activity_guidance
+  outcome: label_diabetes
+  sample_weight: survey_weight
+  required:
+    - year
+    - state_fips
+    - sex
+    - race_ethnicity
+    - age
+    - bmi
+    - smoker
+    - alcohol_servings_per_week
+    - exercise_minutes_per_week
+    - annual_aqi
+    - has_healthcare_coverage
+    - has_personal_doctor
+    - cost_barrier_to_care
+    - last_checkup_within_year
+    - label_diabetes
+    - survey_weight
+  adjustment:
+    - age
+    - sex
+    - race_ethnicity
+    - smoker
+    - alcohol_servings_per_week
+    - annual_aqi
+    - has_healthcare_coverage
+    - has_personal_doctor
+    - cost_barrier_to_care
+    - last_checkup_within_year
+    - state_fips
+    - year
+  categorical:
+    - sex
+    - race_ethnicity
+    - state_fips
+    - year
+  excluded:
+    - label_diabetes_components
+    - physical_health_days
+    - bmi_in_primary_total_effect_model
+    - model_outputs
+exclusion_rules:
+  - kind: numeric_range
+    name: outside_adult_age_range
+    column: age
+    min: 18
+    max: 100
+assumptions:
+  - "Consistency: the processed physical-activity minutes field represents the guidance contrast."
+  - "Exchangeability: measured adjustment columns block confounding paths named in the DAG."
+  - "Positivity: comparable active and inactive respondents exist across adjustment strata."
+  - "Survey weights approximate the eligible BRFSS adult population for descriptive weighting."
+diagnostics:
+  min_propensity: 0.05
+  max_propensity: 0.95
+  trim_min_propensity: 0.05
+  trim_max_propensity: 0.95
+  max_abs_smd_warning: 0.25
+estimator:
+  method: weighted_logistic_g_computation
+  random_state: 42
+reports:
+  output_dir: data/processed/reports/causal/physical_activity_diabetes
+  json_name: physical_activity_diabetes_report.json
+  markdown_name: physical_activity_diabetes_report.md
+serving_policy:
+  api_exposed: false
+  ui_exposed: false
+  statement: Causal workbench reports are not served through API or UI.

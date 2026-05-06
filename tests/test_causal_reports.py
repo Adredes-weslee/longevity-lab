@@ -6,9 +6,14 @@ import json
 from pathlib import Path
 
 import pandas as pd  # type: ignore[import-untyped]
+import pytest
 
-from longevity_lab.causal.datasets import load_smoking_lung_config
-from longevity_lab.causal.reports import run_smoking_lung_workbench
+from longevity_lab.causal.datasets import (
+    load_causal_config_for_question,
+    load_causal_workbench_config,
+    load_smoking_lung_config,
+)
+from longevity_lab.causal.reports import run_causal_workbench, run_smoking_lung_workbench
 
 
 def _write_report_input(path: Path, *, rows: int = 120) -> None:
@@ -19,11 +24,16 @@ def _write_report_input(path: Path, *, rows: int = 120) -> None:
         older = idx % 6 in {0, 1, 2}
         high_aqi = idx % 5 == 0
         outcome = smoker or (older and high_aqi) or idx % 17 == 0
+        sex = "female" if idx % 2 == 0 else "male"
+        alcohol = idx % 18
+        heavy_alcohol = alcohol > (7 if sex == "female" else 14)
+        bmi = 21.0 + float(idx % 16)
+        exercise = 30 + (idx % 10) * 30
         records.append(
             {
                 "year": 2023,
                 "state_fips": ["01", "06", "12"][idx % 3],
-                "sex": "female" if idx % 2 == 0 else "male",
+                "sex": sex,
                 "race_ethnicity": [
                     "white_non_hispanic",
                     "black_non_hispanic",
@@ -31,10 +41,10 @@ def _write_report_input(path: Path, *, rows: int = 120) -> None:
                     "other_non_hispanic",
                 ][idx % 4],
                 "age": 30 + (idx % 50),
-                "bmi": 21.0 + float(idx % 16),
+                "bmi": bmi,
                 "smoker": smoker,
-                "alcohol_servings_per_week": idx % 14,
-                "exercise_minutes_per_week": 30 + (idx % 10) * 30,
+                "alcohol_servings_per_week": alcohol,
+                "exercise_minutes_per_week": exercise,
                 "annual_aqi": 45 + (idx % 9) * 8,
                 "has_healthcare_coverage": idx % 11 != 0,
                 "has_personal_doctor": idx % 7 != 0,
@@ -44,6 +54,8 @@ def _write_report_input(path: Path, *, rows: int = 120) -> None:
                 "physical_health_days": idx % 30,
                 "mental_health_days": (idx * 2) % 30,
                 "label_chronic_lung_disease": int(outcome),
+                "label_diabetes": int((bmi >= 30.0) or older or idx % 23 == 0),
+                "label_depression": int(heavy_alcohol or exercise < 120 or idx % 19 == 0),
                 "survey_weight": 1.0 + float(idx % 5) * 0.5,
             }
         )
@@ -69,8 +81,17 @@ def test_run_smoking_lung_workbench_writes_json_and_markdown(tmp_path: Path) -> 
 
     payload = json.loads(result.json_path.read_text(encoding="utf-8"))
     assert payload["question_id"] == "smoking_chronic_lung_disease"
+    assert Path(payload["run_config_path"]).parts[-3:] == (
+        "conf",
+        "causal",
+        "smoking_lung.yaml",
+    )
     assert payload["serving_policy"]["api_exposed"] is False
     assert payload["serving_policy"]["ui_exposed"] is False
+    assert payload["question"]["treatment"]["derivation"] == {
+        "kind": "direct_binary",
+        "source_column": "smoker",
+    }
     assert payload["analysis_dataset"]["rows"] == 120
     assert payload["estimate"]["method"] == "weighted_logistic_g_computation"
     assert -1.0 <= payload["estimate"]["risk_difference"] <= 1.0
@@ -88,13 +109,13 @@ def test_run_smoking_lung_workbench_writes_json_and_markdown(tmp_path: Path) -> 
         "adult_height_if_available",
         "interview_month_if_available",
     }
-    assert payload["negative_controls"]["exposures"] == [
-        {
-            "name": "within_stratum_permuted_smoking_status",
-            "status": "ok",
-            "reason": "Implemented as `permuted_treatment_placebo` with a fixed seed.",
-        }
-    ]
+    assert payload["negative_controls"]["exposures"][0]["name"] == (
+        "within_stratum_permuted_smoking_status"
+    )
+    assert payload["negative_controls"]["exposures"][0]["status"] == "not_run"
+    assert (
+        "within-stratum placebo exposure" in payload["negative_controls"]["exposures"][0]["reason"]
+    )
     sensitivity_by_name = {item["name"]: item for item in payload["sensitivity_checks"]}
     assert sensitivity_by_name["dowhy_placebo_subset_random_common_cause_refutations"] == {
         "name": "dowhy_placebo_subset_random_common_cause_refutations",
@@ -114,3 +135,101 @@ def test_run_smoking_lung_workbench_writes_json_and_markdown(tmp_path: Path) -> 
     assert "sex_at_birth_if_available" in markdown
     assert "## Sensitivity Checks" in markdown
     assert "dowhy_placebo_subset_random_common_cause_refutations" in markdown
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_question_id"),
+    [
+        ("activity_diabetes", "physical_activity_diabetes"),
+        ("bmi_diabetes", "bmi_diabetes"),
+        ("alcohol_depression", "alcohol_depression"),
+    ],
+)
+def test_run_causal_workbench_writes_reports_for_each_pr22_question(
+    tmp_path: Path,
+    question: str,
+    expected_question_id: str,
+) -> None:
+    """Each PR22 question should produce a non-serving audit report."""
+    input_path = tmp_path / "integrated_person_year.parquet"
+    output_dir = tmp_path / question
+    _write_report_input(input_path, rows=180)
+    config = load_causal_config_for_question(question)
+
+    result = run_causal_workbench(config=config, input_path=input_path, output_dir=output_dir)
+
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    assert payload["question_id"] == expected_question_id
+    assert "derivation" in payload["question"]["treatment"]
+    assert Path(payload["run_config_path"]).parts[-3:] == ("conf", "causal", f"{question}.yaml")
+    assert payload["serving_policy"] == {
+        "api_exposed": False,
+        "ui_exposed": False,
+        "statement": "Not served through the FastAPI API or React UI.",
+    }
+    assert payload["analysis_dataset"]["rows"] > 0
+    assert payload["status"] in {"exploratory_assumption_bound", "failed_diagnostic"}
+    if payload["status"] == "exploratory_assumption_bound":
+        assert payload["estimate"]["method"] == "weighted_logistic_g_computation"
+        assert "risk_difference" in payload["estimate"]
+    else:
+        assert payload["estimate"] is None
+    assert payload["diagnostics"]["diagnostic_gate"]["status"] in {
+        "passed",
+        "warning",
+        "failed",
+    }
+    assert all("status" in item for item in payload["negative_controls"]["exposures"])
+    for item in payload["negative_controls"]["exposures"]:
+        if item["name"].startswith("within_stratum_permuted_"):
+            expected_status = (
+                "failed_diagnostic" if payload["status"] == "failed_diagnostic" else "not_run"
+            )
+            assert item["status"] == expected_status
+    assert all("status" in item for item in payload["sensitivity_checks"])
+    markdown = result.markdown_path.read_text(encoding="utf-8")
+    assert "Not served through the FastAPI API or React UI" in markdown
+    assert "## Estimate" in markdown
+    assert "## Limitations" in markdown
+
+
+def test_run_causal_workbench_writes_diagnostic_failure_report(tmp_path: Path) -> None:
+    """A question with unmet prerequisites should still produce an explicit failure report."""
+    input_path = tmp_path / "one_class.parquet"
+    output_dir = tmp_path / "failed"
+    _write_report_input(input_path, rows=60)
+    frame = pd.read_parquet(input_path)
+    frame["exercise_minutes_per_week"] = 240
+    frame.to_parquet(input_path, index=False)
+    config = load_causal_config_for_question("activity_diabetes")
+
+    result = run_causal_workbench(config=config, input_path=input_path, output_dir=output_dir)
+
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "failed_diagnostic"
+    assert payload["estimate"] is None
+    assert payload["diagnostics"]["diagnostic_gate"]["status"] == "failed"
+    assert all(item["status"] == "failed_diagnostic" for item in payload["sensitivity_checks"])
+
+
+def test_run_causal_workbench_reports_custom_config_path(tmp_path: Path) -> None:
+    """Report provenance should identify the concrete config that was loaded."""
+    input_path = tmp_path / "integrated_person_year.parquet"
+    output_dir = tmp_path / "custom-output"
+    custom_config_path = tmp_path / "custom_activity.yaml"
+    _write_report_input(input_path, rows=90)
+    custom_config_path.write_text(
+        Path("conf/causal/activity_diabetes.yaml")
+        .read_text(encoding="utf-8")
+        .replace(
+            "physical_activity_diabetes_report.json",
+            "custom_activity_report.json",
+        ),
+        encoding="utf-8",
+    )
+    config = load_causal_workbench_config(custom_config_path)
+
+    result = run_causal_workbench(config=config, input_path=input_path, output_dir=output_dir)
+
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    assert Path(payload["run_config_path"]) == custom_config_path

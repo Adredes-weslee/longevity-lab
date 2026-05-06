@@ -1,0 +1,92 @@
+schema_version: 1
+question_id: alcohol_depression
+title: Heavy alcohol use and diagnosed depression
+source_question_registry: conf/causal/questions.yaml
+data:
+  year: 2023
+  base_dir: data
+  input_path: null
+  sample_path: data/sample/integrated_person_year_sample.csv
+  use_sample_if_missing: true
+treatment_derivation:
+  kind: heavy_alcohol_by_sex
+  source_column: alcohol_servings_per_week
+  sex_column: sex
+  female_threshold: 7
+  male_threshold: 14
+outcome:
+  label_field: label_depression
+columns:
+  treatment: heavy_alcohol_use
+  outcome: label_depression
+  sample_weight: survey_weight
+  required:
+    - year
+    - state_fips
+    - sex
+    - race_ethnicity
+    - age
+    - bmi
+    - smoker
+    - alcohol_servings_per_week
+    - exercise_minutes_per_week
+    - annual_aqi
+    - has_healthcare_coverage
+    - has_personal_doctor
+    - cost_barrier_to_care
+    - last_checkup_within_year
+    - label_depression
+    - survey_weight
+  adjustment:
+    - age
+    - sex
+    - race_ethnicity
+    - smoker
+    - exercise_minutes_per_week
+    - bmi
+    - annual_aqi
+    - has_healthcare_coverage
+    - has_personal_doctor
+    - cost_barrier_to_care
+    - last_checkup_within_year
+    - state_fips
+    - year
+  categorical:
+    - sex
+    - race_ethnicity
+    - state_fips
+    - year
+  excluded:
+    - label_depression_components
+    - mental_health_days
+    - current_mental_health_treatment
+    - general_health_or_social_support_after_exposure
+    - model_outputs
+exclusion_rules:
+  - kind: numeric_range
+    name: outside_adult_age_range
+    column: age
+    min: 18
+    max: 100
+assumptions:
+  - "Consistency: the processed alcohol servings field and sex-specific thresholds represent heavy use."
+  - "Exchangeability: measured adjustment columns block confounding paths named in the DAG."
+  - "Positivity: comparable heavy and non-heavy drinkers exist across adjustment strata."
+  - "Survey weights approximate the eligible BRFSS adult population for descriptive weighting."
+diagnostics:
+  min_propensity: 0.05
+  max_propensity: 0.95
+  trim_min_propensity: 0.05
+  trim_max_propensity: 0.95
+  max_abs_smd_warning: 0.25
+estimator:
+  method: weighted_logistic_g_computation
+  random_state: 42
+reports:
+  output_dir: data/processed/reports/causal/alcohol_depression
+  json_name: alcohol_depression_report.json
+  markdown_name: alcohol_depression_report.md
+serving_policy:
+  api_exposed: false
+  ui_exposed: false
+  statement: Causal workbench reports are not served through API or UI.
