@@ -1,0 +1,444 @@
+{
+  "schema_version": 1,
+  "screened_on": "2026-05-06",
+  "decision_values": [
+    "reject",
+    "watchlist",
+    "context-only",
+    "validation-only",
+    "ready-for-ablation"
+  ],
+  "rubric": [
+    {
+      "criterion": "Public access",
+      "required_evidence": "Official public landing page plus a scriptable download/API path; no private credentials, proprietary datasets, or manual-only exports.",
+      "pass_condition": "The access method can be automated and cited from an official source without storing secrets."
+    },
+    {
+      "criterion": "Join feasibility",
+      "required_evidence": "Documented geography and time keys that can support state-year, county-year, tract-year, or separate validation semantics.",
+      "pass_condition": "The source has a defensible join path or is explicitly marked validation-only with no row join to BRFSS."
+    },
+    {
+      "criterion": "Prior signal rationale",
+      "required_evidence": "A plausible relationship to modeled conditions, scenario sensitivity, contextual explanation, fairness review, or external validation.",
+      "pass_condition": "The source is not added just because it is available; it must target a named model/report use."
+    },
+    {
+      "criterion": "Bias review",
+      "required_evidence": "Known limitations, modeled-estimate risks, missingness, suppression, survey coverage, ecological fallacy, and temporal mismatch are recorded.",
+      "pass_condition": "A future PR can present the source with caveats that match the measurement process."
+    },
+    {
+      "criterion": "Operational fit",
+      "required_evidence": "Expected local size, processing complexity, and deployment implications are compatible with the local-first repo.",
+      "pass_condition": "Raw and processed outputs remain gitignored, and a dev/sample path can be kept small."
+    },
+    {
+      "criterion": "Ablation plan",
+      "required_evidence": "A concrete first experiment or an explicit no-training decision for context-only and validation-only sources.",
+      "pass_condition": "Future ingestion defines what lift, stability, or validation check would justify retaining the source."
+    }
+  ],
+  "candidates": [
+    {
+      "source_id": "ahrq_clh_database",
+      "title": "AHRQ Community-Level Health Database",
+      "source_url": "https://www.ahrq.gov/data/innovations/clh-data.html",
+      "supporting_urls": [
+        "https://www.ahrq.gov/sdoh/data-analytics.html"
+      ],
+      "access_method": {
+        "method": "official XLSX downloads by year and geography from AHRQ landing page",
+        "scriptable": true,
+        "credentials_required": false,
+        "manual_only": false,
+        "notes": "The CLH page exposes downloadable data files and documentation; this screen does not download them."
+      },
+      "geography_time_keys": {
+        "geographies": [
+          "county",
+          "ZIP Code",
+          "census tract",
+          "census block group"
+        ],
+        "time_keys": [
+          "year"
+        ],
+        "join_keys": [
+          "county_fips",
+          "zip_code",
+          "tract_geoid",
+          "block_group_geoid",
+          "year"
+        ],
+        "time_coverage": "2009-2023, with geography availability varying by level",
+        "notes": "BRFSS 2023 can only use state-year joins today; lower-geography CLH fields would need aggregation or future geography-aware artifacts."
+      },
+      "expected_size": "Moderate to large: county files are about 10-16 MB per year, tract files about 50-65 MB, and block-group files up to about 262 MB.",
+      "likely_features": [
+        "healthcare provider supply",
+        "insurance and access context",
+        "economic and education context",
+        "physical infrastructure",
+        "community-level health-condition context"
+      ],
+      "target_outcomes": [
+        "healthcare access context",
+        "diabetes",
+        "heart disease",
+        "depression",
+        "chronic lung disease",
+        "equity and subgroup review"
+      ],
+      "join_feasibility": {
+        "level": "medium",
+        "notes": "County-year keys are useful for context tables, but many variables duplicate ACS/SVI/PLACES and BRFSS cannot row-join below state-year in the current contract."
+      },
+      "bias_caveats": [
+        "Curated from heterogeneous source systems with varying missingness and measurement methods.",
+        "Lower-geography context can create ecological-fallacy risk when attached to person-level BRFSS rows.",
+        "Health-system variables may encode access and utilization differences rather than underlying need.",
+        "AHRQ warns not to combine the updated CLH database with prior SDOH v1 files because variable construction changed."
+      ],
+      "first_pass_decision": "watchlist",
+      "decision_rationale": "Keep on watchlist until ACS/SVI/PLACES ablations are stable; use only if it provides nonredundant context or simpler provenance than raw upstream sources.",
+      "rubric": {
+        "public_access": "Pass: official public downloads are available without credentials.",
+        "join_feasibility": "Conditional: county-year is feasible for context, but current prediction rows are state-year only.",
+        "prior_signal_rationale": "Strong for health-system and SDOH context, but much overlaps existing ACS/SVI/PLACES sources.",
+        "bias_review": "Requires variable-by-variable source caveats, suppression review, and temporal alignment checks.",
+        "operational_fit": "Acceptable only for selected county fields; tract/block-group downloads are too broad for a default local build.",
+        "ablation_plan": "After PR20-style context ablations, test a small county-to-state aggregate subset against ACS/SVI-only artifacts."
+      }
+    },
+    {
+      "source_id": "usda_food_environment_food_access",
+      "title": "USDA ERS Food Environment Atlas and Food Access Research Atlas",
+      "source_url": "https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/",
+      "supporting_urls": [
+        "https://www.ers.usda.gov/data-products/food-access-research-atlas/download-the-data"
+      ],
+      "access_method": {
+        "method": "official ZIP/XLSX downloads from USDA ERS landing pages",
+        "scriptable": true,
+        "credentials_required": false,
+        "manual_only": false,
+        "notes": "Food Environment Atlas provides machine-readable CSV ZIP downloads; Food Access Research Atlas provides XLSX and ZIP downloads."
+      },
+      "geography_time_keys": {
+        "geographies": [
+          "county",
+          "census tract"
+        ],
+        "time_keys": [
+          "atlas release year",
+          "measure-specific source year"
+        ],
+        "join_keys": [
+          "county_fips",
+          "tract_geoid",
+          "measure_year"
+        ],
+        "time_coverage": "Food Environment current release updated 2025; Food Access current data file is 2019 with 2010 tract geometry.",
+        "notes": "Food Environment county FIPS can support state aggregation; Food Access tract keys are useful only as contextual geography, not a BRFSS row join."
+      },
+      "expected_size": "Small to moderate: current Food Environment CSV ZIP is about 6.2 MB; Food Access current ZIP is about 8.65 MB and XLSX about 81.83 MB.",
+      "likely_features": [
+        "grocery and supermarket access",
+        "low-income and low-access tract indicators",
+        "food insecurity and SNAP context",
+        "food store and restaurant density",
+        "obesity and diabetes contextual measures"
+      ],
+      "target_outcomes": [
+        "diabetes",
+        "heart disease",
+        "obesity-related risk context",
+        "equity and access context"
+      ],
+      "join_feasibility": {
+        "level": "medium",
+        "notes": "County FIPS and tract GEOID are clear, but current BRFSS training can only use aggregated state-year context unless later artifacts support finer geography."
+      },
+      "bias_caveats": [
+        "Food access measures are area-level proxies and do not measure individual diet or purchasing behavior.",
+        "Food Access uses 2010 tract geography for the current file, which can mismatch newer Census geography and BRFSS years.",
+        "Atlas measures come from many source years, so temporal alignment must be feature-specific.",
+        "SNAP/store density variables may reflect policy and business reporting differences as well as access."
+      ],
+      "first_pass_decision": "ready-for-ablation",
+      "decision_rationale": "Selected county/state-aggregated measures have a plausible diabetes and cardiovascular signal and manageable size; ingestion still requires a focused ablation PR.",
+      "rubric": {
+        "public_access": "Pass: official public ERS downloads are scriptable and require no credentials.",
+        "join_feasibility": "Conditional pass: county/state aggregation is feasible; tract features need careful geography handling.",
+        "prior_signal_rationale": "Strong for diet-access context related to diabetes, obesity, and cardiometabolic risk.",
+        "bias_review": "Must document ecological fallacy, old tract boundaries, and measure-specific source years.",
+        "operational_fit": "Good for a curated CSV subset; do not ingest all Atlas columns by default.",
+        "ablation_plan": "Run no_food_access versus selected_food_access ablations after geography-aware context artifacts exist."
+      }
+    },
+    {
+      "source_id": "county_health_rankings",
+      "title": "County Health Rankings and Roadmaps Analytic Data",
+      "source_url": "https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation",
+      "supporting_urls": [
+        "https://github.com/CountyHealthRankings"
+      ],
+      "access_method": {
+        "method": "official CSV/SAS downloads and public GitHub assets",
+        "scriptable": true,
+        "credentials_required": false,
+        "manual_only": false,
+        "notes": "The data documentation page links national annual data, trend data, analytic data, data dictionaries, and select GitHub resources."
+      },
+      "geography_time_keys": {
+        "geographies": [
+          "county",
+          "state",
+          "national"
+        ],
+        "time_keys": [
+          "release year",
+          "measure year"
+        ],
+        "join_keys": [
+          "state_fips",
+          "county_fips",
+          "release_year",
+          "measure_year"
+        ],
+        "time_coverage": "Annual releases with trend files; 2025 release plus March 2026 supplemental release were visible during screening.",
+        "notes": "County keys are clear, but many fields are downstream health outcomes or composites that should not be treated as independent predictors."
+      },
+      "expected_size": "Small to moderate: annual national CSV/SAS analytic and trend downloads, plus documentation; exact sizes vary by release.",
+      "likely_features": [
+        "county health factors",
+        "county health outcomes",
+        "clinical care and access measures",
+        "social and economic factors",
+        "physical environment context"
+      ],
+      "target_outcomes": [
+        "dashboard context",
+        "external reasonableness checks",
+        "county-level trend comparison",
+        "equity and communication context"
+      ],
+      "join_feasibility": {
+        "level": "high",
+        "notes": "County/state/time keys are explicit, but the intended use is context and validation rather than person-level training features."
+      },
+      "bias_caveats": [
+        "Composite rankings and z-score style measures are not raw causal inputs.",
+        "Some measures are modeled, lagged, suppressed, or sourced from other datasets already in the repo.",
+        "Using CHR health outcomes in training could leak target prevalence or create circular validation.",
+        "Comparability varies across states and release years."
+      ],
+      "first_pass_decision": "context-only",
+      "decision_rationale": "Use for dashboards and source comparison, not model training, because many measures are redundant composites or outcome summaries.",
+      "rubric": {
+        "public_access": "Pass: official public files and documentation are available.",
+        "join_feasibility": "Pass for county context; fail for person-level labels.",
+        "prior_signal_rationale": "Useful for communication and reasonableness checks, but weak as novel predictive signal.",
+        "bias_review": "Must separate rankings/composites from source variables and document comparability limits.",
+        "operational_fit": "Acceptable for small context/report tables.",
+        "ablation_plan": "No training ablation by default; compare model aggregates against selected county measures in validation reports only if needed."
+      }
+    },
+    {
+      "source_id": "cdc_wonder_mortality",
+      "title": "CDC WONDER Mortality Query API",
+      "source_url": "https://wonder.cdc.gov/wonder/help/wonder-api.html",
+      "supporting_urls": [
+        "https://wonder.cdc.gov/wonder/help/main.html",
+        "https://wonder.cdc.gov/wonder/help/ucd.html"
+      ],
+      "access_method": {
+        "method": "official XML POST query API returning aggregated statistics",
+        "scriptable": true,
+        "credentials_required": false,
+        "manual_only": false,
+        "notes": "The API can automate summary queries, but CDC notes that National Vital Statistics API queries cannot group or limit mortality and births data by subnational geography."
+      },
+      "geography_time_keys": {
+        "geographies": [
+          "national through API for mortality",
+          "subnational through web UI only"
+        ],
+        "time_keys": [
+          "year",
+          "month for selected datasets"
+        ],
+        "join_keys": [
+          "year",
+          "cause_of_death"
+        ],
+        "time_coverage": "Dataset-specific; underlying-cause help page documents county-level 1999-2020 data in the web application, while API mortality geography is national only.",
+        "notes": "Do not plan a state/county automated join from the WONDER mortality API unless CDC exposes a documented scriptable geography path."
+      },
+      "expected_size": "Small per scripted query because the API returns summarized result tables, not record-level files.",
+      "likely_features": [
+        "age-adjusted mortality rates",
+        "crude death rates",
+        "death counts by ICD-10 cause group",
+        "national cause-of-death time trends"
+      ],
+      "target_outcomes": [
+        "heart disease mortality context",
+        "stroke mortality context",
+        "diabetes mortality context",
+        "chronic lower respiratory disease mortality context",
+        "national validation trend checks"
+      ],
+      "join_feasibility": {
+        "level": "low",
+        "notes": "National API output can align by year and cause, but not by state/county through a scriptable mortality API path."
+      },
+      "bias_caveats": [
+        "Mortality is not incidence or self-reported diagnosis prevalence.",
+        "Cause-of-death coding changes and suppression rules affect comparisons.",
+        "The API applies provider-specific caveats and suppression constraints that must be preserved.",
+        "National-only API output cannot validate geography-specific model behavior."
+      ],
+      "first_pass_decision": "validation-only",
+      "decision_rationale": "Use only for national mortality context and trend sanity checks unless a scriptable subnational path is officially documented.",
+      "rubric": {
+        "public_access": "Pass: public API without private credentials.",
+        "join_feasibility": "Limited: year/cause joins only for mortality API output.",
+        "prior_signal_rationale": "Strong for outcome context, but mortality semantics differ from BRFSS diagnosis labels.",
+        "bias_review": "Must preserve CDC caveats, suppression notes, and mortality-versus-prevalence distinctions.",
+        "operational_fit": "Good for small query outputs.",
+        "ablation_plan": "No training ablation; compare national predicted-risk trends with national mortality-rate context only."
+      }
+    },
+    {
+      "source_id": "cdc_nhanes_public",
+      "title": "CDC NHANES Public-Use Data",
+      "source_url": "https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/",
+      "supporting_urls": [
+        "https://www.cdc.gov/nchs/nhanes/about/index.html"
+      ],
+      "access_method": {
+        "method": "official public-use module downloads and documentation by survey cycle",
+        "scriptable": true,
+        "credentials_required": false,
+        "manual_only": false,
+        "notes": "Public-use data files are downloadable by component; restricted data require RDC access and are out of scope."
+      },
+      "geography_time_keys": {
+        "geographies": [
+          "national survey sample"
+        ],
+        "time_keys": [
+          "two-year survey cycle"
+        ],
+        "join_keys": [
+          "survey_cycle",
+          "respondent_sequence_number"
+        ],
+        "time_coverage": "Continuous NHANES public-use cycles since 1999, with 08/2021-08/2023 and newer cycle pages visible during screening.",
+        "notes": "NHANES can link modules within survey cycle by respondent ID, but it should not row-join to BRFSS."
+      },
+      "expected_size": "Moderate if curated: selected XPT modules by cycle are manageable, while broad lab/exam/diet ingestion can grow quickly.",
+      "likely_features": [
+        "measured BMI and blood pressure",
+        "laboratory biomarkers",
+        "dietary recall and nutrition measures",
+        "questionnaire disease history",
+        "exam-based validation variables"
+      ],
+      "target_outcomes": [
+        "diabetes validation experiments",
+        "cardiometabolic biomarker validation",
+        "obesity and diet context",
+        "measurement-bias review"
+      ],
+      "join_feasibility": {
+        "level": "none",
+        "notes": "NHANES is a separate national survey; use it as a separate validation pipeline rather than attaching rows to BRFSS respondents."
+      },
+      "bias_caveats": [
+        "Complex survey design and weights differ from BRFSS.",
+        "Sample sizes can be small for subgroups and condition-specific labels.",
+        "Restricted geography is not public-use; public data cannot support state/county joins.",
+        "Measurement differences between exam/lab variables and self-reported BRFSS fields must be explicit."
+      ],
+      "first_pass_decision": "validation-only",
+      "decision_rationale": "Valuable for separate biomarker and measurement-bias validation, but not as a training feature source for BRFSS-based artifacts.",
+      "rubric": {
+        "public_access": "Pass for public-use modules; restricted modules are out of scope.",
+        "join_feasibility": "No BRFSS join; internal NHANES module joins only.",
+        "prior_signal_rationale": "Strong for biomarkers and measured health variables that BRFSS lacks.",
+        "bias_review": "Requires survey-weight handling, cycle pooling rules, and measurement-semantics documentation.",
+        "operational_fit": "Acceptable only for curated modules and cycles.",
+        "ablation_plan": "No training ablation; build a separate validation report comparing BRFSS-derived risk patterns with NHANES measured outcomes."
+      }
+    },
+    {
+      "source_id": "cdc_nhis_public",
+      "title": "CDC NHIS Public-Use Data",
+      "source_url": "https://www.cdc.gov/nchs/nhis/documentation/index.html",
+      "supporting_urls": [
+        "https://ftp.cdc.gov/pub/health_statistics/nchs/dataset_documentation/NHIS/2024/Checksum-Filelist.pdf"
+      ],
+      "access_method": {
+        "method": "official public-use CSV/ASCII downloads and documentation by survey year",
+        "scriptable": true,
+        "credentials_required": false,
+        "manual_only": false,
+        "notes": "Public-use files are downloadable from CDC/NCHS; linked restricted files through RDC are out of scope."
+      },
+      "geography_time_keys": {
+        "geographies": [
+          "national survey sample",
+          "public region and urban-rural variables"
+        ],
+        "time_keys": [
+          "survey year"
+        ],
+        "join_keys": [
+          "survey_year",
+          "household_id",
+          "person_id"
+        ],
+        "time_coverage": "Recent annual pages for 2019-2025 are linked from the CDC documentation gateway; earlier years are archived.",
+        "notes": "Public-use NHIS can join internal files within year, but not person rows to BRFSS or county/state context at a granular level."
+      },
+      "expected_size": "Small to moderate: 2024 sample adult CSV is 32.8 MB, sample child CSV is 4.9 MB, and paradata CSV is 15.1 MB.",
+      "likely_features": [
+        "self-reported diagnosed conditions",
+        "health insurance and access",
+        "usual source of care",
+        "mental health measures",
+        "health behavior and demographic covariates"
+      ],
+      "target_outcomes": [
+        "depression benchmark",
+        "healthcare access benchmark",
+        "alternate survey validation",
+        "survey-method sensitivity review"
+      ],
+      "join_feasibility": {
+        "level": "none",
+        "notes": "NHIS is a separate national survey and cannot row-join to BRFSS; use only for external survey benchmarking."
+      },
+      "bias_caveats": [
+        "Question wording and survey mode differ from BRFSS.",
+        "Public-use geography is limited, while linked files require restricted RDC access.",
+        "Survey redesigns can break trend comparability.",
+        "Overlapping self-reported outcomes could duplicate BRFSS rather than validate it independently."
+      ],
+      "first_pass_decision": "watchlist",
+      "decision_rationale": "Keep on watchlist for depression and healthcare-access benchmarking only; do not ingest until a specific validation question beats BRFSS-only alternatives.",
+      "rubric": {
+        "public_access": "Pass for public-use files; restricted linked data are rejected by scope.",
+        "join_feasibility": "No BRFSS join; internal annual file joins only.",
+        "prior_signal_rationale": "Moderate for depression/access benchmarks, weaker for conditions already covered by BRFSS.",
+        "bias_review": "Requires survey redesign, weighting, and construct-alignment review.",
+        "operational_fit": "Good for selected annual public-use files.",
+        "ablation_plan": "No default training ablation; define a depression/access validation question before ingestion."
+      }
+    }
+  ]
+}

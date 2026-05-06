@@ -37,6 +37,12 @@ Each candidate source must pass this screen before ingestion work starts:
 - **Bias review:** limitations, ecological-fallacy risk, missingness, and demographic coverage are documented.
 - **Operational fit:** download size and processing cost are compatible with local development and free-tier deployment constraints.
 
+Optional later sources are tracked in `conf/data_source_candidates.yaml` and summarized in
+`docs/data_source_candidate_screen.md`. A future ingestion PR must first move a candidate through
+that screen with a decision of `ready-for-ablation`, `context-only`, or `validation-only` for the
+specific intended use; `watchlist` and `reject` sources are not eligible for downloader or training
+work.
+
 ### Source Tiers
 
 | Tier | Source | Use | Initial decision |
@@ -47,12 +53,12 @@ Each candidate source must pass this screen before ingestion work starts:
 | Tier 1 | [Census ACS API](https://www.census.gov/programs-surveys/acs/data/data-via-api.html) | Income, education, poverty, insurance, housing, disability, commute, broadband | Curate a small SDOH set; avoid broad variable dumping. |
 | Tier 1 | [CDC/ATSDR SVI](https://www.atsdr.cdc.gov/place-health/php/svi/index.html) | Overall and theme-level social vulnerability | Add as compact equity/context features and subgroup stratification metadata. |
 | Watchlist | EPA environmental justice screening data | Environmental justice and demographic burden indicators | Do not include in the first ingestion wave; use ACS, SVI, and EPA AirData unless a current official EPA download endpoint is verified. |
-| Tier 1 | [AHRQ community-level health data](https://www.ahrq.gov/sdoh/data-analytics.html) | Curated community-level SDOH and health-system context | Consider as an integration shortcut after raw ACS/SVI patterns are stable. |
-| Tier 2 | [USDA Food Environment Atlas](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/) and [Food Access Research Atlas](https://www.ers.usda.gov/data-products/food-access-research-atlas/download-the-data) | Food access, food insecurity, SNAP, stores, obesity/diabetes context | Add selected county/tract measures only after a feature-ablation screen. |
-| Tier 2 | [County Health Rankings](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation) | County health factors, outcomes, and trend context | Use for dashboards and external validation; avoid redundant training features. |
-| Tier 2 | [CDC WONDER API](https://wonder.cdc.gov/wonder/help/wonder-api.html) | Mortality context for heart disease, stroke, diabetes, and chronic lower respiratory disease | Use for external evaluation/context, not as incidence labels. |
-| Research | [NHANES public data](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/) | Biomarkers and measured health variables for validation experiments | Use as a separate validation pipeline; do not row-join to BRFSS. |
-| Research | [NHIS public data](https://www.cdc.gov/nchs/nhis/documentation/index.html) | Alternate self-reported health benchmark | Use only if it improves depression or healthcare-access modeling. |
+| Tier 1 | [AHRQ community-level health data](https://www.ahrq.gov/data/innovations/clh-data.html) | Curated community-level SDOH and health-system context | `watchlist` in the candidate screen; revisit only after ACS/SVI/PLACES ablations are stable. |
+| Tier 2 | [USDA Food Environment Atlas](https://www.ers.usda.gov/data-products/food-environment-atlas/data-access-and-documentation-downloads/) and [Food Access Research Atlas](https://www.ers.usda.gov/data-products/food-access-research-atlas/download-the-data) | Food access, food insecurity, SNAP, stores, obesity/diabetes context | `ready-for-ablation` for a selected county/state-aggregated subset; no broad column dump. |
+| Tier 2 | [County Health Rankings](https://www.countyhealthrankings.org/health-data/methodology-and-sources/data-documentation) | County health factors, outcomes, and trend context | `context-only`; use for dashboards/source comparison and avoid training leakage from rankings or outcomes. |
+| Tier 2 | [CDC WONDER API](https://wonder.cdc.gov/wonder/help/wonder-api.html) | Mortality context for heart disease, stroke, diabetes, and chronic lower respiratory disease | `validation-only`; national mortality API output is not incidence or geography-specific prevalence. |
+| Research | [NHANES public data](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/) | Biomarkers and measured health variables for validation experiments | `validation-only`; use as a separate survey pipeline and do not row-join to BRFSS. |
+| Research | [NHIS public data](https://www.cdc.gov/nchs/nhis/documentation/index.html) | Alternate self-reported health benchmark | `watchlist`; require a concrete depression or healthcare-access validation question before ingestion. |
 
 ## Modeling Strategy
 
@@ -150,6 +156,7 @@ A PR is ready to merge only when:
 | 14 | UI information architecture | 13 | Explorer, Data Evidence, Model Cards, Scenario Lab navigation and layout. |
 | 15 | Explorer UX upgrade | 14 | Improved anatomy, scenario sensitivity, accessibility, and explainability copy. |
 | 16 | Deployment packaging | 13, 14, 15 | Free-tier-ready deployment profile for Render/Vercel plus local artifact strategy. |
+| 28 | Optional data-source candidate screen | 20 preferred | Registry, rubric, and CLI screen for AHRQ, USDA, County Health Rankings, CDC WONDER, NHANES, and NHIS before any ingestion work. |
 
 ## Deployment Direction
 
