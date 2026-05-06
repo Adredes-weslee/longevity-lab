@@ -76,6 +76,32 @@ def test_heterogeneity_suppresses_effects_when_min_cell_size_fails(tmp_path: Pat
     assert any("minimum cell size" in item["reason"] for item in payload["subgroups"])
 
 
+def test_heterogeneity_suppresses_effects_when_overlap_fails(tmp_path: Path) -> None:
+    """Overlap diagnostics should skip subgroups even when cell-size checks pass."""
+    input_path = tmp_path / "integrated_person_year.parquet"
+    _write_balanced_heterogeneity_input(input_path)
+    config = load_smoking_lung_config()
+    prepared = prepare_causal_dataset(input_path=input_path, config=config)
+
+    payload = run_heterogeneity_analysis(
+        prepared,
+        config,
+        min_cell_size=10,
+        min_total_rows=20,
+        min_overlap_rows=1_000,
+    )
+
+    assert payload["status"] == "no_reportable_subgroups"
+    assert payload["subgroups"]
+    assert all(item["status"] == "skipped" for item in payload["subgroups"])
+    assert all(item["estimate"] is None for item in payload["subgroups"])
+    overlap_skips = [
+        item for item in payload["subgroups"] if "Rows inside configured overlap" in item["reason"]
+    ]
+    assert overlap_skips
+    assert all(item["diagnostics"] is not None for item in overlap_skips)
+
+
 def test_heterogeneity_not_run_payload_is_explicit() -> None:
     """Failed primary diagnostics should still yield a typed heterogeneity record."""
     payload = build_heterogeneity_not_run("primary overlap failed")

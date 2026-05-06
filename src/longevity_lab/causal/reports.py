@@ -500,6 +500,8 @@ def _append_heterogeneity_markdown(lines: list[str], heterogeneity: dict[str, An
                 f"{estimate['risk_difference']:.4f} "
                 f"({item['treated_rows']} treated / {item['control_rows']} control)"
             )
+            for warning in item.get("warnings", []):
+                lines.append(f"  - Diagnostic warning: {warning}")
     else:
         lines.append("- No subgroup estimates passed cell-size and overlap diagnostics.")
 
