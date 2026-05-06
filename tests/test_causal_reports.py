@@ -98,6 +98,14 @@ def test_run_smoking_lung_workbench_writes_json_and_markdown(tmp_path: Path) -> 
     assert payload["diagnostics"]["propensity_overlap"]["treated_rows"] > 0
     assert payload["diagnostics"]["propensity_overlap"]["control_rows"] > 0
     assert payload["diagnostics"]["diagnostic_gate"]["status"] in {"passed", "warning"}
+    assert payload["heterogeneity"]["status"] in {"estimated", "no_reportable_subgroups"}
+    assert payload["heterogeneity"]["policy"]["method"] == (
+        "within_subgroup_weighted_logistic_g_computation"
+    )
+    assert any(item["name"] == "sex" for item in payload["heterogeneity"]["candidate_strata"])
+    optional_methods = {item["name"]: item for item in payload["heterogeneity"]["optional_methods"]}
+    assert "causal_forest_dml" in optional_methods
+    assert optional_methods["causal_forest_dml"]["status"] in {"skipped", "ok"}
     assert {item["name"] for item in payload["refutations"]} >= {
         "permuted_treatment_placebo",
         "subset_refit",
@@ -131,6 +139,8 @@ def test_run_smoking_lung_workbench_writes_json_and_markdown(tmp_path: Path) -> 
     assert "# Current smoking and diagnosed chronic lung disease" in markdown
     assert "Not served through the FastAPI API or React UI" in markdown
     assert "weighted_logistic_g_computation" in markdown
+    assert "## Heterogeneity" in markdown
+    assert "causal_forest_dml" in markdown
     assert "## Negative Controls" in markdown
     assert "sex_at_birth_if_available" in markdown
     assert "## Sensitivity Checks" in markdown
@@ -169,6 +179,8 @@ def test_run_causal_workbench_writes_reports_for_each_pr22_question(
     }
     assert payload["analysis_dataset"]["rows"] > 0
     assert payload["status"] in {"exploratory_assumption_bound", "failed_diagnostic"}
+    assert "heterogeneity" in payload
+    assert "optional_methods" in payload["heterogeneity"]
     if payload["status"] == "exploratory_assumption_bound":
         assert payload["estimate"]["method"] == "weighted_logistic_g_computation"
         assert "risk_difference" in payload["estimate"]
@@ -208,6 +220,8 @@ def test_run_causal_workbench_writes_diagnostic_failure_report(tmp_path: Path) -
     payload = json.loads(result.json_path.read_text(encoding="utf-8"))
     assert payload["status"] == "failed_diagnostic"
     assert payload["estimate"] is None
+    assert payload["heterogeneity"]["status"] == "failed_diagnostic"
+    assert payload["heterogeneity"]["subgroups"] == []
     assert payload["diagnostics"]["diagnostic_gate"]["status"] == "failed"
     assert all(item["status"] == "failed_diagnostic" for item in payload["sensitivity_checks"])
 

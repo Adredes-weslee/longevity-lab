@@ -89,7 +89,7 @@ Legend:
 - [DONE] Machine-readable causal question registry with populations, treatments, outcomes, estimands, confounders, exclusions, DAG assumptions, negative controls, and sensitivity checks (`conf/causal/questions.yaml`).
 - [DONE] Predictive risk and causal estimates are documented as separate surfaces; Explorer scenario deltas must not be described as causal effects.
 - [DONE] Non-serving smoking-to-chronic-lung-disease workbench prepares an analysis table, records DAG assumptions, runs overlap/balance diagnostics, estimates a weighted logistic g-computation risk difference, runs local refutations, and writes JSON/Markdown reports under gitignored `data/processed/reports/causal/` (`src/longevity_lab/causal/`, `conf/causal/smoking_lung.yaml`).
-- [DONE] Causal workbench coverage extends to physical activity-to-diabetes, BMI-to-diabetes, and alcohol-to-depression audit reports; richer heterogeneous-effect experiments remain future work.
+- [DONE] Causal workbench coverage extends to physical activity-to-diabetes, BMI-to-diabetes, and alcohol-to-depression audit reports, with non-serving subgroup and optional heterogeneous-effect report sections.
 
 ### Backend/API
 

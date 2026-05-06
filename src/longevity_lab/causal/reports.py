@@ -19,6 +19,10 @@ from longevity_lab.causal.datasets import (
     resolve_repo_path,
 )
 from longevity_lab.causal.estimators import estimate_causal_effect
+from longevity_lab.causal.heterogeneity import (
+    build_heterogeneity_not_run,
+    run_heterogeneity_analysis,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +60,11 @@ def run_causal_workbench(
         return _write_payload(payload=payload, config=config, report_output_dir=report_output_dir)
 
     estimated = estimate_causal_effect(prepared, config)
+    heterogeneity = (
+        run_heterogeneity_analysis(prepared, config)
+        if _can_run_heterogeneity(estimated)
+        else build_heterogeneity_not_run(_diagnostic_failure_reason(estimated["diagnostics"]))
+    )
 
     payload = _build_report_payload(
         config=config,
@@ -63,6 +72,7 @@ def run_causal_workbench(
         estimate=estimated["estimate"],
         diagnostics=estimated["diagnostics"],
         refutations=estimated["refutations"],
+        heterogeneity=heterogeneity,
     )
     return _write_payload(payload=payload, config=config, report_output_dir=report_output_dir)
 
@@ -131,6 +141,7 @@ def _build_report_payload(
     estimate: dict[str, Any] | None,
     diagnostics: dict[str, Any],
     refutations: list[dict[str, Any]],
+    heterogeneity: dict[str, Any],
 ) -> dict[str, Any]:
     report_status = (
         "failed_diagnostic"
@@ -183,6 +194,7 @@ def _build_report_payload(
         "assumptions": list(config.assumptions),
         "diagnostics": diagnostics,
         "estimate": estimate,
+        "heterogeneity": heterogeneity,
         "refutations": refutations,
         "negative_controls": {
             "outcomes": _negative_control_outcome_statuses(config, report_status),
@@ -224,6 +236,7 @@ def _build_preparation_failure_payload(
             "overlap_trimmed_refit",
         )
     ]
+    heterogeneity = build_heterogeneity_not_run(f"Dataset preparation failed: {reason}")
     return {
         "schema_version": 1,
         "created_at": dt.datetime.now(dt.UTC).isoformat(),
@@ -270,6 +283,7 @@ def _build_preparation_failure_payload(
         "assumptions": list(config.assumptions),
         "diagnostics": diagnostics,
         "estimate": None,
+        "heterogeneity": heterogeneity,
         "refutations": refutations,
         "negative_controls": {
             "outcomes": _negative_control_outcome_statuses(config, "failed_diagnostic"),
@@ -286,6 +300,19 @@ def _build_preparation_failure_payload(
         ),
         "limitations": _limitations(config),
     }
+
+
+def _can_run_heterogeneity(estimated: dict[str, Any]) -> bool:
+    estimate = estimated["estimate"]
+    diagnostics = estimated["diagnostics"]
+    return estimate is not None and diagnostics["diagnostic_gate"]["status"] != "failed"
+
+
+def _diagnostic_failure_reason(diagnostics: dict[str, Any]) -> str:
+    warnings = diagnostics["diagnostic_gate"].get("warnings", [])
+    if warnings:
+        return "; ".join(str(item) for item in warnings)
+    return "Primary causal diagnostics failed."
 
 
 def _limitations(config: CausalWorkbenchConfig) -> list[str]:
@@ -381,6 +408,7 @@ def _render_markdown(payload: dict[str, Any]) -> str:
     )
     for item in diagnostics["top_standardized_mean_differences"][:5]:
         lines.append(f"- `{item['feature']}`: {item['abs_standardized_mean_difference']:.4f}")
+    _append_heterogeneity_markdown(lines, payload["heterogeneity"])
     lines.extend(
         [
             "",
@@ -434,6 +462,58 @@ def _render_markdown(payload: dict[str, Any]) -> str:
     )
     lines.extend(f"- {limitation}" for limitation in payload["limitations"])
     return "\n".join(lines) + "\n"
+
+
+def _append_heterogeneity_markdown(lines: list[str], heterogeneity: dict[str, Any]) -> None:
+    policy = heterogeneity["policy"]
+    lines.extend(
+        [
+            "",
+            "## Heterogeneity",
+            "",
+            f"- Status: `{heterogeneity['status']}`",
+            f"- Method: `{policy['method']}`",
+            f"- Minimum treated/control cell size: {policy['min_cell_size_per_treatment_arm']}",
+            "- Minimum rows inside configured overlap: "
+            f"{policy.get('min_rows_inside_configured_overlap', 'n/a')}",
+            "",
+            "Candidate strata:",
+            "",
+        ]
+    )
+    for item in heterogeneity["candidate_strata"]:
+        detail = (
+            f"{item.get('estimated_subgroups', 0)} estimated, "
+            f"{item.get('skipped_subgroups', 0)} skipped"
+            if item["status"] == "ok"
+            else str(item.get("reason", "not reportable"))
+        )
+        lines.append(f"- `{item['name']}`: {item['status']} ({detail})")
+
+    reportable = [item for item in heterogeneity["subgroups"] if item["status"] == "ok"]
+    lines.extend(["", "Reportable subgroup effects:", ""])
+    if reportable:
+        for item in reportable[:12]:
+            estimate = item["estimate"]
+            lines.append(
+                f"- `{item['stratum']}={item['level']}`: risk difference "
+                f"{estimate['risk_difference']:.4f} "
+                f"({item['treated_rows']} treated / {item['control_rows']} control)"
+            )
+    else:
+        lines.append("- No subgroup estimates passed cell-size and overlap diagnostics.")
+
+    skipped_count = sum(1 for item in heterogeneity["subgroups"] if item["status"] != "ok")
+    if skipped_count:
+        lines.append(f"- Skipped subgroup levels: {skipped_count}")
+
+    lines.extend(["", "Optional heterogeneous-effect methods:", ""])
+    for item in heterogeneity["optional_methods"]:
+        lines.append(f"- `{item['name']}`: {item['status']} ({item['reason']})")
+
+    if heterogeneity["warnings"]:
+        lines.extend(["", "Heterogeneity warnings:", ""])
+        lines.extend(f"- {warning}" for warning in heterogeneity["warnings"])
 
 
 def _negative_control_outcome_statuses(

@@ -1,6 +1,6 @@
 # Causal Inference Specification
 
-Status: PR 11 defines the causal question registry. PR 12 adds a non-serving smoking-to-chronic-lung-disease workbench prototype that writes local reports only. PR 22 extends the same non-serving workbench to physical activity-to-diabetes, BMI-to-diabetes, and alcohol-to-depression questions.
+Status: PR 11 defines the causal question registry. PR 12 adds a non-serving smoking-to-chronic-lung-disease workbench prototype that writes local reports only. PR 22 extends the same non-serving workbench to physical activity-to-diabetes, BMI-to-diabetes, and alcohol-to-depression questions. PR 23 adds non-serving subgroup and heterogeneous-effect report sections with conservative diagnostics.
 
 ## Purpose and Boundary
 
@@ -371,3 +371,39 @@ Each run writes one JSON and one Markdown audit report under
 `data/processed/reports/causal/<question_id>/`. If a question lacks valid treatment/outcome classes
 or fails diagnostic prerequisites, the workbench still writes a `failed_diagnostic` report with
 explicit not-run statuses for estimates, negative controls, and sensitivity hooks.
+
+## PR 23 Heterogeneous-Effect Reports
+
+Every successful causal report now includes a `heterogeneity` section in the JSON and Markdown
+outputs. These sections remain local audit artifacts under `data/processed/reports/causal/` and are
+not served through FastAPI or displayed in the React UI.
+
+The subgroup screen estimates within-stratum weighted logistic g-computation only when all
+conservative prerequisites pass:
+
+- At least 50 total rows in the subgroup.
+- At least 25 treated rows and 25 control rows.
+- At least 50 rows inside the configured propensity-overlap bounds.
+- Both treatment arms and both outcome classes are present.
+- Treated and control propensity ranges share common support.
+
+Configured subgroup candidates are reported when the corresponding columns are present:
+
+- Fixed age bands from `age`.
+- `sex`.
+- `race_ethnicity`.
+- `state_fips` and survey year when more than one level is available.
+- Context bands such as `annual_aqi`, plus ACS/SVI/EPA numeric context columns when present in the
+  analysis table.
+
+If any subgroup fails cell-size or overlap checks, the report writes a skipped subgroup record with
+the diagnostic reason and no effect estimate. This prevents small or poorly overlapped slices from
+being presented as heterogeneous effects.
+
+Optional heterogeneous-effect methods remain optional:
+
+- `causal_forest_dml` uses EconML only when the `econml` package is installed and the analysis table
+  is large enough for a conservative screen. Default installs write an explicit skipped-method
+  record instead of failing.
+- `dowhy_heterogeneity_refuters` writes an explicit skipped or not-run record because DoWhy is not a
+  default dependency and no concrete PR23 refuter is configured.
