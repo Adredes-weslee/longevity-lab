@@ -284,7 +284,7 @@ function App(): JSX.Element {
             />
           ) : null}
           {view === 'lab' ? (
-            <ScenarioLabPage comparison={comparison} loading={busy} />
+            <ScenarioLabPage comparison={comparison} geographies={geographies} loading={busy} />
           ) : null}
         </>
       ) : (

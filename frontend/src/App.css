@@ -311,6 +311,36 @@
   padding: 1rem;
 }
 
+.context-transparency-card,
+.context-caveat-panel {
+  border-color: rgba(86, 180, 233, 0.22);
+}
+
+.compact-metadata-list {
+  gap: 0.55rem;
+}
+
+.compact-metadata-list div {
+  padding: 0.65rem 0.75rem;
+}
+
+.context-caveat-panel {
+  background: rgba(86, 180, 233, 0.08);
+  border: 1px solid rgba(86, 180, 233, 0.2);
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem;
+}
+
+.context-caveat-panel p {
+  margin: 0;
+}
+
+.context-evidence-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .geography-context-header {
   align-items: start;
   display: flex;
@@ -1572,6 +1602,7 @@
   .control-field-header,
   .control-inputs,
   .page-card-grid,
+  .context-evidence-grid,
   .metric-card-grid,
   .page-stat-grid {
     grid-template-columns: minmax(0, 1fr);

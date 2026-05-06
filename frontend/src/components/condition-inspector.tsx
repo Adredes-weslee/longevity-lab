@@ -244,6 +244,24 @@ export function ConditionInspector({
             </div>
           </div>
 
+          <section className="context-caveat-panel" data-testid="drilldown-context-caveat">
+            <p className="condition-driver-label">Personal inputs vs geography context</p>
+            <p className="muted">
+              Drivers and deltas summarize model associations for the selected profile. Personal
+              inputs are the editable fields such as age, BMI, smoking, activity, alcohol, and air
+              quality. State-year ACS/SVI context is background geography metadata only when the
+              active artifact declares it.
+            </p>
+            {comparison?.model_metadata?.contextual_geography.available ? (
+              <p className="muted">
+                Active context source: {comparison.model_metadata.contextual_geography.source ?? 'not declared'}
+                {' '}with {comparison.model_metadata.contextual_geography.feature_count} state-year features.
+              </p>
+            ) : (
+              <p className="muted">No ACS/SVI state-year context is active in this scoring mode.</p>
+            )}
+          </section>
+
           {recommendationConditions.length ? (
             <section className="recommendation-panel" data-testid="health-guidance">
               <div className="panel-header">

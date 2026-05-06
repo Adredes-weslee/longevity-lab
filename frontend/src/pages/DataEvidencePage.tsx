@@ -132,6 +132,69 @@ function GapCard({ gap }: { gap: EvidenceInactiveGap }): JSX.Element {
   )
 }
 
+function ContextEvidenceSections({ status }: { status: EvidenceStatusResponse }): JSX.Element {
+  const context = status.model_metadata.contextual_geography
+  const countyGap = status.inactive_gaps.find((gap) => gap.gap_id === 'county_context_not_active')
+  const placesGap = status.inactive_gaps.find((gap) => gap.gap_id === 'places_validation_only')
+
+  return (
+    <section className="page-card-grid context-evidence-grid" data-testid="context-evidence-sections">
+      <article className="panel info-card" data-testid="active-state-context">
+        <div className="panel-header">
+          <h3>Active state-year context</h3>
+          <p>
+            ACS/SVI context affects scoring only when the active artifact manifest declares a
+            state-year lookup contract.
+          </p>
+        </div>
+        <dl className="metadata-list">
+          <div>
+            <dt>Status</dt>
+            <dd>{context.available ? 'Active in artifact scoring' : 'Inactive for current runtime'}</dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd>{context.source ?? 'Not declared by active model'}</dd>
+          </div>
+          <div>
+            <dt>Features</dt>
+            <dd>{context.feature_count ? context.features.join(', ') : 'No active context features'}</dd>
+          </div>
+        </dl>
+        <p className="muted">{context.caveat ?? 'State context is background context, not a personal scenario input.'}</p>
+      </article>
+
+      <article className="panel info-card" data-testid="inactive-county-context">
+        <div className="panel-header">
+          <h3>Inactive county context</h3>
+          <p>
+            County-level context remains separated because current BRFSS serving rows only support
+            state-year semantics.
+          </p>
+        </div>
+        <p className="muted">{countyGap?.explanation ?? 'County context is not served for predictions.'}</p>
+        {countyGap?.evidence.length ? (
+          <p className="muted">Evidence: {countyGap.evidence.join(', ')}</p>
+        ) : null}
+      </article>
+
+      <article className="panel info-card" data-testid="validation-only-places">
+        <div className="panel-header">
+          <h3>Validation-only PLACES</h3>
+          <p>
+            PLACES is used for aggregate reasonableness checks and contextual evidence, not as
+            person-level training labels.
+          </p>
+        </div>
+        <p className="muted">{placesGap?.explanation ?? 'PLACES remains validation/context only.'}</p>
+        {placesGap?.evidence.length ? (
+          <p className="muted">Evidence: {placesGap.evidence.join(', ')}</p>
+        ) : null}
+      </article>
+    </section>
+  )
+}
+
 export function DataEvidencePage({
   bootstrap,
   status,
@@ -279,6 +342,8 @@ export function DataEvidencePage({
               ))}
             </div>
           </section>
+
+          <ContextEvidenceSections status={status} />
 
           {status.asset_groups.map((group) => (
             <AssetGroupCard group={group} key={group.group_id} />

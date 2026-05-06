@@ -4,11 +4,13 @@ import { disclaimers } from '../content/disclaimers'
 import { useScenario } from '../state/scenario-context'
 import type {
   FeatureProfile,
+  GeographyOptionsResponse,
   ScenarioCompareResponse,
 } from '../types'
 
 interface ScenarioLabPageProps {
   comparison: ScenarioCompareResponse | null
+  geographies: GeographyOptionsResponse | null
   loading: boolean
 }
 
@@ -67,10 +69,19 @@ function formatPercent(value: number): string {
 
 export function ScenarioLabPage({
   comparison,
+  geographies,
   loading,
 }: ScenarioLabPageProps): JSX.Element {
   const { state } = useScenario()
   const rows = changedRows(state.baseline, state.candidate)
+  const selectedOption = state.geography
+    ? geographies?.options.find(
+        (option) =>
+          option.state_fips === state.geography?.state_fips &&
+          option.year === state.geography?.year,
+      )
+    : null
+  const context = comparison?.model_metadata?.contextual_geography ?? null
   const sortedDeltas = [...(comparison?.organ_deltas ?? [])].sort(
     (left, right) => Math.abs(right.score_delta) - Math.abs(left.score_delta),
   )
@@ -145,6 +156,37 @@ export function ScenarioLabPage({
               {loading ? 'Loading scenario comparison...' : 'Scenario comparison not loaded yet.'}
             </p>
           )}
+        </article>
+
+        <article className="panel info-card" data-testid="scenario-context-summary">
+          <div className="panel-header">
+            <h3>Geography/context fields</h3>
+            <p>These rows document background context used by the compare request.</p>
+          </div>
+          <ul className="comparison-list">
+            <li>
+              <span>Selected state/year</span>
+              <strong>
+                {selectedOption
+                  ? `${selectedOption.label} (${selectedOption.year})`
+                  : state.geography
+                    ? `${state.geography.state_fips} (${state.geography.year})`
+                    : 'No state selected'}
+              </strong>
+            </li>
+            <li>
+              <span>Context model use</span>
+              <strong>
+                {context?.available ? 'Active in artifact scoring' : 'Inactive for scoring'}
+              </strong>
+            </li>
+            <li>
+              <span>Context features</span>
+              <strong>
+                {context?.features.length ? context.features.join(', ') : 'No active context features'}
+              </strong>
+            </li>
+          </ul>
         </article>
       </section>
 

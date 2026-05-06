@@ -120,6 +120,19 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await expect(page.getByTestId('explorer-disclaimer')).toContainText(
     'not personal behaviors',
   )
+  await expect(page.getByTestId('context-transparency-card')).toBeVisible()
+  await expect(page.getByTestId('context-transparency-card')).toContainText(
+    'State-year context status',
+  )
+  await expect(page.getByTestId('context-transparency-card')).toContainText(
+    'Inactive for scoring',
+  )
+  await expect(page.getByTestId('context-transparency-card')).toContainText(
+    'Lookup readiness',
+  )
+  await expect(page.getByTestId('context-transparency-card')).toContainText(
+    'Lookup status:',
+  )
   await expect(page.getByTestId('contract-metadata')).toContainText('API v2')
   await expect(page.getByTestId('contract-metadata')).toContainText('explanations:')
   await expect(page.getByTestId('pipeline-status')).toHaveCount(0)
@@ -138,6 +151,9 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
 
   await page.getByTestId('organ-callout-heart').click()
   await expect(page.getByTestId('condition-heart_disease')).toBeVisible()
+  await expect(page.getByTestId('drilldown-context-caveat')).toContainText(
+    'Personal inputs vs geography context',
+  )
   await expect(page.getByText('Improves vs current')).toBeVisible()
   await expect(page.getByText('Model explanation caveats')).toBeVisible()
   await expect(page.getByText(/Demo-mode heuristic contribution/i).first()).toBeVisible()
@@ -169,6 +185,9 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await expect(page.getByTestId('source-registry')).toBeVisible()
   await expect(page.getByTestId('asset-group-raw_sources')).toBeVisible()
   await expect(page.getByTestId('inactive-gaps')).toBeVisible()
+  await expect(page.getByTestId('active-state-context')).toContainText('Active state-year context')
+  await expect(page.getByTestId('inactive-county-context')).toContainText('Inactive county context')
+  await expect(page.getByTestId('validation-only-places')).toContainText('Validation-only PLACES')
 
   await page.getByRole('button', { name: 'Model cards' }).click()
   await expect(page.getByTestId('model-cards-page')).toBeVisible()
@@ -180,6 +199,9 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
     'not causal claims',
   )
   await expect(page.getByTestId('model-card-metrics')).toBeVisible()
+  await expect(page.getByTestId('model-context-section')).toContainText(
+    'Context and subgroup caveats',
+  )
   await expect(
     page.getByText('Model-card metrics require an active artifact-backed bundle.'),
   ).toBeVisible()
@@ -187,6 +209,9 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await page.getByRole('button', { name: 'Scenario lab' }).click()
   await expect(page.getByTestId('scenario-lab-page')).toBeVisible()
   await expect(page.getByText('Current what-if comparison')).toBeVisible()
+  await expect(page.getByTestId('scenario-context-summary')).toContainText(
+    'Geography/context fields',
+  )
   await expect(page.getByTestId('scenario-disclaimer')).toContainText(
     'predictive comparisons, not causal claims',
   )
