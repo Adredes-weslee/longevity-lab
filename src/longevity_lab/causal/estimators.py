@@ -31,26 +31,71 @@ def estimate_smoking_lung_effect(
     config: CausalWorkbenchConfig,
 ) -> dict[str, Any]:
     """Estimate the smoking association/effect and local refutation checks."""
+    return estimate_causal_effect(prepared, config)
+
+
+def estimate_causal_effect(
+    prepared: PreparedCausalDataset,
+    config: CausalWorkbenchConfig,
+) -> dict[str, Any]:
+    """Estimate a configured causal contrast with diagnostics and local refutations."""
     frame = prepared.frame
-    propensities = _fit_propensity_scores(frame, config)
+    try:
+        propensities = _fit_propensity_scores(frame, config)
+    except ValueError as exc:
+        diagnostics = _failed_diagnostics(
+            prepared=prepared,
+            reason=str(exc),
+        )
+        return {
+            "estimate": None,
+            "diagnostics": diagnostics,
+            "refutations": _not_run_refutations(
+                status="failed_diagnostic",
+                reason=str(exc),
+            ),
+        }
+
     overlap = _propensity_overlap(frame, propensities, config)
     smd = _standardized_mean_differences(frame, config)
     gate = _diagnostic_gate(overlap, smd, config)
+    diagnostics = {
+        "missingness": prepared.missingness,
+        "weight_imputation": prepared.weight_imputation,
+        "diagnostic_gate": gate,
+        "propensity_overlap": overlap,
+        "top_standardized_mean_differences": smd,
+    }
     if gate["status"] == "failed":
-        raise ValueError(
-            "Causal diagnostics failed before estimation: "
-            + "; ".join(str(item) for item in gate["warnings"])
-        )
-    primary = _estimate_effect_core(frame, config)
+        return {
+            "estimate": None,
+            "diagnostics": diagnostics,
+            "refutations": _not_run_refutations(
+                status="failed_diagnostic",
+                reason="; ".join(str(item) for item in gate["warnings"]),
+            ),
+        }
+
+    try:
+        primary = _estimate_effect_core(frame, config)
+    except ValueError as exc:
+        diagnostics["diagnostic_gate"] = {
+            **gate,
+            "status": "failed",
+            "warnings": [*gate["warnings"], str(exc)],
+        }
+        return {
+            "estimate": None,
+            "diagnostics": diagnostics,
+            "refutations": _not_run_refutations(
+                status="failed_diagnostic",
+                reason=str(exc),
+            ),
+        }
+
     return {
         "estimate": primary,
-        "diagnostics": {
-            "missingness": prepared.missingness,
-            "weight_imputation": prepared.weight_imputation,
-            "diagnostic_gate": gate,
-            "propensity_overlap": overlap,
-            "top_standardized_mean_differences": smd,
-        },
+        "diagnostics": diagnostics,
         "refutations": _run_refutations(
             frame=frame,
             config=config,
@@ -99,6 +144,42 @@ def _diagnostic_gate(
         "max_propensity": config.max_propensity,
         "max_abs_smd_warning": config.max_abs_smd_warning,
     }
+
+
+def _failed_diagnostics(
+    *,
+    prepared: PreparedCausalDataset,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "missingness": prepared.missingness,
+        "weight_imputation": prepared.weight_imputation,
+        "diagnostic_gate": {
+            "status": "failed",
+            "warnings": [reason],
+            "rows_inside_configured_overlap": 0,
+            "total_rows": prepared.analysis_rows,
+        },
+        "propensity_overlap": None,
+        "top_standardized_mean_differences": [],
+    }
+
+
+def _not_run_refutations(*, status: str, reason: str) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": name,
+            "status": status,
+            "note": f"Not run because prerequisite diagnostics failed: {reason}",
+            "rows": 0,
+        }
+        for name in (
+            "permuted_treatment_placebo",
+            "subset_refit",
+            "random_common_cause",
+            "overlap_trimmed_refit",
+        )
+    ]
 
 
 def _estimate_effect_core(

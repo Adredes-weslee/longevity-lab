@@ -18,6 +18,10 @@
       "Former smokers remain in the not-current-smoker reference for the primary contrast."
     ]
   },
+  "treatment_derivation": {
+    "kind": "direct_binary",
+    "source_column": "smoker"
+  },
   "outcome": {
     "name": "diagnosed_chronic_lung_disease",
     "label_field": "label_chronic_lung_disease",
@@ -48,7 +52,6 @@
       "has_personal_doctor",
       "cost_barrier_to_care",
       "last_checkup_within_year",
-      "physical_health_days",
       "label_chronic_lung_disease",
       "survey_weight"
     ],
@@ -75,6 +78,15 @@
       "model_outputs"
     ]
   },
+  "exclusion_rules": [
+    {
+      "kind": "numeric_range",
+      "name": "outside_adult_age_range",
+      "column": "age",
+      "min": 18,
+      "max": 100
+    }
+  ],
   "dag_assumptions": {
     "version": "smoking_lung_v1",
     "key_edges": [

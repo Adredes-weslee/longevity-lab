@@ -1,6 +1,6 @@
 # Causal Inference Specification
 
-Status: PR 11 defines the causal question registry. PR 12 adds a non-serving smoking-to-chronic-lung-disease workbench prototype that writes local reports only.
+Status: PR 11 defines the causal question registry. PR 12 adds a non-serving smoking-to-chronic-lung-disease workbench prototype that writes local reports only. PR 22 extends the same non-serving workbench to physical activity-to-diabetes, BMI-to-diabetes, and alcohol-to-depression questions.
 
 ## Purpose and Boundary
 
@@ -350,3 +350,24 @@ The current estimator is intentionally transparent and dependency-light:
 
 This is an exploratory, assumption-bound analysis. It is not exposed through FastAPI, not displayed
 in the React UI, and does not alter Explorer scenario deltas.
+
+## PR 22 Multi-Question Workbench
+
+The causal workbench now loads concrete run configs from the shared question registry for:
+
+- `physical_activity_diabetes`, via `conf/causal/activity_diabetes.yaml`.
+- `bmi_diabetes`, via `conf/causal/bmi_diabetes.yaml`.
+- `alcohol_depression`, via `conf/causal/alcohol_depression.yaml`.
+
+Run the reports locally with:
+
+```powershell
+pdm run python -m longevity_lab.causal.reports --question activity_diabetes
+pdm run python -m longevity_lab.causal.reports --question bmi_diabetes
+pdm run python -m longevity_lab.causal.reports --question alcohol_depression
+```
+
+Each run writes one JSON and one Markdown audit report under
+`data/processed/reports/causal/<question_id>/`. If a question lacks valid treatment/outcome classes
+or fails diagnostic prerequisites, the workbench still writes a `failed_diagnostic` report with
+explicit not-run statuses for estimates, negative controls, and sensitivity hooks.
