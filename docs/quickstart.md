@@ -79,6 +79,11 @@ Explorer scenario deltas are predictive model comparisons, not causal estimates.
 links are general cited guidance, not personalized medical advice. Geography and environmental
 fields are background context where available, not personal behaviors.
 
+Artifact bundles are trusted local outputs only. Do not load model bundles from unknown sources:
+Python/joblib artifacts can execute code during deserialization. Production downloads should use
+known release URLs plus SHA256 verification, and local development should keep raw data and trained
+artifacts in gitignored directories.
+
 ## Backend checks
 
 ```powershell

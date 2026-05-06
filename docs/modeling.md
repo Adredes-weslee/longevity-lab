@@ -75,3 +75,8 @@ Data limitations should be visible wherever users inspect results: BRFSS labels 
 self-reported, environmental and social-context fields can be aggregated, and subgroup coverage can
 vary. Public-health guidance links are general cited resources rather than personalized medical
 instructions.
+
+Artifact trust boundaries are part of the modeling contract. Trained bundles are trusted local
+outputs or verified release assets; they should not be loaded from arbitrary user uploads or
+unverified URLs because joblib/pickle-style deserialization is unsafe for untrusted inputs. Deployment
+artifact downloads should pin the bundle id and SHA256 digest before enabling artifact mode.

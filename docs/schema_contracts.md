@@ -168,6 +168,8 @@ Required interpretation boundaries:
   trusted artifact explicitly declares active context features.
 - Uncertainty intervals are model communication summaries, not clinical confidence intervals.
 - Public-health guidance links are general cited resources and do not replace clinicians.
+- Artifact bundles are trusted local or SHA-verified release outputs only. The API must not accept
+  arbitrary uploaded bundle paths or unverified remote joblib artifacts.
 
 ## DuckDB (optional convenience)
 
