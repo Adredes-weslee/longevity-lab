@@ -171,7 +171,9 @@ Explanation methods must match the artifact:
 - `demo`: heuristic demo-mode contribution, not a trained-model explanation.
 - `tree_path`: decision-tree split path from the saved explanation artifact.
 - `shap`: TreeSHAP attribution from a tree-ensemble explanation artifact when the optional SHAP
-  runtime is installed.
+  runtime is installed. SHAP artifacts must be manifest-declared and use compact background samples;
+  if the optional runtime is missing, scoring returns no SHAP records rather than fabricating
+  drivers.
 
 Uncertainty intervals are artifact-declared calibration summaries for communication, not clinical
 confidence intervals for an individual.

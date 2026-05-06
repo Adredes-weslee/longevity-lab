@@ -41,6 +41,9 @@ train = [
     "optuna>=4.8.0",
     "xgboost>=2.1.0,<4",
 ]
+explainability = [
+    "shap>=0.47.0,<1",
+]
 
 [tool]
 [tool.hatch.build.targets.wheel]

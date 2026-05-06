@@ -55,10 +55,12 @@ curves and subgroup rows are omitted for that skipped candidate.
 ## Served explanations and uncertainty
 
 Served condition scores expose typed explanation records in addition to the legacy `key_drivers`
-labels. Decision-tree artifacts use the saved rule-path explanation pipeline. Tree-ensemble
-artifacts can opt into `shap` explanations when the serving environment has SHAP installed; the API
-reports SHAP values as model attributions with a caveat that correlated features can share
-attribution and that explanations are not causal effects.
+labels. Decision-tree artifacts use the saved rule-path explanation pipeline. Supported
+tree-ensemble artifacts can opt into `shap` explanations by packaging a compact background sample
+and explainer metadata under the optional `explainability` dependency. The API reports SHAP values
+as model attributions with a caveat that correlated features can share attribution and that
+explanations are not causal effects. Missing SHAP support is recorded as a skipped explanation
+artifact instead of changing the decision-tree rule-path contract.
 
 Prediction uncertainty is shown only when a condition artifact declares an uncertainty method in the
 manifest. The first supported method is `calibration_interval`, backed by an artifact-side JSON

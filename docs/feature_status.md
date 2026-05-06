@@ -85,7 +85,10 @@ Legend:
 - [DONE] Training config separates scenario-editable features from BRFSS adjustment covariates and state-year ACS/SVI context features, applying survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Active training scope covers eight BRFSS-derived conditions: heart disease, chronic lung disease, asthma, stroke, depression, diabetes, chronic kidney disease, and arthritis (`conf/train.yaml`, `src/longevity_lab/domain/catalog.py`).
 - [DONE] Artifact manifest schema, bundle loader, context lookup provenance, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
-- [DONE] Explanation outputs aligned to saved explanation trees, optional SHAP artifacts, and manifest-declared uncertainty intervals (`src/longevity_lab/services/artifact_engine.py`, `src/longevity_lab/services/explanations.py`, `src/longevity_lab/services/uncertainty.py`).
+- [DONE] Explanation outputs aligned to saved explanation trees, manifest-declared compact SHAP
+  artifacts for supported tree ensembles, and manifest-declared uncertainty intervals
+  (`src/longevity_lab/services/artifact_engine.py`,
+  `src/longevity_lab/services/explanations.py`, `src/longevity_lab/services/uncertainty.py`).
 
 ### Causal inference
 

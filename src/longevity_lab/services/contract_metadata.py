@@ -45,11 +45,7 @@ def build_artifact_model_metadata(
     ]
     explanation_methods = [
         cast(ExplanationMethod, method)
-        for method in _unique_sorted(
-            item.explanation_method
-            for item in bundle.manifest.conditions
-            if item.explanation_path is not None
-        )
+        for method in _unique_sorted(_manifest_explanation_methods(bundle))
     ]
     retrieved_at = bundle.manifest.dataset.retrieved_at
     context_metadata = bundle.manifest.context_features
@@ -87,3 +83,25 @@ def build_artifact_model_metadata(
 def _unique_sorted(values: Iterable[object]) -> list[str]:
     """Return deterministic unique string values from a small iterable."""
     return sorted({str(value) for value in values})
+
+
+def _manifest_explanation_methods(bundle: ArtifactBundle) -> list[str]:
+    """Return manifest-declared explanation methods with bundle-local artifact paths."""
+    methods: list[str] = []
+    for item in bundle.manifest.conditions:
+        for record in item.explanation_artifacts:
+            if record.artifact_path and _bundle_path_exists(bundle, record.artifact_path):
+                methods.append(str(record.method))
+        if item.explanation_path is not None and _bundle_path_exists(bundle, item.explanation_path):
+            methods.append(str(item.explanation_method))
+    return methods
+
+
+def _bundle_path_exists(bundle: ArtifactBundle, relative_path: str) -> bool:
+    """Return whether a relative path resolves inside the trusted artifact bundle and exists."""
+    path = bundle.path / relative_path
+    try:
+        path.resolve().relative_to(bundle.path.resolve())
+    except ValueError:
+        return False
+    return path.exists()

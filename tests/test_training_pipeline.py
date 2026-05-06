@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pandas as pd  # type: ignore[import-untyped]
+import pytest
 
 from longevity_lab.api.schemas import FeatureProfile
 from longevity_lab.artifacts.store import ArtifactStore
@@ -322,8 +323,13 @@ def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> No
 
     metrics_files = list(result.bundle_dir.glob("*_metrics.json"))
     prediction_files = list(result.bundle_dir.glob("*_predictions.parquet"))
+    shap_skip_files = list(result.bundle_dir.glob("*_shap_explanation_skipped.json"))
     assert len(metrics_files) == 5
     assert len(prediction_files) == 5
+    assert len(shap_skip_files) == 5
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["conditions"][0]["explanation_artifacts"][0]["method"] == "tree_path"
+    assert manifest["conditions"][0]["explanation_method"] == "tree_path"
 
     engine = ArtifactScenarioEngine(
         store=ArtifactStore(tmp_path / "artifacts" / "models"),
@@ -444,6 +450,104 @@ def test_train_bundle_persists_context_feature_manifest_and_lookup(
     assert metrics["context_features"] == context_features
     assert metrics["context_feature_count"] == len(context_features)
     assert "no_context_metrics" in metrics
+
+
+def test_train_bundle_packages_shap_for_supported_tree_ensemble(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Supported tree-ensemble config should package compact SHAP metadata when available."""
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+    raw_cfg = _base_raw_cfg(
+        tmp_path=tmp_path,
+        input_path=input_path,
+        bundle_id="bundle-hgb-shap",
+    )
+    raw_cfg["conditions"] = {"heart_disease": "label_heart_disease"}
+    raw_cfg["model"] = {
+        "name": "hist_gradient_boosting",
+        "kind": "hist_gradient_boosting",
+        "params": {
+            "max_iter": 5,
+            "learning_rate": 0.05,
+            "max_leaf_nodes": 7,
+            "min_samples_leaf": 10,
+            "l2_regularization": 0.0,
+            "class_weight": "balanced",
+        },
+        "monotonic_constraints": {
+            "age": 1,
+            "bmi": 1,
+            "smoker": 1,
+            "exercise_minutes_per_week": -1,
+        },
+    }
+    monkeypatch.setattr(
+        "longevity_lab.pipeline.modeling._shap_dependency_available",
+        lambda: True,
+    )
+
+    result = train_bundle(build_training_spec(raw_cfg))
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    condition = manifest["conditions"][0]
+    shap_records = [
+        record for record in condition["explanation_artifacts"] if record["method"] == "shap"
+    ]
+
+    assert shap_records
+    assert shap_records[0]["background_sample_size"] <= 128
+    assert (result.bundle_dir / shap_records[0]["artifact_path"]).exists()
+    assert condition["explanation_path"] is None
+    assert [record["method"] for record in condition["explanation_artifacts"]] == ["shap"]
+    metrics = json.loads((result.bundle_dir / "heart_disease_metrics.json").read_text("utf-8"))
+    assert metrics["shap_explanation"]["status"] == "available"
+
+
+def test_train_bundle_records_shap_skip_reason_for_supported_model_without_dependency(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A supported model without SHAP installed should record the missing dependency reason."""
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+    raw_cfg = _base_raw_cfg(
+        tmp_path=tmp_path,
+        input_path=input_path,
+        bundle_id="bundle-hgb-shap-missing",
+    )
+    raw_cfg["conditions"] = {"heart_disease": "label_heart_disease"}
+    raw_cfg["model"] = {
+        "name": "hist_gradient_boosting",
+        "kind": "hist_gradient_boosting",
+        "params": {
+            "max_iter": 5,
+            "learning_rate": 0.05,
+            "max_leaf_nodes": 7,
+            "min_samples_leaf": 10,
+            "l2_regularization": 0.0,
+            "class_weight": "balanced",
+        },
+        "monotonic_constraints": {
+            "age": 1,
+            "bmi": 1,
+            "smoker": 1,
+            "exercise_minutes_per_week": -1,
+        },
+    }
+    monkeypatch.setattr(
+        "longevity_lab.pipeline.modeling._shap_dependency_available",
+        lambda: False,
+    )
+
+    result = train_bundle(build_training_spec(raw_cfg))
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    metrics = json.loads((result.bundle_dir / "heart_disease_metrics.json").read_text("utf-8"))
+
+    assert manifest["conditions"][0]["explanation_artifacts"] == []
+    assert manifest["conditions"][0]["explanation_path"] is None
+    assert metrics["shap_explanation"]["status"] == "skipped"
+    assert metrics["shap_explanation"]["reason"] == "Optional SHAP dependency is not installed."
 
 
 def test_evaluate_bundle_returns_condition_summary(tmp_path: Path) -> None:
