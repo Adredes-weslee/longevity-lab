@@ -65,10 +65,12 @@ EPA_OPTIONAL_COLUMNS: list[str] = [
 ]
 POLLUTANT_PREFIXES: tuple[str, ...] = ("pm25", "ozone")
 CONTEXT_REQUIRED_COLUMNS: list[str] = ["year", "state_fips"]
+CONTEXT_DATA_YEAR_COLUMN = "context_data_year"
 
 INTEGRATED_COLUMNS: list[str] = [
     "year",
     "state_fips",
+    CONTEXT_DATA_YEAR_COLUMN,
     "sex",
     "race_ethnicity",
     "age",
@@ -130,11 +132,72 @@ def _quality_gate_pollutant_features(joined: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _context_feature_columns(context_state_year: pd.DataFrame) -> list[str]:
+    """Return context feature columns that are present in a processed context table."""
+    return [column for column in CONTEXT_FEATURE_COLUMNS if column in context_state_year.columns]
+
+
+def _context_rows_for_explicit_year(
+    context_state_year: pd.DataFrame,
+    *,
+    context_year: int,
+) -> pd.DataFrame:
+    """Return state context rows for an explicitly selected context vintage."""
+    require_columns(
+        actual=context_state_year.columns,
+        required=CONTEXT_REQUIRED_COLUMNS,
+        context="state-year ACS/SVI context",
+    )
+    context_columns = _context_feature_columns(context_state_year)
+    selected = context_state_year.loc[context_state_year["year"] == context_year].copy()
+    if selected.empty:
+        available_years = sorted(
+            {
+                int(value)
+                for value in pd.to_numeric(context_state_year["year"], errors="coerce")
+                .dropna()
+                .unique()
+                .tolist()
+            }
+        )
+        raise ValueError(
+            "Processed context table does not contain requested context_year "
+            f"{context_year}. Available context years: {available_years}."
+        )
+    duplicate_count = int(selected.duplicated(subset=["state_fips"]).sum())
+    if duplicate_count:
+        raise ValueError(
+            f"State-year ACS/SVI context has duplicate state rows for context_year {context_year}."
+        )
+    selected = selected.loc[:, ["state_fips", *context_columns]].copy()
+    selected[CONTEXT_DATA_YEAR_COLUMN] = int(context_year)
+    return selected
+
+
+def _context_rows_for_exact_year(context_state_year: pd.DataFrame) -> pd.DataFrame:
+    """Return state context rows for exact respondent-year joins."""
+    require_columns(
+        actual=context_state_year.columns,
+        required=CONTEXT_REQUIRED_COLUMNS,
+        context="state-year ACS/SVI context",
+    )
+    context_columns = _context_feature_columns(context_state_year)
+    selected = context_state_year.loc[:, [*CONTEXT_REQUIRED_COLUMNS, *context_columns]].copy()
+    duplicate_count = int(selected.duplicated(subset=["year", "state_fips"]).sum())
+    if duplicate_count:
+        raise ValueError("State-year ACS/SVI context has duplicate (year, state_fips) rows.")
+    selected[CONTEXT_DATA_YEAR_COLUMN] = pd.to_numeric(selected["year"], errors="coerce").astype(
+        "Int64"
+    )
+    return selected
+
+
 def integrate_brfss_epa(
     brfss_person: pd.DataFrame,
     epa_state_year: pd.DataFrame,
     *,
     context_state_year: pd.DataFrame | None = None,
+    context_year: int | None = None,
     allow_missing_aqi: bool,
 ) -> pd.DataFrame:
     """Join BRFSS v2 person rows with EPA and optional ACS/SVI state-year context."""
@@ -159,21 +222,28 @@ def integrate_brfss_epa(
     joined = _quality_gate_pollutant_features(joined)
 
     if context_state_year is not None:
-        require_columns(
-            actual=context_state_year.columns,
-            required=CONTEXT_REQUIRED_COLUMNS,
-            context="state-year ACS/SVI context",
-        )
-        context_columns = [
-            *CONTEXT_REQUIRED_COLUMNS,
-            *[column for column in CONTEXT_FEATURE_COLUMNS if column in context_state_year.columns],
-        ]
-        joined = joined.merge(
-            context_state_year.loc[:, context_columns],
-            on=["year", "state_fips"],
-            how="left",
-            validate="many_to_one",
-        )
+        if context_year is None:
+            exact_context = _context_rows_for_exact_year(context_state_year)
+            joined = joined.merge(
+                exact_context,
+                on=["year", "state_fips"],
+                how="left",
+                validate="many_to_one",
+            )
+        else:
+            explicit_context = _context_rows_for_explicit_year(
+                context_state_year,
+                context_year=context_year,
+            )
+            joined = joined.merge(
+                explicit_context,
+                on="state_fips",
+                how="left",
+                validate="many_to_one",
+            )
+        joined[CONTEXT_DATA_YEAR_COLUMN] = pd.to_numeric(
+            joined[CONTEXT_DATA_YEAR_COLUMN], errors="coerce"
+        ).astype("Int64")
 
     missing = int(joined["annual_aqi"].isna().sum())
     if missing and not allow_missing_aqi:
@@ -214,6 +284,7 @@ def build_integrated_tables(
     force: bool,
     dry_run: bool,
     allow_missing_aqi: bool,
+    context_year: int | None,
 ) -> None:
     """Build integrated tables for the requested year(s)."""
     paths = build_ingest_paths(base_dir)
@@ -245,9 +316,8 @@ def build_integrated_tables(
         integrated = integrate_brfss_epa(
             brfss,
             epa_year,
-            context_state_year=context.loc[context["year"] == year].copy()
-            if context is not None
-            else None,
+            context_state_year=context,
+            context_year=context_year,
             allow_missing_aqi=allow_missing_aqi,
         )
 
@@ -304,6 +374,7 @@ def build_integrated_tables(
                     else []
                 ),
                 "allow_missing_aqi": allow_missing_aqi,
+                "context_year": context_year,
             },
             dry_run=dry_run,
         )
@@ -320,6 +391,15 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Allow rows with missing annual_aqi after join (e.g., territories).",
     )
+    parser.add_argument(
+        "--context-year",
+        type=int,
+        default=None,
+        help=(
+            "Use this processed ACS/SVI context vintage for every requested BRFSS year. "
+            "When omitted, ACS/SVI context joins by exact state-year."
+        ),
+    )
     args = parser.parse_args(argv)
     years = parse_years_from_args(args)
     build_integrated_tables(
@@ -328,6 +408,7 @@ def main(argv: list[str] | None = None) -> None:
         force=bool(args.force),
         dry_run=bool(args.dry_run),
         allow_missing_aqi=bool(args.allow_missing_aqi),
+        context_year=args.context_year,
     )
 
 

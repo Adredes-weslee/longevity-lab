@@ -20,7 +20,7 @@ This repo is intentionally usable *today* (end-to-end UI <-> API), and it now in
 ## Stack
 
 - `frontend/`: Vite + React + TypeScript + D3 utilities
-- `src/longevity_lab/`: FastAPI API, domain model, pipeline stubs, demo inference engine
+- `src/longevity_lab/`: FastAPI API, domain model, public-data pipeline, training, and serving code
 - `data/`: raw/processed/sample data layout
 - `docs/`: architecture, roadmap, contracts, and implementation plans
   - Feature tracker: `docs/feature_status.md`
@@ -46,6 +46,24 @@ Start here if you are new to the repo:
 - PDM 2.26+ (`pipx install pdm`)
 - Node.js 22+ (npm 10+)
 
+### One-command bootstrap
+
+PowerShell:
+
+```powershell
+.\scripts\bootstrap_dev.ps1
+```
+
+bash/zsh:
+
+```bash
+bash scripts/bootstrap_dev.sh
+```
+
+The bootstrap installs backend dev and training dependencies plus frontend lockfile dependencies by
+default. For optional SHAP/notebook work, add `-Explainability -Notebook` in PowerShell or
+`--explainability --notebook` in bash/zsh.
+
 ### Backend
 
 Optional: copy `.env.example` to `.env` to override local settings (engine selection, paths).
@@ -55,14 +73,12 @@ If you use the Vite `/api` proxy (default), you can also set it empty to disable
 PowerShell:
 
 ```powershell
-pdm install -G dev
 pdm run python -m uvicorn longevity_lab.api.main:app --reload
 ```
 
 bash/zsh:
 
 ```bash
-pdm install -G dev
 pdm run python -m uvicorn longevity_lab.api.main:app --reload
 ```
 
@@ -239,12 +255,13 @@ docs/                     Architecture, roadmap, contracts, and implementation p
 
 ## Current scope
 
-This scaffold intentionally ships with:
+This product prototype currently ships with:
 
 - a typed FastAPI backend,
 - a runnable React frontend,
-- a deterministic demo scenario engine,
-- BRFSS/EPA ingest + integration pipeline scripts (to `data/processed/`, gitignored).
+- a deterministic demo scenario engine as an explicit fallback,
+- artifact-backed calibrated model serving when a valid local bundle is available,
+- BRFSS, EPA AirData, ACS, SVI, and PLACES ingest/build scripts (to `data/processed/`, gitignored).
 
 It does **not** commit trained model artifacts or final polished anatomical art assets. Trained bundles
 are produced locally under `artifacts/models/` and are intentionally gitignored.
@@ -260,14 +277,22 @@ another subdirectory.
 ```powershell
 pdm run python -m longevity_lab.pipeline.download_brfss --year 2023
 pdm run python -m longevity_lab.pipeline.download_epa_airdata --year 2023
+pdm run python -m longevity_lab.pipeline.download_acs --year 2022
+pdm run python -m longevity_lab.pipeline.download_svi --year 2022
+pdm run python -m longevity_lab.pipeline.download_places --year 2025
 pdm run python -m longevity_lab.pipeline.build_brfss_tables --year 2023
 pdm run python -m longevity_lab.pipeline.build_epa_tables --year 2023
-pdm run python -m longevity_lab.pipeline.build_integrated_tables --year 2023
+pdm run python -m longevity_lab.pipeline.build_context_tables --year 2022
+pdm run python -m longevity_lab.pipeline.build_places_tables --year 2025
+pdm run python -m longevity_lab.pipeline.build_integrated_tables --year 2023 --context-year 2022
 pdm run python -m longevity_lab.pipeline.build_duckdb_views
 ```
 
 Note: EPA 2023 does not include a Guam state row. The integrated build keeps those BRFSS rows with
 `annual_aqi = null` by default and still raises for unexpected missing joins.
+SVI is currently registry-supported through the 2022 release, while PLACES uses the 2025 county
+release. The integrated 2023 table uses `--context-year 2022` to record that ACS/SVI context vintage
+explicitly in `context_data_year` instead of silently pretending it is 2023 context.
 
 Verify:
 

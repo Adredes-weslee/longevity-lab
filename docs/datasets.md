@@ -130,7 +130,8 @@ Recommended first-time full local build:
 1. Download BRFSS + EPA raw files
 2. Build BRFSS processed tables
 3. Build EPA processed county-year and state-year tables
-4. Build the integrated person-year table
+4. Build the integrated person-year table, using `--context-year 2022` when joining the current
+   2022 ACS/SVI context table into the 2023 BRFSS/EPA table.
 5. Build DuckDB views
 6. Verify in the dashboard Data integration page or `GET /api/pipeline/status`
 
