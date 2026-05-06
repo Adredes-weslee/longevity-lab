@@ -19,6 +19,7 @@ Legend:
 - [DONE] EPA pollutant-specific features beyond annual AQI.
 - [DONE] ACS/SVI contextual social-determinants features.
 - [DONE] CDC PLACES contextual validation layer.
+- [DONE] Optional data-source candidate screen for AHRQ, USDA, County Health Rankings, CDC WONDER, NHANES, and NHIS.
 - [DONE] Scripted EDA/report generation to replace notebooks as canonical outputs.
 - [DONE] Modeling benchmark harness for logistic/tree baselines and feature ablations.
 - [DONE] Calibrated gradient-boosted model family in the benchmark grid.
@@ -56,6 +57,7 @@ Legend:
 - [DONE] DuckDB stable views builder (`src/longevity_lab/pipeline/build_duckdb_views.py`).
 - [DONE] Pipeline CLIs default to repo-root `data/` even when invoked from subdirectories (`src/longevity_lab/pipeline/common.py`).
 - [DONE] Source registry records official URLs, download templates, year support, expected files, checksum policy, license notes, and landing paths (`conf/data_sources.yaml`).
+- [DONE] Optional source-screening registry, rubric, and Markdown CLI for later public data candidates without downloading raw data (`conf/data_source_candidates.yaml`, `src/longevity_lab/pipeline/source_screening.py`, `docs/data_source_candidate_screen.md`).
 - [DONE] BRFSS and EPA download provenance embeds registry metadata (`src/longevity_lab/pipeline/provenance.py`).
 - [DONE] ACS 5-year curated context downloader for state/county JSON with registry-backed provenance (`src/longevity_lab/pipeline/download_acs.py`).
 - [DONE] CDC/ATSDR SVI U.S. county CSV downloader with registry-backed provenance (`src/longevity_lab/pipeline/download_svi.py`).
