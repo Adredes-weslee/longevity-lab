@@ -21,6 +21,7 @@ from longevity_lab.services.artifact_engine import ArtifactScenarioEngine
 
 
 def _write_training_frame(path: Path, *, rows: int = 400) -> None:
+    state_fips = ["06" if idx % 2 == 0 else "13" for idx in range(rows)]
     age = [25 + (idx % 55) for idx in range(rows)]
     bmi = [20.0 + (idx % 18) * 0.8 for idx in range(rows)]
     smoker = [(idx % 5) == 0 for idx in range(rows)]
@@ -46,7 +47,7 @@ def _write_training_frame(path: Path, *, rows: int = 400) -> None:
     frame = pd.DataFrame(
         {
             "year": [2023] * rows,
-            "state_fips": ["13"] * rows,
+            "state_fips": state_fips,
             "sex": sex,
             "race_ethnicity": race,
             "age": age,
@@ -64,6 +65,11 @@ def _write_training_frame(path: Path, *, rows: int = 400) -> None:
             "sleep_hours_per_night": sleep,
             "physical_health_days": physical_health_days,
             "mental_health_days": mental_health_days,
+            "acs_poverty_percent": [24.0 if state == "06" else 9.0 for state in state_fips],
+            "acs_median_household_income": [
+                72_000.0 if state == "06" else 84_000.0 for state in state_fips
+            ],
+            "svi_overall_percentile": [0.72 if state == "06" else 0.31 for state in state_fips],
             "label_heart_disease": [
                 int(item_age > 60 or item_bmi > 32 or item_smoker)
                 for item_age, item_bmi, item_smoker in zip(age, bmi, smoker, strict=True)
@@ -229,6 +235,12 @@ BRFSS_V2_CONTRACT = {
     },
 }
 
+CONTEXT_FEATURES = [
+    "acs_poverty_percent",
+    "acs_median_household_income",
+    "svi_overall_percentile",
+]
+
 
 def test_feature_preprocessor_encodes_v2_categorical_covariates() -> None:
     """Feature preprocessing should one-hot encode categorical adjustment covariates."""
@@ -384,6 +396,56 @@ def test_train_bundle_applies_brfss_v2_feature_contract(tmp_path: Path) -> None:
     assert all(0.0 <= score.probability <= 1.0 for score in scores)
 
 
+def test_train_bundle_persists_context_feature_manifest_and_lookup(
+    tmp_path: Path,
+) -> None:
+    """Context-aware training should persist exact state-year lookup provenance."""
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+    context_features = CONTEXT_FEATURES
+    raw_cfg = _base_raw_cfg(
+        tmp_path=tmp_path,
+        input_path=input_path,
+        bundle_id="bundle-context-v2",
+        features=[*BRFSS_V2_FEATURES, *context_features],
+    )
+    raw_cfg["feature_contract"] = {
+        **BRFSS_V2_CONTRACT,
+        "context_features": context_features,
+    }
+
+    result = train_bundle(build_training_spec(raw_cfg))
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["context_features"]["feature_names"] == context_features
+    assert manifest["context_features"]["join_keys"] == ["state_fips", "year"]
+    assert manifest["context_features"]["source_ids"] == [
+        "census_acs5_api_context",
+        "cdc_atsdr_svi_us_county_csv",
+    ]
+    assert "state-year" in manifest["context_features"]["caveats"][0].lower()
+    lookup_path = result.bundle_dir / manifest["context_features"]["lookup_path"]
+    lookup = json.loads(lookup_path.read_text(encoding="utf-8"))
+    assert lookup["feature_names"] == context_features
+    assert lookup["join_keys"] == ["state_fips", "year"]
+    assert {(row["state_fips"], row["year"]) for row in lookup["rows"]} == {
+        ("06", 2023),
+        ("13", 2023),
+    }
+
+    summary = json.loads(result.training_summary_path.read_text(encoding="utf-8"))
+    assert summary["feature_contract"]["context_features"] == context_features
+    heart = next(item for item in summary["conditions"] if item["condition_id"] == "heart_disease")
+    assert heart["context_features"] == context_features
+    assert heart["context_feature_count"] == len(context_features)
+    assert "no_context_metrics" in heart
+
+    metrics = json.loads((result.bundle_dir / "heart_disease_metrics.json").read_text("utf-8"))
+    assert metrics["context_features"] == context_features
+    assert metrics["context_feature_count"] == len(context_features)
+    assert "no_context_metrics" in metrics
+
+
 def test_evaluate_bundle_returns_condition_summary(tmp_path: Path) -> None:
     """evaluate_bundle should aggregate calibrated and ablation metrics."""
     input_path = tmp_path / "training.csv"
@@ -452,6 +514,7 @@ def test_evaluate_bundle_returns_condition_summary(tmp_path: Path) -> None:
         "test_average_precision",
         "test_roc_auc",
         "test_brier_score",
+        "test_average_precision_no_context",
         "test_average_precision_no_aqi",
         "test_average_precision_no_pollutants",
         "positive_rate",

@@ -41,6 +41,18 @@ features:
   - sleep_hours_per_night
   - physical_health_days
   - mental_health_days
+  - acs_total_population
+  - acs_poverty_percent
+  - acs_median_household_income
+  - acs_bachelors_degree_or_higher_percent
+  - acs_uninsured_percent
+  - acs_disability_percent
+  - acs_broadband_percent
+  - svi_overall_percentile
+  - svi_theme1_socioeconomic_percentile
+  - svi_theme2_household_characteristics_percentile
+  - svi_theme3_racial_ethnic_minority_status_percentile
+  - svi_theme4_housing_transportation_percentile
 
 feature_contract:
   version: brfss_v2
@@ -63,7 +75,19 @@ feature_contract:
     - sleep_hours_per_night
     - physical_health_days
     - mental_health_days
-  context_features: []
+  context_features:
+    - acs_total_population
+    - acs_poverty_percent
+    - acs_median_household_income
+    - acs_bachelors_degree_or_higher_percent
+    - acs_uninsured_percent
+    - acs_disability_percent
+    - acs_broadband_percent
+    - svi_overall_percentile
+    - svi_theme1_socioeconomic_percentile
+    - svi_theme2_household_characteristics_percentile
+    - svi_theme3_racial_ethnic_minority_status_percentile
+    - svi_theme4_housing_transportation_percentile
   sample_weight_column: survey_weight
   label_feature_exclusions:
     heart_disease:

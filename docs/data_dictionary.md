@@ -314,6 +314,8 @@ This is the modeling table. It must include:
 - plus quality-gated pollutant columns when present in the EPA state-year table:
   `pm25_mean`, `pm25_monitor_count`, `pm25_observation_percent`, `pm25_observation_complete`,
   `ozone_mean`, `ozone_monitor_count`, `ozone_observation_percent`, `ozone_observation_complete`
+- plus curated ACS/SVI state-year context columns when
+  `data/processed/context/context_state_year.parquet` is available
 - plus stable join keys used
 
 Join caveat:
@@ -352,11 +354,13 @@ Serving contract:
 
 - The API exposes explicit state-year geography selection through `GET /api/context/geographies`
   and optional `geography` metadata on scenario-compare requests.
-- The serving geography level is state only in PR 19. County-level ACS/SVI and PLACES rows remain
+- The serving geography level is state only. County-level ACS/SVI and PLACES rows remain
   context, validation, or future-map data because BRFSS 2023 LLCP person rows do not expose county
   identifiers.
-- Geography context is not scenario-editable behavior. Selecting a state does not change scores
-  until a later trusted artifact manifest declares state-year context features and lookup assets.
+- Geography context is not scenario-editable behavior. Selecting a state changes artifact-backed
+  scores only when the trusted artifact manifest declares exact state-year context features,
+  source IDs, join keys, data vintage, caveats, defaults, and a bundle-local lookup asset. Demo
+  mode and artifacts without that manifest metadata do not activate ACS/SVI context.
 
 ### `places_county_year` (one row per county per PLACES release)
 
@@ -393,11 +397,14 @@ V2 joins by **state-year**:
 
 - BRFSS key: (`state_fips`, `year`)
 - EPA key: (`state_fips`, `year`)
+- ACS/SVI state context key: (`state_fips`, `year`)
 
 Rationale:
 
 - BRFSS 2023 LLCP microdata does not contain county/FIPS identifiers.
 - EPA annual AQI file does not contain FIPS identifiers; it provides state/county names only.
+- Current BRFSS rows can join ACS/SVI context only at state-year granularity. County-level context
+  remains non-serving context or validation data.
 
 ## Provenance format (v2, implemented)
 

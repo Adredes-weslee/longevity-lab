@@ -10,7 +10,11 @@ import pandas as pd  # type: ignore[import-untyped]
 from pytest import MonkeyPatch
 
 import longevity_lab.pipeline.modeling as modeling_module
-from longevity_lab.pipeline.benchmarks import build_benchmark_spec, run_benchmark
+from longevity_lab.pipeline.benchmarks import (
+    build_benchmark_spec,
+    load_benchmark_spec,
+    run_benchmark,
+)
 
 
 def _write_training_frame(path: Path, *, rows: int = 240) -> None:
@@ -204,6 +208,16 @@ def test_run_benchmark_writes_metrics_manifests_and_subgroups(tmp_path: Path) ->
     assert "mean_predicted_probability_no_aqi" not in subgroups.columns
     model_cards = json.loads(result.model_card_manifest_path.read_text(encoding="utf-8"))
     assert len(model_cards["condition_cards"]) == 2
+
+
+def test_default_benchmark_config_declares_context_ablation_variants() -> None:
+    """Default benchmark config should include PR 20 context-aware ablations."""
+    spec = load_benchmark_spec()
+
+    assert "acs_poverty_percent" in spec.training_spec.feature_contract.context_features
+    assert "svi_overall_percentile" in spec.training_spec.feature_contract.context_features
+    variant_ids = {ablation.variant_id for ablation in spec.ablations}
+    assert {"no_context", "air_quality_only", "context_plus_air_quality"}.issubset(variant_ids)
 
 
 def test_benchmark_includes_calibrated_hist_gradient_boosting_metadata(

@@ -8,6 +8,8 @@ benchmarking, and serving.
 - The default artifact bundle trains one calibrated model per condition using `conf/train.yaml`.
   Current direct BRFSS labels cover heart disease, chronic lung disease, asthma, stroke,
   depression, diabetes, chronic kidney disease, and arthritis.
+- PR 20 activates a curated state-year ACS/SVI context feature group for artifact training.
+  These features are joined only by (`state_fips`, `year`) and are not scenario-editable inputs.
 - Training uses the shared `FeaturePreprocessor` pipeline so persisted artifacts and API inference use
   the same feature ordering, imputation, boolean coercion, and categorical encoding.
 - The decision-tree baseline remains interpretable and produces tree-path explanation artifacts.
@@ -36,8 +38,10 @@ Outputs are written under `reports/benchmarks/<benchmark_id>/` and are intention
 
 The benchmark grid includes logistic regression, the calibrated decision-tree baseline,
 `HistGradientBoostingClassifier`, and optional XGBoost candidates plus ablations for dropping
-`annual_aqi`, dropping PM2.5/ozone pollutant features, and using only scenario-editable features. All candidates use the same
-`FeaturePreprocessor` pipeline and the same train/test split per condition.
+`annual_aqi`, dropping PM2.5/ozone pollutant features, dropping all ACS/SVI context
+(`no_context`), training on air quality only, training on context plus air quality, and using only
+scenario-editable features. All candidates use the same `FeaturePreprocessor` pipeline and the same
+train/test split per condition.
 
 Histogram gradient boosting uses scikit-learn's `class_weight="balanced"` by default and can apply
 configured monotonic constraints after preprocessing. Constraints are recorded by raw feature name in
@@ -80,3 +84,17 @@ Artifact trust boundaries are part of the modeling contract. Trained bundles are
 outputs or verified release assets; they should not be loaded from arbitrary user uploads or
 unverified URLs because joblib/pickle-style deserialization is unsafe for untrusted inputs. Deployment
 artifact downloads should pin the bundle id and SHA256 digest before enabling artifact mode.
+
+## Context-Aware Artifacts
+
+Context features are active at inference only when `manifest.json` includes `context_features`
+metadata with the exact feature list, source IDs, state-year join keys, data vintage, caveats,
+default values, and a bundle-local lookup file. The trainer writes a compact
+`context_state_year_lookup.json` from the training table when `feature_contract.context_features`
+is non-empty.
+
+If a request includes state-year geography and the bundle lookup has a matching row, the artifact
+engine injects those manifest-declared context values into the shared preprocessing pipeline. If no
+geography is supplied, or the selected state-year is absent from the lookup, the engine uses the
+manifest-declared defaults. County-level ACS/SVI, PLACES, or other aggregate context is not used as
+person-level prediction input.

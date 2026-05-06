@@ -116,7 +116,7 @@ class EvidenceService:
             year=year,
             runtime=self._runtime,
             model_metadata=self._model_metadata,
-            sources=self._sources(),
+            sources=self._sources(bundle),
             asset_groups=self._asset_groups(
                 year=year,
                 data_root=data_root,
@@ -128,13 +128,14 @@ class EvidenceService:
             inactive_gaps=self._inactive_gaps(bundle),
         )
 
-    def _sources(self) -> list[EvidenceSourceSummary]:
+    def _sources(self, bundle: ArtifactBundle | None) -> list[EvidenceSourceSummary]:
         registry = load_data_source_registry()
         active_source_ids = {
             "cdc_brfss_llcp_xpt",
             "epa_airdata_annual_aqi_by_county",
             "epa_airdata_annual_conc_by_monitor",
         }
+        active_source_ids.update(_active_context_source_ids(bundle))
         external_validation = {"cdc_places_county_opendata"}
         pipeline_context = {"census_acs5_api_context", "cdc_atsdr_svi_us_county_csv"}
         summaries: list[EvidenceSourceSummary] = []
@@ -151,7 +152,8 @@ class EvidenceService:
                 role = "pipeline_context"
                 active = False
                 caveat = (
-                    "Implemented as geography context; not active in the current scoring artifact."
+                    "Implemented as geography context; active only for artifacts that declare "
+                    "state-year context feature lookup provenance."
                 )
             else:
                 role = "local_workflow"
@@ -259,7 +261,7 @@ class EvidenceService:
                 data_root / "processed" / "context" / "context_state_year.parquet",
                 root=data_root,
                 source_ids=["census_acs5_api_context", "cdc_atsdr_svi_us_county_csv"],
-                caveat="Available context; not active scoring input.",
+                caveat="Available state-year context; active only for context-aware artifacts.",
             ),
             _asset(
                 "places_county_year_parquet",
@@ -406,39 +408,47 @@ class EvidenceService:
         )
 
     def _inactive_gaps(self, bundle: ArtifactBundle | None) -> list[EvidenceInactiveGap]:
-        active = set(bundle.manifest.features if bundle else [])
         gaps: list[EvidenceInactiveGap] = []
         context_candidates = set(self._available_context_features())
         inactive_context = sorted(context_candidates)
         if inactive_context:
-            active_context = sorted(context_candidates & active)
-            if active_context:
-                explanation = (
-                    "The active artifact declares ACS/SVI-like context feature columns, but "
-                    "PR 19 intentionally does not inject selected geography into inference. "
-                    "These columns remain inactive from a serving-semantics perspective until "
-                    "a PR 20 artifact bundles a trusted lookup table and the engine consumes it."
+            active_context = _active_context_feature_names(bundle)
+            if not active_context:
+                feature_names_without_contract = sorted(
+                    context_candidates & set(bundle.manifest.features if bundle else [])
                 )
-                evidence = active_context
-            else:
                 explanation = (
-                    "These features are built as geography context tables, but the current "
-                    "scoring artifact does not declare or consume ACS/SVI context features."
+                    "These features are built as geography context tables, but the active "
+                    "scoring artifact does not declare context feature lookup provenance."
                 )
-                evidence = inactive_context
-            gaps.append(
-                EvidenceInactiveGap(
-                    gap_id="context_not_active",
-                    label="ACS/SVI context is implemented but not active in scoring",
-                    status="implemented_not_active",
-                    evidence=evidence,
-                    explanation=explanation,
-                    next_action=(
-                        "Train and publish context-aware state-year artifacts before using "
-                        "these features in predictions."
+                gaps.append(
+                    EvidenceInactiveGap(
+                        gap_id="context_not_active",
+                        label="ACS/SVI context is implemented but not active in scoring",
+                        status="implemented_not_active",
+                        evidence=feature_names_without_contract or inactive_context,
+                        explanation=explanation,
+                        next_action=(
+                            "Train and publish context-aware state-year artifacts before using "
+                            "these features in predictions."
+                        ),
                     ),
                 )
-            )
+            else:
+                gaps.append(
+                    EvidenceInactiveGap(
+                        gap_id="county_context_not_active",
+                        label="County-level ACS/SVI context remains inactive in scoring",
+                        status="not_served",
+                        evidence=["context_county_year.parquet", *active_context],
+                        explanation=(
+                            "The active artifact uses state-year ACS/SVI context only. "
+                            "County-level context is not injected because current BRFSS "
+                            "person rows do not expose county join keys."
+                        ),
+                        next_action=None,
+                    )
+                )
         gaps.append(
             EvidenceInactiveGap(
                 gap_id="places_validation_only",
@@ -486,3 +496,20 @@ class EvidenceService:
                 if isinstance(item, dict) and item.get("name"):
                     features.append(str(item["name"]))
         return features
+
+
+def _active_context_feature_names(bundle: ArtifactBundle | None) -> list[str]:
+    if bundle is None or bundle.manifest.context_features is None:
+        return []
+    feature_names = list(bundle.manifest.context_features.feature_names)
+    if not set(feature_names).issubset(set(bundle.manifest.features)):
+        return []
+    return feature_names
+
+
+def _active_context_source_ids(bundle: ArtifactBundle | None) -> set[str]:
+    if bundle is None or bundle.manifest.context_features is None:
+        return set()
+    if not _active_context_feature_names(bundle):
+        return set()
+    return set(bundle.manifest.context_features.source_ids)

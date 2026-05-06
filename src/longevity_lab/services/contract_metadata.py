@@ -52,6 +52,13 @@ def build_artifact_model_metadata(
         )
     ]
     retrieved_at = bundle.manifest.dataset.retrieved_at
+    context_metadata = bundle.manifest.context_features
+    context_features = context_metadata.feature_names if context_metadata is not None else []
+    context_caveat = (
+        context_metadata.caveats[0]
+        if context_metadata is not None and context_metadata.caveats
+        else None
+    )
     return ModelMetadataResponse(
         model_mode="artifact",
         artifact_id=artifact_id or bundle.path.name,
@@ -63,9 +70,16 @@ def build_artifact_model_metadata(
         uncertainty_available=bool(uncertainty_methods),
         uncertainty_methods=uncertainty_methods,
         contextual_geography=ContextualGeographyMetadataResponse(
-            available=False,
-            levels=[],
-            source=None,
+            available=context_metadata is not None and bool(context_features),
+            levels=["state"] if context_metadata is not None and context_features else [],
+            source=(
+                ", ".join(context_metadata.source_ids)
+                if context_metadata is not None and context_metadata.source_ids
+                else None
+            ),
+            feature_count=len(context_features),
+            features=list(context_features),
+            caveat=context_caveat,
         ),
     )
 

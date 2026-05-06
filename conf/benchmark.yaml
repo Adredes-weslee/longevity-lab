@@ -35,7 +35,19 @@
       "last_checkup_within_year",
       "sleep_hours_per_night",
       "physical_health_days",
-      "mental_health_days"
+      "mental_health_days",
+      "acs_total_population",
+      "acs_poverty_percent",
+      "acs_median_household_income",
+      "acs_bachelors_degree_or_higher_percent",
+      "acs_uninsured_percent",
+      "acs_disability_percent",
+      "acs_broadband_percent",
+      "svi_overall_percentile",
+      "svi_theme1_socioeconomic_percentile",
+      "svi_theme2_household_characteristics_percentile",
+      "svi_theme3_racial_ethnic_minority_status_percentile",
+      "svi_theme4_housing_transportation_percentile"
     ],
     "feature_contract": {
       "version": "brfss_v2",
@@ -60,7 +72,20 @@
         "physical_health_days",
         "mental_health_days"
       ],
-      "context_features": [],
+      "context_features": [
+        "acs_total_population",
+        "acs_poverty_percent",
+        "acs_median_household_income",
+        "acs_bachelors_degree_or_higher_percent",
+        "acs_uninsured_percent",
+        "acs_disability_percent",
+        "acs_broadband_percent",
+        "svi_overall_percentile",
+        "svi_theme1_socioeconomic_percentile",
+        "svi_theme2_household_characteristics_percentile",
+        "svi_theme3_racial_ethnic_minority_status_percentile",
+        "svi_theme4_housing_transportation_percentile"
+      ],
       "sample_weight_column": "survey_weight",
       "label_feature_exclusions": {
         "heart_disease": ["physical_health_days"],
@@ -187,6 +212,50 @@
       "variant_id": "no_pollutants",
       "display_name": "Drop PM2.5 and ozone",
       "drop_features": ["pm25_mean", "ozone_mean"]
+    },
+    {
+      "variant_id": "no_context",
+      "display_name": "Drop state-year ACS/SVI context",
+      "drop_features": [
+        "acs_total_population",
+        "acs_poverty_percent",
+        "acs_median_household_income",
+        "acs_bachelors_degree_or_higher_percent",
+        "acs_uninsured_percent",
+        "acs_disability_percent",
+        "acs_broadband_percent",
+        "svi_overall_percentile",
+        "svi_theme1_socioeconomic_percentile",
+        "svi_theme2_household_characteristics_percentile",
+        "svi_theme3_racial_ethnic_minority_status_percentile",
+        "svi_theme4_housing_transportation_percentile"
+      ]
+    },
+    {
+      "variant_id": "air_quality_only",
+      "display_name": "Air quality context only",
+      "keep_features": ["annual_aqi", "pm25_mean", "ozone_mean"]
+    },
+    {
+      "variant_id": "context_plus_air_quality",
+      "display_name": "State-year context plus air quality",
+      "keep_features": [
+        "annual_aqi",
+        "pm25_mean",
+        "ozone_mean",
+        "acs_total_population",
+        "acs_poverty_percent",
+        "acs_median_household_income",
+        "acs_bachelors_degree_or_higher_percent",
+        "acs_uninsured_percent",
+        "acs_disability_percent",
+        "acs_broadband_percent",
+        "svi_overall_percentile",
+        "svi_theme1_socioeconomic_percentile",
+        "svi_theme2_household_characteristics_percentile",
+        "svi_theme3_racial_ethnic_minority_status_percentile",
+        "svi_theme4_housing_transportation_percentile"
+      ]
     },
     {
       "variant_id": "scenario_editable_only",
