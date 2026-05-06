@@ -88,7 +88,7 @@ Explanations must match the trained model:
 - Decision-tree bundles can keep rule-path explanations.
 - Tree-ensemble bundles should use TreeSHAP with clear caveats about correlation and non-causal attribution.
 - Scenario deltas should distinguish model-derived contribution, input change, and contextual geography.
-- Add prediction uncertainty using calibration intervals or conformal methods such as [MAPIE](https://mapie.readthedocs.io/en/latest/theoretical_description_classification.html) only after probability calibration is stable.
+- Current artifact bundles can package held-out empirical `calibration_interval` payloads with diagnostics. Future work can compare stricter conformal classifiers such as [MAPIE](https://mapie.readthedocs.io/en/latest/theoretical_description_classification.html) once calibration remains stable on larger artifact families.
 
 ### Causal Inference
 

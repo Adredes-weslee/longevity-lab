@@ -117,6 +117,13 @@ export interface ConditionModelCardResponse {
   context_average_precision_delta: number | null
   aqi_average_precision_delta: number | null
   pollutant_average_precision_delta: number | null
+  uncertainty_method: UncertaintyMethod | null
+  uncertainty_path: string | null
+  uncertainty_half_width: number | null
+  uncertainty_confidence_level: number | null
+  uncertainty_empirical_coverage: number | null
+  uncertainty_expected_calibration_error: number | null
+  uncertainty_caveat: string | null
 }
 
 export interface ModelCardBundleResponse {
@@ -155,6 +162,7 @@ export interface UncertaintySummaryResponse {
   upper: number
   confidence_level: number | null
   caveat: string
+  diagnostics: Record<string, number>
 }
 
 export interface OrganSummaryResponse {

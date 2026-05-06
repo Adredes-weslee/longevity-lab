@@ -63,8 +63,11 @@ explanations are not causal effects. Missing SHAP support is recorded as a skipp
 artifact instead of changing the decision-tree rule-path contract.
 
 Prediction uncertainty is shown only when a condition artifact declares an uncertainty method in the
-manifest. The first supported method is `calibration_interval`, backed by an artifact-side JSON
-configuration such as `half_width`, `confidence_level`, and `caveat`.
+manifest and the bundle-local payload exists. The first supported method is
+`calibration_interval`, generated from held-out absolute prediction residuals and packaged as
+artifact-side JSON with `half_width`, `confidence_level`, `n_calibration`,
+`empirical_coverage`, calibration diagnostics, and a caveat. These intervals are communication
+summaries, not clinical confidence intervals.
 
 ## Ethics and interpretation limits
 

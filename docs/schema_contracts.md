@@ -164,7 +164,10 @@ Frontend pages must keep contextual geography visible as a separate background-c
 - `key_drivers`: backwards-compatible display labels for the top explanation items.
 - `explanations`: typed records with `feature`, `display_name`, `direction`, `magnitude`,
   `method`, and `caveat`.
-- `uncertainty`: `null` unless the artifact manifest declares `uncertainty_method`.
+- `uncertainty`: `null` unless the artifact manifest declares `uncertainty_method` and a
+  bundle-local uncertainty payload exists. `calibration_interval` responses include lower/upper
+  bounds, optional confidence level, caveat text, and calibration diagnostics from the artifact
+  payload.
 
 Explanation methods must match the artifact:
 
@@ -176,7 +179,8 @@ Explanation methods must match the artifact:
   drivers.
 
 Uncertainty intervals are artifact-declared calibration summaries for communication, not clinical
-confidence intervals for an individual.
+confidence intervals for an individual. The training pipeline writes them from held-out empirical
+residual quantiles when enough validation rows are available.
 
 ## Shared disclaimer contract
 

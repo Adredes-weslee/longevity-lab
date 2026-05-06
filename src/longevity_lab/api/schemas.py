@@ -173,6 +173,7 @@ class UncertaintySummaryResponse(BaseModel):
     upper: float
     confidence_level: float | None = None
     caveat: str
+    diagnostics: dict[str, float] = Field(default_factory=dict)
 
 
 class ConditionScoreResponse(BaseModel):
@@ -483,6 +484,13 @@ class ConditionModelCardResponse(BaseModel):
     context_average_precision_delta: float | None = None
     aqi_average_precision_delta: float | None = None
     pollutant_average_precision_delta: float | None = None
+    uncertainty_method: UncertaintyMethod | None = None
+    uncertainty_path: str | None = None
+    uncertainty_half_width: float | None = None
+    uncertainty_confidence_level: float | None = None
+    uncertainty_empirical_coverage: float | None = None
+    uncertainty_expected_calibration_error: float | None = None
+    uncertainty_caveat: str | None = None
 
 
 class ModelCardBundleResponse(BaseModel):

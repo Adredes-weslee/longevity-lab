@@ -52,3 +52,45 @@ def test_artifact_metadata_reports_manifest_declared_shap_method(tmp_path: Path)
     metadata = build_artifact_model_metadata(bundle)
 
     assert metadata.explanation_methods == ["shap", "tree_path"]
+
+
+def test_artifact_metadata_reports_only_existing_uncertainty_artifacts(
+    tmp_path: Path,
+) -> None:
+    """Model metadata should not advertise uncertainty unless bundle-local payloads exist."""
+    bundle_dir = tmp_path / "models" / "bundle-uncertainty-metadata"
+    bundle_dir.mkdir(parents=True)
+    pipeline_path = bundle_dir / "heart_disease.joblib"
+    uncertainty_path = bundle_dir / "heart_disease_uncertainty.json"
+    pipeline_path.write_bytes(b"placeholder")
+    uncertainty_path.write_text(
+        '{"method": "calibration_interval", "half_width": 0.1}\n',
+        encoding="utf-8",
+    )
+    save_manifest(
+        ArtifactManifest(
+            dataset=DatasetInfo(name="brfss", version="test"),
+            features=["age", "bmi"],
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path=pipeline_path.name,
+                    uncertainty_method="calibration_interval",
+                    uncertainty_path=uncertainty_path.name,
+                ),
+                ConditionArtifact(
+                    condition_id="diabetes",
+                    pipeline_path=pipeline_path.name,
+                    uncertainty_method="calibration_interval",
+                    uncertainty_path="missing_uncertainty.json",
+                ),
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+    bundle = ArtifactStore(tmp_path / "models").resolve(bundle_id="bundle-uncertainty-metadata")
+
+    metadata = build_artifact_model_metadata(bundle)
+
+    assert metadata.uncertainty_available is True
+    assert metadata.uncertainty_methods == ["calibration_interval"]

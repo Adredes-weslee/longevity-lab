@@ -203,6 +203,7 @@ class ConditionTrainingResult:
     shap_explanation_path: Path | None
     shap_skip_path: Path | None
     explanation_artifacts: tuple[ExplanationArtifactManifest, ...]
+    uncertainty_path: Path | None
     metrics: dict[str, Any]
 
 
@@ -707,6 +708,12 @@ def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
                 metrics_path=result.metrics_path.name,
                 explanation_method="tree_path",
                 explanation_artifacts=list(result.explanation_artifacts),
+                uncertainty_method=(
+                    "calibration_interval" if result.uncertainty_path is not None else "none"
+                ),
+                uncertainty_path=(
+                    result.uncertainty_path.name if result.uncertainty_path is not None else None
+                ),
             )
             for result in condition_results
         ],
@@ -1305,6 +1312,7 @@ def _train_condition(
     predictions_path = bundle_dir / f"{condition_prefix}_predictions.parquet"
     feature_importance_path = bundle_dir / f"{condition_prefix}_feature_importances.json"
     tree_text_path = bundle_dir / f"{condition_prefix}_tree.txt"
+    uncertainty_path = bundle_dir / f"{condition_prefix}_uncertainty.json"
 
     joblib.dump(calibrated_pipeline, pipeline_path)
     tree_explanation_path: Path | None = None
@@ -1359,6 +1367,12 @@ def _train_condition(
         )
     if shap_record is not None:
         explanation_artifacts.append(shap_record)
+    written_uncertainty_path, uncertainty_metrics = _write_calibration_interval_artifact(
+        y_test,
+        calibrated_probabilities,
+        sample_weight=sample_weight_test,
+        artifact_path=uncertainty_path,
+    )
 
     metrics_payload = {
         "condition_id": condition_id,
@@ -1396,6 +1410,7 @@ def _train_condition(
             shap_skip_path=shap_skip_path,
             shap_record=shap_record,
         ),
+        "uncertainty": uncertainty_metrics,
     }
     metrics_path.write_text(json.dumps(metrics_payload, indent=2) + "\n", encoding="utf-8")
 
@@ -1411,6 +1426,7 @@ def _train_condition(
         shap_explanation_path=shap_explanation_path,
         shap_skip_path=shap_skip_path,
         explanation_artifacts=tuple(explanation_artifacts),
+        uncertainty_path=written_uncertainty_path,
         metrics=metrics_payload,
     )
 
@@ -1562,6 +1578,169 @@ def _shap_explanation_metric_payload(
         "artifact_path": shap_skip_path.name if shap_skip_path is not None else None,
         "reason": reason,
     }
+
+
+def _write_calibration_interval_artifact(
+    y_true: pd.Series,
+    probabilities: np.ndarray,
+    *,
+    sample_weight: pd.Series | None,
+    artifact_path: Path,
+    confidence_level: float = 0.9,
+    min_rows: int = 30,
+) -> tuple[Path | None, dict[str, Any]]:
+    """Persist a held-out empirical calibration interval artifact when support is adequate."""
+    if len(y_true) < min_rows or len(np.unique(y_true)) < 2:
+        return None, {
+            "status": "skipped",
+            "reason": (
+                "Held-out uncertainty intervals require at least "
+                f"{min_rows} rows and both outcome classes."
+            ),
+            "n_calibration": int(len(y_true)),
+        }
+    labels = y_true.astype(float).to_numpy()
+    clipped_probabilities = np.clip(np.asarray(probabilities, dtype=float), 0.0, 1.0)
+    residuals = np.abs(labels - clipped_probabilities)
+    weights = _normalized_weight_array(sample_weight, expected_length=len(residuals))
+    half_width = float(_weighted_quantile(residuals, confidence_level, sample_weight=weights))
+    empirical_coverage = float(_weighted_mean_array(residuals <= half_width, sample_weight=weights))
+    diagnostics = _calibration_diagnostics(
+        labels,
+        clipped_probabilities,
+        sample_weight=weights,
+    )
+    caveat = (
+        "Held-out empirical calibration interval from absolute prediction residuals; it summarizes "
+        "model uncertainty for communication and is not an individual clinical confidence interval."
+    )
+    payload: dict[str, Any] = {
+        "method": "calibration_interval",
+        "source": "heldout_absolute_residual_quantile",
+        "half_width": round(half_width, 6),
+        "confidence_level": confidence_level,
+        "n_calibration": int(len(y_true)),
+        "empirical_coverage": round(empirical_coverage, 6),
+        "diagnostics": diagnostics,
+        "caveat": caveat,
+    }
+    artifact_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return artifact_path, {
+        "status": "available",
+        "artifact_path": artifact_path.name,
+        "method": payload["method"],
+        "source": payload["source"],
+        "half_width": payload["half_width"],
+        "confidence_level": payload["confidence_level"],
+        "n_calibration": payload["n_calibration"],
+        "empirical_coverage": payload["empirical_coverage"],
+        "diagnostics": diagnostics,
+    }
+
+
+def _calibration_diagnostics(
+    labels: np.ndarray,
+    probabilities: np.ndarray,
+    *,
+    sample_weight: np.ndarray | None,
+    n_bins: int = 10,
+) -> dict[str, float]:
+    """Return compact calibration diagnostics for model cards and uncertainty payloads."""
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    expected_calibration_error = 0.0
+    max_calibration_gap = 0.0
+    total_weight = _total_weight(labels, sample_weight=sample_weight)
+    for index in range(n_bins):
+        left = bins[index]
+        right = bins[index + 1]
+        if index == n_bins - 1:
+            mask = (probabilities >= left) & (probabilities <= right)
+        else:
+            mask = (probabilities >= left) & (probabilities < right)
+        if not bool(mask.any()):
+            continue
+        bin_weight = _total_weight(labels[mask], sample_weight=_masked_weights(sample_weight, mask))
+        observed = _weighted_mean_array(
+            labels[mask], sample_weight=_masked_weights(sample_weight, mask)
+        )
+        predicted = _weighted_mean_array(
+            probabilities[mask],
+            sample_weight=_masked_weights(sample_weight, mask),
+        )
+        gap = abs(float(predicted) - float(observed))
+        expected_calibration_error += (bin_weight / total_weight) * gap
+        max_calibration_gap = max(max_calibration_gap, gap)
+    return {
+        "expected_calibration_error": round(float(expected_calibration_error), 6),
+        "max_calibration_gap": round(float(max_calibration_gap), 6),
+        "mean_absolute_error": round(
+            float(
+                _weighted_mean_array(np.abs(labels - probabilities), sample_weight=sample_weight)
+            ),
+            6,
+        ),
+        "brier_score": round(
+            float(_weighted_mean_array((labels - probabilities) ** 2, sample_weight=sample_weight)),
+            6,
+        ),
+    }
+
+
+def _normalized_weight_array(
+    sample_weight: pd.Series | None,
+    *,
+    expected_length: int,
+) -> np.ndarray | None:
+    if sample_weight is None:
+        return None
+    weights = sample_weight.astype(float).to_numpy()
+    if len(weights) != expected_length:
+        raise ValueError(
+            f"sample_weight length {len(weights)} does not match expected {expected_length}."
+        )
+    if not np.all(np.isfinite(weights)) or float(weights.sum()) <= 0.0:
+        return None
+    return cast(np.ndarray, weights)
+
+
+def _weighted_quantile(
+    values: np.ndarray,
+    quantile: float,
+    *,
+    sample_weight: np.ndarray | None,
+) -> float:
+    clipped_quantile = min(max(float(quantile), 0.0), 1.0)
+    if sample_weight is None:
+        return float(np.quantile(values, clipped_quantile))
+    order = np.argsort(values)
+    sorted_values = values[order]
+    sorted_weights = sample_weight[order]
+    cumulative = np.cumsum(sorted_weights) / float(sorted_weights.sum())
+    index = int(np.searchsorted(cumulative, clipped_quantile, side="left"))
+    return float(sorted_values[min(index, len(sorted_values) - 1)])
+
+
+def _weighted_mean_array(
+    values: np.ndarray,
+    *,
+    sample_weight: np.ndarray | None,
+) -> float:
+    numeric_values = np.asarray(values, dtype=float)
+    if sample_weight is None:
+        return float(np.mean(numeric_values))
+    return float(np.average(numeric_values, weights=sample_weight))
+
+
+def _total_weight(values: np.ndarray, *, sample_weight: np.ndarray | None) -> float:
+    if sample_weight is None:
+        return float(len(values))
+    return float(sample_weight.sum())
+
+
+def _masked_weights(sample_weight: np.ndarray | None, mask: np.ndarray) -> np.ndarray | None:
+    if sample_weight is None:
+        return None
+    return cast(np.ndarray, sample_weight[mask])
 
 
 def _fit_feature_ablation(

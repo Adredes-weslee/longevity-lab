@@ -182,7 +182,11 @@ def test_artifact_engine_returns_typed_tree_explanations_and_uncertainty(
     joblib.dump(explanation_pipeline, pipeline_path)
     joblib.dump(explanation_pipeline, explanation_path)
     uncertainty_path.write_text(
-        ('{"half_width": 0.08, "confidence_level": 0.9, "caveat": "Test calibration interval."}\n'),
+        (
+            '{"method": "calibration_interval", "half_width": 0.08, "confidence_level": 0.9, '
+            '"diagnostics": {"expected_calibration_error": 0.04}, '
+            '"caveat": "Test calibration interval."}\n'
+        ),
         encoding="utf-8",
     )
     save_manifest(
@@ -222,6 +226,7 @@ def test_artifact_engine_returns_typed_tree_explanations_and_uncertainty(
     assert scores[0].uncertainty is not None
     assert scores[0].uncertainty.method == "calibration_interval"
     assert scores[0].uncertainty.confidence_level == pytest.approx(0.9)
+    assert scores[0].uncertainty.diagnostics["expected_calibration_error"] == pytest.approx(0.04)
     assert scores[0].uncertainty.caveat == "Test calibration interval."
 
 
@@ -257,18 +262,32 @@ def test_uncertainty_requires_manifest_payload() -> None:
             payload=None,
         )
 
-    with pytest.raises(ValueError, match="requires `half_width`"):
+    with pytest.raises(ValueError, match="requires method='calibration_interval'"):
         build_uncertainty_summary(
             probability=0.4,
             method="calibration_interval",
             payload={},
         )
 
+    with pytest.raises(ValueError, match="requires method='calibration_interval'"):
+        build_uncertainty_summary(
+            probability=0.4,
+            method="calibration_interval",
+            payload={"method": "wrong_method", "half_width": 0.1},
+        )
+
+    with pytest.raises(ValueError, match="requires `half_width`"):
+        build_uncertainty_summary(
+            probability=0.4,
+            method="calibration_interval",
+            payload={"method": "calibration_interval"},
+        )
+
     with pytest.raises(ValueError, match="between 0 and 1"):
         build_uncertainty_summary(
             probability=0.4,
             method="calibration_interval",
-            payload={"half_width": float("nan")},
+            payload={"method": "calibration_interval", "half_width": float("nan")},
         )
 
 
