@@ -107,6 +107,7 @@ def _build_condition_card(
             metrics_path=condition.metrics_path,
         )
     payload: dict[str, Any] = raw_payload
+    context_features = _context_features(bundle=bundle, payload=payload)
     return ConditionModelCardResponse(
         condition_id=str(payload.get("condition_id", condition.condition_id)),
         label=label,
@@ -122,17 +123,37 @@ def _build_condition_card(
         features=[str(item) for item in payload.get("features", [])]
         if isinstance(payload.get("features"), list)
         else [],
+        context_feature_count=len(context_features),
+        context_features=context_features,
         best_params=_coerce_best_params(payload.get("best_params")),
         base_metrics=_metric_set(payload.get("base_metrics")),
         calibrated_metrics=_metric_set(payload.get("calibrated_metrics")),
+        no_context_metrics=_metric_set(payload.get("no_context_metrics")),
         no_aqi_metrics=_metric_set(payload.get("no_aqi_metrics")),
         no_pollutants_metrics=_metric_set(payload.get("no_pollutants_metrics")),
+        context_average_precision_delta=_average_precision_delta(
+            payload,
+            ablation_key="no_context_metrics",
+        ),
         aqi_average_precision_delta=_average_precision_delta(payload),
         pollutant_average_precision_delta=_average_precision_delta(
             payload,
             ablation_key="no_pollutants_metrics",
         ),
     )
+
+
+def _context_features(
+    *,
+    bundle: ArtifactBundle,
+    payload: dict[str, Any],
+) -> list[str]:
+    if bundle.manifest.context_features is None:
+        return []
+    payload_features = payload.get("context_features")
+    if isinstance(payload_features, list):
+        return [str(item) for item in payload_features]
+    return list(bundle.manifest.context_features.feature_names)
 
 
 def _safe_bundle_path(bundle_dir: Path, relative_path: str) -> Path | None:

@@ -7,6 +7,10 @@ from pathlib import Path
 
 import pandas as pd  # type: ignore[import-untyped]
 
+from longevity_lab.pipeline.build_context_tables import (
+    CONTEXT_FEATURE_COLUMNS,
+    context_state_year_parquet,
+)
 from longevity_lab.pipeline.common import (
     FileProvenance,
     add_common_pipeline_args,
@@ -60,6 +64,7 @@ EPA_OPTIONAL_COLUMNS: list[str] = [
     "ozone_observation_complete",
 ]
 POLLUTANT_PREFIXES: tuple[str, ...] = ("pm25", "ozone")
+CONTEXT_REQUIRED_COLUMNS: list[str] = ["year", "state_fips"]
 
 INTEGRATED_COLUMNS: list[str] = [
     "year",
@@ -80,6 +85,7 @@ INTEGRATED_COLUMNS: list[str] = [
     "sleep_hours_per_night",
     "physical_health_days",
     "mental_health_days",
+    *CONTEXT_FEATURE_COLUMNS,
     "label_heart_disease",
     "label_chronic_lung_disease",
     "label_asthma",
@@ -128,9 +134,10 @@ def integrate_brfss_epa(
     brfss_person: pd.DataFrame,
     epa_state_year: pd.DataFrame,
     *,
+    context_state_year: pd.DataFrame | None = None,
     allow_missing_aqi: bool,
 ) -> pd.DataFrame:
-    """Join BRFSS v2 person rows with EPA state-year AQI."""
+    """Join BRFSS v2 person rows with EPA and optional ACS/SVI state-year context."""
     require_columns(
         actual=brfss_person.columns,
         required=BRFSS_REQUIRED_COLUMNS + BRFSS_V2_REQUIRED_COLUMNS,
@@ -150,6 +157,23 @@ def integrate_brfss_epa(
         (joined["annual_aqi"] >= 0) & (joined["annual_aqi"] <= 500)
     )
     joined = _quality_gate_pollutant_features(joined)
+
+    if context_state_year is not None:
+        require_columns(
+            actual=context_state_year.columns,
+            required=CONTEXT_REQUIRED_COLUMNS,
+            context="state-year ACS/SVI context",
+        )
+        context_columns = [
+            *CONTEXT_REQUIRED_COLUMNS,
+            *[column for column in CONTEXT_FEATURE_COLUMNS if column in context_state_year.columns],
+        ]
+        joined = joined.merge(
+            context_state_year.loc[:, context_columns],
+            on=["year", "state_fips"],
+            how="left",
+            validate="many_to_one",
+        )
 
     missing = int(joined["annual_aqi"].isna().sum())
     if missing and not allow_missing_aqi:
@@ -199,6 +223,8 @@ def build_integrated_tables(
             f"Missing EPA processed table: {epa_path}. Run build_epa_tables first."
         )
     epa = pd.read_parquet(epa_path)
+    context_path = context_state_year_parquet(base_dir)
+    context = pd.read_parquet(context_path) if context_path.exists() else None
 
     for year in years:
         brfss_path = paths.brfss_person_parquet(year)
@@ -219,6 +245,9 @@ def build_integrated_tables(
         integrated = integrate_brfss_epa(
             brfss,
             epa_year,
+            context_state_year=context.loc[context["year"] == year].copy()
+            if context is not None
+            else None,
             allow_missing_aqi=allow_missing_aqi,
         )
 
@@ -246,6 +275,8 @@ def build_integrated_tables(
             files.append(collect_file_provenance(brfss_path, root=base_dir))
         if epa_path.exists():
             files.append(collect_file_provenance(epa_path, root=base_dir))
+        if context_path.exists():
+            files.append(collect_file_provenance(context_path, root=base_dir))
         if out_path.exists():
             files.append(collect_file_provenance(out_path, root=base_dir))
 

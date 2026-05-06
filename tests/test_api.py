@@ -16,6 +16,7 @@ from longevity_lab.api.main import create_app
 from longevity_lab.artifacts.manifest import (
     ArtifactManifest,
     ConditionArtifact,
+    ContextFeatureManifest,
     DatasetInfo,
     save_manifest,
 )
@@ -104,6 +105,117 @@ def _write_api_bundle(
                     condition_id="heart_disease",
                     pipeline_path=pipeline_path.name,
                     metrics_path=metrics_path.name if write_metrics else None,
+                    explanation_method="tree_path",
+                )
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+    return bundle_id
+
+
+def _write_context_api_bundle(artifacts_dir: Path, bundle_id: str = "bundle-context") -> str:
+    """Write an artifact bundle that declares active state-year context features."""
+    models_dir = artifacts_dir / "models"
+    bundle_dir = models_dir / bundle_id
+    bundle_dir.mkdir(parents=True)
+    frame = pd.DataFrame(
+        [
+            {
+                "age": 45,
+                "bmi": 28.0,
+                "smoker": True,
+                "alcohol_servings_per_week": 10,
+                "exercise_minutes_per_week": 60,
+                "annual_aqi": 80,
+                "acs_poverty_percent": 25.0,
+                "svi_overall_percentile": 0.75,
+            },
+            {
+                "age": 45,
+                "bmi": 26.0,
+                "smoker": False,
+                "alcohol_servings_per_week": 4,
+                "exercise_minutes_per_week": 180,
+                "annual_aqi": 55,
+                "acs_poverty_percent": 8.0,
+                "svi_overall_percentile": 0.25,
+            },
+        ]
+    )
+    pipeline = Pipeline([("model", DummyClassifier(strategy="prior"))])
+    pipeline.fit(frame, [1, 0])
+    pipeline_path = bundle_dir / "heart_disease.joblib"
+    joblib.dump(pipeline, pipeline_path)
+    metrics_path = bundle_dir / "heart_disease_metrics.json"
+    metrics_path.write_text(
+        json.dumps(
+            {
+                "condition_id": "heart_disease",
+                "rows_total": 2,
+                "rows_train": 1,
+                "rows_test": 1,
+                "target_positive_rate": 0.5,
+                "features": list(frame.columns),
+                "context_features": ["acs_poverty_percent", "svi_overall_percentile"],
+                "context_feature_count": 2,
+                "best_params": {"max_depth": 2},
+                "base_metrics": {"average_precision": 0.6},
+                "calibrated_metrics": {"average_precision": 0.82},
+                "no_context_metrics": {"average_precision": 0.74},
+                "no_aqi_metrics": {"average_precision": 0.78},
+                "no_pollutants_metrics": {"average_precision": 0.79},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lookup_path = bundle_dir / "context_state_year_lookup.json"
+    lookup_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "feature_names": ["acs_poverty_percent", "svi_overall_percentile"],
+                "join_keys": ["state_fips", "year"],
+                "rows": [
+                    {
+                        "state_fips": "06",
+                        "year": 2023,
+                        "acs_poverty_percent": 25.0,
+                        "svi_overall_percentile": 0.75,
+                    },
+                    {
+                        "state_fips": "13",
+                        "year": 2023,
+                        "acs_poverty_percent": 8.0,
+                        "svi_overall_percentile": 0.25,
+                    },
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    save_manifest(
+        ArtifactManifest(
+            dataset=DatasetInfo(name="integrated_person_year", version="2023"),
+            features=list(frame.columns),
+            context_features=ContextFeatureManifest(
+                feature_names=["acs_poverty_percent", "svi_overall_percentile"],
+                source_ids=["census_acs5_api_context", "cdc_atsdr_svi_us_county_csv"],
+                join_keys=["state_fips", "year"],
+                data_vintage="ACS 2023 5-year; SVI 2022 county aggregation",
+                lookup_path=lookup_path.name,
+                default_values={"acs_poverty_percent": 12.0, "svi_overall_percentile": 0.5},
+                caveats=[
+                    "State-year context is background geography context, not a personal behavior.",
+                ],
+            ),
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path=pipeline_path.name,
+                    metrics_path=metrics_path.name,
                     explanation_method="tree_path",
                 )
             ],
@@ -232,6 +344,18 @@ def _compare_payload() -> dict[str, dict[str, object]]:
     }
 
 
+def _inactive_contextual_geography() -> dict[str, object]:
+    """Return the inactive contextual geography metadata contract."""
+    return {
+        "available": False,
+        "levels": [],
+        "source": None,
+        "feature_count": 0,
+        "features": [],
+        "caveat": None,
+    }
+
+
 def _configured_client(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -303,11 +427,7 @@ def test_metadata_bootstrap(client: TestClient) -> None:
     assert model_metadata["explanation_methods"] == ["demo"]
     assert model_metadata["uncertainty_available"] is False
     assert model_metadata["uncertainty_methods"] == []
-    assert model_metadata["contextual_geography"] == {
-        "available": False,
-        "levels": [],
-        "source": None,
-    }
+    assert model_metadata["contextual_geography"] == _inactive_contextual_geography()
     assert payload["geography"] == {
         "supported_levels": ["state"],
         "default_year": 2023,
@@ -383,11 +503,7 @@ def test_metadata_bootstrap_auto_selects_artifact_bundle(
         assert model_metadata["explanation_methods"] == []
         assert model_metadata["uncertainty_available"] is False
         assert model_metadata["uncertainty_methods"] == []
-        assert model_metadata["contextual_geography"] == {
-            "available": False,
-            "levels": [],
-            "source": None,
-        }
+        assert model_metadata["contextual_geography"] == _inactive_contextual_geography()
 
 
 def test_model_cards_artifact_surfaces_condition_metrics(
@@ -602,11 +718,7 @@ def test_scenario_compare_auto_selected_artifact_reports_model_metadata(
         assert payload["model_metadata"]["data_vintage"] == "test"
         assert payload["model_metadata"]["explanation_methods"] == []
         assert payload["baseline"]["conditions"][0]["explanations"] == []
-        assert payload["model_metadata"]["contextual_geography"] == {
-            "available": False,
-            "levels": [],
-            "source": None,
-        }
+        assert payload["model_metadata"]["contextual_geography"] == _inactive_contextual_geography()
         assert [item["condition_id"] for item in payload["candidate"]["conditions"]] == [
             "heart_disease"
         ]
@@ -635,7 +747,7 @@ def test_context_feature_artifact_is_not_marked_geography_active(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """PR 19 must not claim geography-active artifacts before context injection exists."""
+    """Context-like feature names alone must not activate geography-aware scoring."""
     bundle_id = _write_api_bundle(tmp_path / "artifacts")
     bundle_dir = tmp_path / "artifacts" / "models" / bundle_id
     manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -649,11 +761,9 @@ def test_context_feature_artifact_is_not_marked_geography_active(
         bootstrap = test_client.get("/api/metadata/bootstrap").json()
         evidence = test_client.get("/api/evidence/status").json()
 
-        assert bootstrap["model_metadata"]["contextual_geography"] == {
-            "available": False,
-            "levels": [],
-            "source": None,
-        }
+        assert (
+            bootstrap["model_metadata"]["contextual_geography"] == _inactive_contextual_geography()
+        )
         context_gap = next(
             gap for gap in evidence["inactive_gaps"] if gap["gap_id"] == "context_not_active"
         )
@@ -661,7 +771,44 @@ def test_context_feature_artifact_is_not_marked_geography_active(
             "acs_poverty_percent",
             "svi_overall_percentile",
         ]
-        assert "intentionally does not inject selected geography" in context_gap["explanation"]
+        assert "does not declare context feature lookup provenance" in context_gap["explanation"]
+
+
+def test_context_manifest_artifact_marks_state_year_context_active(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Artifacts with manifest context metadata should activate ACS/SVI evidence surfaces."""
+    bundle_id = _write_context_api_bundle(tmp_path / "artifacts")
+
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        bootstrap = test_client.get("/api/metadata/bootstrap").json()
+        evidence = test_client.get("/api/evidence/status").json()
+        cards = test_client.get("/api/models/cards").json()
+
+        assert bootstrap["runtime"]["artifact_bundle_id"] == bundle_id
+        assert bootstrap["model_metadata"]["contextual_geography"] == {
+            "available": True,
+            "levels": ["state"],
+            "source": "census_acs5_api_context, cdc_atsdr_svi_us_county_csv",
+            "feature_count": 2,
+            "features": ["acs_poverty_percent", "svi_overall_percentile"],
+            "caveat": (
+                "State-year context is background geography context, not a personal behavior."
+            ),
+        }
+        sources = {item["source_id"]: item for item in evidence["sources"]}
+        assert sources["census_acs5_api_context"]["role"] == "active_model"
+        assert sources["census_acs5_api_context"]["active_in_model"] is True
+        assert sources["cdc_atsdr_svi_us_county_csv"]["role"] == "active_model"
+        gap_ids = {item["gap_id"] for item in evidence["inactive_gaps"]}
+        assert "context_not_active" not in gap_ids
+        assert "county_context_not_active" in gap_ids
+
+        card = cards["condition_cards"][0]
+        assert card["context_feature_count"] == 2
+        assert card["context_features"] == ["acs_poverty_percent", "svi_overall_percentile"]
+        assert card["context_average_precision_delta"] == pytest.approx(0.08)
 
 
 def test_metadata_bootstrap_auto_falls_back_on_wrong_object_bundle(

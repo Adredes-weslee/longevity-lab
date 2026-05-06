@@ -31,8 +31,10 @@ Legend:
 - [DONE] Explorer UX upgrade for input deltas, accessible anatomy selection, explanation caveats, uncertainty copy, and color-blind-safe legends.
 - [DONE] Deployment packaging for Render API/static frontend and Vercel static frontend handoff.
 - [DONE] Public GitHub Release artifact download with SHA256 verification for Render artifact mode.
-- [DONE] Geography serving foundation with explicit state-year context selection, readiness lookup,
-  and inactive ACS/SVI scoring semantics.
+- [DONE] Geography serving foundation with explicit state-year context selection and readiness
+  lookup.
+- [DONE] Context-aware artifact training and serving activation for manifest-declared state-year
+  ACS/SVI features, with county-level context kept inactive.
 
 ## Current baseline
 
@@ -52,7 +54,7 @@ Legend:
 - [DONE] BRFSS download script with provenance (`src/longevity_lab/pipeline/download_brfss.py`).
 - [DONE] BRFSS decode and Parquet build for v2 scenario/editable, adjustment, label, and survey-weight columns (`src/longevity_lab/pipeline/build_brfss_tables.py`).
 - [DONE] EPA AirData annual AQI, PM2.5, and ozone download and preprocessing (`src/longevity_lab/pipeline/download_epa_airdata.py`, `src/longevity_lab/pipeline/build_epa_tables.py`).
-- [DONE] BRFSS/EPA state-year join with backwards-compatible `annual_aqi`, BRFSS v2 covariates, and quality-gated pollutant features (`src/longevity_lab/pipeline/build_integrated_tables.py`).
+- [DONE] BRFSS/EPA/ACS/SVI state-year join with backwards-compatible `annual_aqi`, BRFSS v2 covariates, quality-gated pollutant features, and manifest-gated context features (`src/longevity_lab/pipeline/build_integrated_tables.py`).
 - [DONE] Integrated person-year tables preserve BRFSS v2 covariates for default training (`src/longevity_lab/pipeline/build_integrated_tables.py`).
 - [DONE] Expected EPA territory coverage gaps handled without breaking integrated builds (`src/longevity_lab/pipeline/build_integrated_tables.py`).
 - [DONE] Small sample slice committed in `data/sample/` for dev/testing only.
@@ -78,9 +80,9 @@ Legend:
 - [DONE] Subgroup/slice analysis export for trained bundles (`src/longevity_lab/pipeline/evaluate.py`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Reproducible benchmark harness writes metrics, calibration curves, subgroup metrics, and model-card-ready manifests (`src/longevity_lab/pipeline/benchmarks.py`, `conf/benchmark.yaml`).
 - [DONE] Benchmark harness compares calibrated histogram gradient boosting and optional XGBoost candidates against the decision-tree baseline, recording skipped XGBoost rows when the optional dependency is unavailable (`src/longevity_lab/pipeline/benchmarks.py`, `conf/model/hist_gradient_boosting.yaml`, `conf/model/xgboost.yaml`).
-- [DONE] Training config separates scenario-editable features from BRFSS adjustment/context covariates and applies survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
+- [DONE] Training config separates scenario-editable features from BRFSS adjustment covariates and state-year ACS/SVI context features, applying survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Active training scope covers eight BRFSS-derived conditions: heart disease, chronic lung disease, asthma, stroke, depression, diabetes, chronic kidney disease, and arthritis (`conf/train.yaml`, `src/longevity_lab/domain/catalog.py`).
-- [DONE] Artifact manifest schema, bundle loader, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
+- [DONE] Artifact manifest schema, bundle loader, context lookup provenance, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
 - [DONE] Explanation outputs aligned to saved explanation trees, optional SHAP artifacts, and manifest-declared uncertainty intervals (`src/longevity_lab/services/artifact_engine.py`, `src/longevity_lab/services/explanations.py`, `src/longevity_lab/services/uncertainty.py`).
 
 ### Causal inference
@@ -138,7 +140,7 @@ Legend:
 
 Detailed PR scopes and Codex prompts are in `docs/superpowers/plans/2026-05-06-remaining-work-pr-roadmap.md`.
 
-1. Add geography-aware serving before activating ACS/SVI context features in predictions.
+1. Harden the context transparency UX for active state-year context and inactive county context.
 2. Extend typed explanation and uncertainty coverage as new artifact families are trained.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
 4. Add one-command dev bootstrap for Windows and macOS.

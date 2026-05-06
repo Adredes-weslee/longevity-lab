@@ -32,6 +32,15 @@ class LoadedConditionModel:
     uncertainty_payload: dict[str, object] | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class LoadedContextFeatureLookup:
+    """Bundle-local state-year context lookup data."""
+
+    feature_names: tuple[str, ...]
+    rows_by_key: dict[tuple[str, int], dict[str, object]]
+    default_values: dict[str, object]
+
+
 class ArtifactScenarioEngine(ScenarioEngine):
     """Scenario engine backed by persisted model artifacts."""
 
@@ -50,6 +59,7 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 f"{sorted(set(unknown_conditions))}. "
                 "Update src/longevity_lab/domain/catalog.py or fix the artifact bundle."
             )
+        self._context_lookup = self._load_context_feature_lookup(self._bundle)
         self._models = self._load_models(self._bundle)
 
     def evaluate(
@@ -59,12 +69,10 @@ class ArtifactScenarioEngine(ScenarioEngine):
     ) -> list[ConditionScore]:
         """Evaluate a profile by calling each loaded per-condition pipeline.
 
-        The selected geography is accepted as serving metadata in PR 19. It is not
-        injected into the feature frame until a trusted artifact explicitly carries
-        context lookup assets in a later PR.
+        Selected geography supplies state-year context only when the trusted bundle
+        manifest declares the exact feature list and a bundle-local lookup asset.
         """
-        _ = geography
-        frame = self._profile_frame(profile)
+        frame = self._profile_frame(profile, geography=geography)
         results: list[ConditionScore] = []
         for condition in self._bundle.manifest.conditions:
             model = self._models[condition.condition_id]
@@ -104,7 +112,12 @@ class ArtifactScenarioEngine(ScenarioEngine):
             )
         return results
 
-    def _profile_frame(self, profile: FeatureProfile) -> pd.DataFrame:
+    def _profile_frame(
+        self,
+        profile: FeatureProfile,
+        *,
+        geography: ScenarioGeographySelection | None,
+    ) -> pd.DataFrame:
         """Return a serving frame aligned to the artifact manifest feature contract."""
         values: dict[str, object] = {
             "sex": "unknown",
@@ -118,9 +131,24 @@ class ArtifactScenarioEngine(ScenarioEngine):
             "mental_health_days": None,
         }
         values.update(profile.model_dump())
+        values.update(self._context_values_for_geography(geography))
         for feature_name in self._bundle.manifest.features:
             values.setdefault(feature_name, None)
         return pd.DataFrame([{name: values[name] for name in self._bundle.manifest.features}])
+
+    def _context_values_for_geography(
+        self,
+        geography: ScenarioGeographySelection | None,
+    ) -> dict[str, object]:
+        """Return manifest-declared context values for the selected geography or defaults."""
+        lookup = self._context_lookup
+        if lookup is None:
+            return {}
+        if geography is not None:
+            row = lookup.rows_by_key.get((geography.state_fips, geography.year))
+            if row is not None:
+                return {name: row.get(name) for name in lookup.feature_names}
+        return {name: lookup.default_values.get(name) for name in lookup.feature_names}
 
     @staticmethod
     def _load_models(bundle: ArtifactBundle) -> dict[str, LoadedConditionModel]:
@@ -166,6 +194,63 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 ),
             )
         return models
+
+    @staticmethod
+    def _load_context_feature_lookup(bundle: ArtifactBundle) -> LoadedContextFeatureLookup | None:
+        metadata = bundle.manifest.context_features
+        if metadata is None or not metadata.feature_names:
+            return None
+        feature_names = tuple(metadata.feature_names)
+        missing_features = sorted(set(feature_names) - set(bundle.manifest.features))
+        if missing_features:
+            raise ValueError(
+                "Artifact context_features must be included in manifest.features "
+                f"(missing {missing_features})."
+            )
+        if metadata.join_keys != ["state_fips", "year"]:
+            raise ValueError(
+                "Artifact context_features currently support only state-year join keys "
+                "['state_fips', 'year']."
+            )
+        lookup_path = ArtifactScenarioEngine._safe_bundle_path(
+            bundle.path,
+            metadata.lookup_path,
+            label="context_features.lookup_path",
+        )
+        if not lookup_path.exists():
+            raise FileNotFoundError(f"Missing context lookup artifact: {lookup_path}")
+        payload = json.loads(lookup_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("Context lookup artifact must be a JSON object.")
+        payload_features = payload.get("feature_names")
+        if payload_features != list(feature_names):
+            raise ValueError(
+                "Context lookup feature_names must exactly match manifest context_features."
+            )
+        payload_join_keys = payload.get("join_keys")
+        if payload_join_keys != metadata.join_keys:
+            raise ValueError("Context lookup join_keys must match manifest context_features.")
+        rows_payload = payload.get("rows")
+        if not isinstance(rows_payload, list):
+            raise ValueError("Context lookup artifact must contain a rows list.")
+
+        rows_by_key: dict[tuple[str, int], dict[str, object]] = {}
+        for row in rows_payload:
+            if not isinstance(row, dict):
+                raise ValueError("Context lookup rows must be JSON objects.")
+            state_fips = _normalize_state_fips(row.get("state_fips"))
+            year = _normalize_year(row.get("year"))
+            if state_fips is None or year is None:
+                raise ValueError("Context lookup rows require state_fips and year.")
+            key = (state_fips, year)
+            if key in rows_by_key:
+                raise ValueError(f"Duplicate context lookup state-year key: {key}.")
+            rows_by_key[key] = {name: row.get(name) for name in feature_names}
+        return LoadedContextFeatureLookup(
+            feature_names=feature_names,
+            rows_by_key=rows_by_key,
+            default_values={name: metadata.default_values.get(name) for name in feature_names},
+        )
 
     @staticmethod
     def _load_uncertainty_payload(
@@ -243,3 +328,24 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 f"predict_proba() returned invalid probability for {condition_id}: {probability}."
             )
         return probability
+
+
+def _normalize_state_fips(value: object) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return f"{int(float(text)):02d}"
+    except ValueError:
+        return text.zfill(2) if text.isdigit() else None
+
+
+def _normalize_year(value: object) -> int | None:
+    if value is None or pd.isna(value):
+        return None
+    try:
+        return int(float(str(value).strip()))
+    except ValueError:
+        return None

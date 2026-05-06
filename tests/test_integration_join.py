@@ -230,3 +230,55 @@ def test_integrate_brfss_epa_includes_quality_gated_pollutant_features() -> None
     assert integrated.loc[integrated["state_fips"] == "06", "ozone_mean"].iloc[0] == 0.041
     assert pd.isna(integrated.loc[integrated["state_fips"] == "12", "pm25_mean"].iloc[0])
     assert pd.isna(integrated.loc[integrated["state_fips"] == "12", "ozone_mean"].iloc[0])
+
+
+def test_integrate_brfss_epa_joins_state_year_context_features() -> None:
+    """Integrated training rows should only activate defensible state-year context joins."""
+    brfss = pd.DataFrame(
+        _with_v2_covariates(
+            {
+                "year": [2023, 2023],
+                "state_fips": ["06", "13"],
+                "age": [42, 67],
+                "bmi": [30.1, 26.0],
+                "smoker": [False, False],
+                "alcohol_servings_per_week": [0, 0],
+                "exercise_minutes_per_week": [200, 0],
+                "label_heart_disease": [1, 0],
+                "label_chronic_lung_disease": [0, 0],
+                "label_stroke": [0, 0],
+                "label_depression": [1, 0],
+                "label_diabetes": [0, 0],
+                "survey_weight": [2.0, 1.0],
+            }
+        )
+    )
+    epa = pd.DataFrame(
+        {
+            "year": [2023, 2023],
+            "state_fips": ["06", "13"],
+            "annual_aqi": [60, 45],
+        }
+    )
+    context = pd.DataFrame(
+        {
+            "year": [2023, 2023],
+            "state_fips": ["06", "13"],
+            "geography_name": ["California", "Georgia"],
+            "acs_poverty_percent": [12.5, 10.1],
+            "svi_overall_percentile": [0.42, 0.31],
+        }
+    )
+
+    integrated = integrate_brfss_epa(
+        brfss,
+        epa,
+        context_state_year=context,
+        allow_missing_aqi=False,
+    )
+
+    assert integrated.loc[integrated["state_fips"] == "06", "acs_poverty_percent"].iloc[0] == 12.5
+    assert (
+        integrated.loc[integrated["state_fips"] == "13", "svi_overall_percentile"].iloc[0] == 0.31
+    )
+    assert "county_fips" not in integrated.columns

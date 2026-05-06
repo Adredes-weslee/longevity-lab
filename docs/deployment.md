@@ -96,5 +96,12 @@ The build command runs `scripts/download_model_bundle.py`, which downloads the z
 rejects unsafe zip paths, and extracts the bundle under `artifacts/models/`. Production can then set
 `LONGEVITY_LAB_ENGINE=artifact`.
 
+ACS/SVI context is active in production only for bundles whose `manifest.json` declares
+`context_features` metadata and a trusted bundle-local `context_state_year_lookup.json`. Older
+artifact bundles can still serve, but geography selection remains inert for ACS/SVI scoring until a
+context-aware bundle is published and its release URL/SHA are configured. Do not point Render at a
+new context-aware bundle until the SHA256 is verified and the scenario/evidence smoke checks confirm
+state-year context is reported as active.
+
 Keep `LONGEVITY_LAB_ENGINE=demo` as the rollback path. Do not commit `data/external/`,
 `data/processed/`, or `artifacts/models/` directly to the repo.

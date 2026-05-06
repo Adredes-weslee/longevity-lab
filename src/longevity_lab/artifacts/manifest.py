@@ -28,6 +28,20 @@ class DatasetInfo(BaseModel):
     sources: list[str] = Field(default_factory=list)
 
 
+class ContextFeatureManifest(BaseModel):
+    """State-year context feature lookup metadata for trusted artifact bundles."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    feature_names: list[str] = Field(default_factory=list)
+    source_ids: list[str] = Field(default_factory=list)
+    join_keys: list[str] = Field(default_factory=list)
+    data_vintage: str
+    lookup_path: str
+    default_values: dict[str, int | float | str | bool | None] = Field(default_factory=dict)
+    caveats: list[str] = Field(default_factory=list)
+
+
 class ConditionArtifact(BaseModel):
     """One condition model artifact entry inside a bundle."""
 
@@ -52,6 +66,7 @@ class ArtifactManifest(BaseModel):
     created_at: dt.datetime = Field(default_factory=lambda: dt.datetime.now(dt.UTC))
     dataset: DatasetInfo
     features: list[str] = Field(default_factory=list)
+    context_features: ContextFeatureManifest | None = None
     conditions: list[ConditionArtifact] = Field(default_factory=list)
     git_commit: str | None = None
     notes: str | None = None

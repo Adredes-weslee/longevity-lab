@@ -33,6 +33,7 @@ from sklearn.tree import DecisionTreeClassifier, export_text  # type: ignore[imp
 from longevity_lab.artifacts.manifest import (
     ArtifactManifest,
     ConditionArtifact,
+    ContextFeatureManifest,
     DatasetInfo,
     save_manifest,
 )
@@ -74,7 +75,25 @@ FEATURE_LABELS: dict[str, str] = {
     "sleep_hours_per_night": "Sleep hours / night",
     "physical_health_days": "Poor physical health days",
     "mental_health_days": "Poor mental health days",
+    "acs_total_population": "ACS total population",
+    "acs_poverty_percent": "ACS poverty percent",
+    "acs_median_household_income": "ACS median household income",
+    "acs_bachelors_degree_or_higher_percent": "ACS bachelors degree or higher",
+    "acs_uninsured_percent": "ACS uninsured percent",
+    "acs_disability_percent": "ACS disability percent",
+    "acs_broadband_percent": "ACS broadband percent",
+    "svi_overall_percentile": "SVI overall percentile",
+    "svi_theme1_socioeconomic_percentile": "SVI socioeconomic percentile",
+    "svi_theme2_household_characteristics_percentile": "SVI household percentile",
+    "svi_theme3_racial_ethnic_minority_status_percentile": "SVI minority-status percentile",
+    "svi_theme4_housing_transportation_percentile": "SVI housing/transportation percentile",
 }
+
+CONTEXT_JOIN_KEYS: tuple[str, str] = ("state_fips", "year")
+CONTEXT_DEFAULT_LOOKUP_NAME = "context_state_year_lookup.json"
+STATE_YEAR_CONTEXT_CAVEAT = (
+    "State-year context is background geography context, not a personal behavior."
+)
 
 CATEGORICAL_FEATURES: frozenset[str] = frozenset({"sex", "race_ethnicity"})
 
@@ -566,7 +585,7 @@ def _build_feature_contract(
             sample_weight_column=None,
             label_feature_exclusions={},
         )
-    return FeatureContractSpec(
+    contract = FeatureContractSpec(
         version=str(contract_cfg.get("version", "brfss_v2")),
         scenario_editable_features=tuple(
             str(item) for item in contract_cfg.get("scenario_editable_features", [])
@@ -587,6 +606,21 @@ def _build_feature_contract(
             ).items()
         },
     )
+    _validate_feature_contract(contract, features=features)
+    return contract
+
+
+def _validate_feature_contract(
+    contract: FeatureContractSpec,
+    *,
+    features: tuple[str, ...],
+) -> None:
+    missing_context = sorted(set(contract.context_features) - set(features))
+    if missing_context:
+        raise ValueError(
+            "feature_contract.context_features must be included in configured features: "
+            f"{missing_context}"
+        )
 
 
 def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
@@ -606,9 +640,15 @@ def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
         )
         condition_results.append(result)
 
+    context_manifest = _write_context_feature_lookup(
+        data_frame,
+        spec=spec,
+        bundle_dir=bundle_dir,
+    )
     manifest = ArtifactManifest(
         dataset=_build_dataset_info(spec=spec, dataset_path=dataset_path),
         features=list(spec.features),
+        context_features=context_manifest,
         conditions=[
             ConditionArtifact(
                 condition_id=result.condition_id,
@@ -632,6 +672,7 @@ def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
         "git_commit": spec.git_commit,
         "features": list(spec.features),
         "feature_contract": spec.feature_contract.to_dict(),
+        "context_features": context_manifest.model_dump() if context_manifest else None,
         "conditions": [
             {
                 "condition_id": result.condition_id,
@@ -653,6 +694,128 @@ def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
         training_summary_path=training_summary_path,
         condition_results=condition_results,
     )
+
+
+def _write_context_feature_lookup(
+    data_frame: pd.DataFrame,
+    *,
+    spec: TrainingSpec,
+    bundle_dir: Path,
+) -> ContextFeatureManifest | None:
+    context_features = spec.feature_contract.context_features
+    if not context_features:
+        return None
+    required = [*CONTEXT_JOIN_KEYS, *context_features]
+    missing = [name for name in required if name not in data_frame.columns]
+    if missing:
+        raise ValueError(
+            f"Context-aware training requires state-year join keys and context columns: {missing}"
+        )
+
+    lookup_frame = data_frame.loc[:, required].copy()
+    lookup_frame["state_fips"] = lookup_frame["state_fips"].map(_normalize_state_fips)
+    lookup_frame["year"] = pd.to_numeric(lookup_frame["year"], errors="coerce")
+    if lookup_frame["state_fips"].isna().any() or lookup_frame["year"].isna().any():
+        raise ValueError("Context lookup rows require non-null state_fips and year values.")
+    lookup_frame["year"] = lookup_frame["year"].astype(int)
+    unique_rows = lookup_frame.drop_duplicates().reset_index(drop=True)
+    duplicate_keys = (
+        unique_rows.groupby(list(CONTEXT_JOIN_KEYS), dropna=False)
+        .size()
+        .loc[lambda series: series > 1]
+    )
+    if not duplicate_keys.empty:
+        raise ValueError(
+            "Context features must be constant within each state-year key before packaging."
+        )
+
+    rows: list[dict[str, object]] = []
+    for _, row in unique_rows.sort_values(list(CONTEXT_JOIN_KEYS)).iterrows():
+        rows.append(
+            {
+                "state_fips": str(row["state_fips"]),
+                "year": int(row["year"]),
+                **{feature: _json_safe_scalar(row[feature]) for feature in context_features},
+            }
+        )
+
+    lookup_path = bundle_dir / CONTEXT_DEFAULT_LOOKUP_NAME
+    lookup_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "feature_names": list(context_features),
+                "join_keys": list(CONTEXT_JOIN_KEYS),
+                "rows": rows,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return ContextFeatureManifest(
+        feature_names=list(context_features),
+        source_ids=_context_source_ids(context_features),
+        join_keys=list(CONTEXT_JOIN_KEYS),
+        data_vintage=f"State-year ACS/SVI context aligned to BRFSS {spec.year}",
+        lookup_path=lookup_path.name,
+        default_values=_context_default_values(data_frame, context_features),
+        caveats=[STATE_YEAR_CONTEXT_CAVEAT],
+    )
+
+
+def _context_source_ids(context_features: Sequence[str]) -> list[str]:
+    source_ids: list[str] = []
+    if any(feature.startswith("acs_") for feature in context_features):
+        source_ids.append("census_acs5_api_context")
+    if any(feature.startswith("svi_") for feature in context_features):
+        source_ids.append("cdc_atsdr_svi_us_county_csv")
+    return source_ids
+
+
+def _context_default_values(
+    frame: pd.DataFrame,
+    context_features: Sequence[str],
+) -> dict[str, int | float | str | bool | None]:
+    defaults: dict[str, int | float | str | bool | None] = {}
+    for feature in context_features:
+        series = frame[feature]
+        numeric = pd.to_numeric(series, errors="coerce")
+        non_null_numeric = numeric.dropna()
+        if not non_null_numeric.empty:
+            defaults[feature] = _json_safe_scalar(float(non_null_numeric.median()))
+            continue
+        non_null = series.dropna()
+        defaults[feature] = _json_safe_scalar(non_null.iloc[0]) if not non_null.empty else None
+    return defaults
+
+
+def _normalize_state_fips(value: object) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return f"{int(float(text)):02d}"
+    except ValueError:
+        return text.zfill(2) if text.isdigit() else None
+
+
+def _json_safe_scalar(value: object) -> int | float | str | bool | None:
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, bool | str):
+        return value
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    if isinstance(value, int | float):
+        return value
+    return str(value)
 
 
 def evaluate_bundle(bundle_dir: Path) -> pd.DataFrame:
@@ -1063,6 +1226,20 @@ def _train_condition(
         sample_weight_train=sample_weight_train,
         sample_weight_test=sample_weight_test,
     )
+    no_context_metrics, no_context_probabilities = _fit_feature_ablation(
+        x_train,
+        x_test,
+        y_train,
+        y_test,
+        spec=spec,
+        tuned_params=tuned_params,
+        feature_names=condition_features,
+        drop_features=spec.feature_contract.context_features,
+        fallback_probabilities=calibrated_probabilities,
+        fallback_metrics=calibrated_metrics,
+        sample_weight_train=sample_weight_train,
+        sample_weight_test=sample_weight_test,
+    )
 
     positive_rate = _weighted_mean(y_test.astype(float), sample_weight=sample_weight_test)
 
@@ -1083,6 +1260,7 @@ def _train_condition(
     test_predictions["predicted_probability_uncalibrated"] = base_probabilities
     test_predictions["predicted_probability_no_aqi"] = no_aqi_probabilities
     test_predictions["predicted_probability_no_pollutants"] = no_pollutants_probabilities
+    test_predictions["predicted_probability_no_context"] = no_context_probabilities
     if sample_weight_test is not None:
         test_predictions[spec.feature_contract.sample_weight_column or "survey_weight"] = (
             sample_weight_test.to_numpy()
@@ -1108,6 +1286,14 @@ def _train_condition(
         "condition_id": condition_id,
         "label_column": label_column,
         "features": list(condition_features),
+        "context_features": [
+            feature
+            for feature in condition_features
+            if feature in spec.feature_contract.context_features
+        ],
+        "context_feature_count": sum(
+            1 for feature in condition_features if feature in spec.feature_contract.context_features
+        ),
         "sample_weight_column": spec.feature_contract.sample_weight_column,
         "rows_total": int(len(feature_frame)),
         "rows_train": int(len(x_train)),
@@ -1124,6 +1310,7 @@ def _train_condition(
         "best_params": tuned_params,
         "base_metrics": base_metrics,
         "calibrated_metrics": calibrated_metrics,
+        "no_context_metrics": no_context_metrics,
         "no_aqi_metrics": no_aqi_metrics,
         "no_pollutants_metrics": no_pollutants_metrics,
     }

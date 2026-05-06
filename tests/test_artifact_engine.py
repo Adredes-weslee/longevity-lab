@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,10 +15,11 @@ from sklearn.dummy import DummyClassifier  # type: ignore[import-untyped]
 from sklearn.pipeline import Pipeline  # type: ignore[import-untyped]
 from sklearn.tree import DecisionTreeClassifier  # type: ignore[import-untyped]
 
-from longevity_lab.api.schemas import FeatureProfile
+from longevity_lab.api.schemas import FeatureProfile, ScenarioGeographySelection
 from longevity_lab.artifacts.manifest import (
     ArtifactManifest,
     ConditionArtifact,
+    ContextFeatureManifest,
     DatasetInfo,
     save_manifest,
 )
@@ -36,6 +38,18 @@ class ReversedClassesPipeline:
     def predict_proba(self, frame: pd.DataFrame) -> np.ndarray:  # noqa: ARG002
         """Return probabilities aligned with classes_ ordering."""
         return np.array([[0.2, 0.8]])
+
+
+class ContextAwarePipeline:
+    """Pickleable stub pipeline whose score changes with state-year context."""
+
+    classes_ = np.array([0, 1])
+
+    def predict_proba(self, frame: pd.DataFrame) -> np.ndarray:
+        """Return higher risk for higher manifest-supplied poverty context."""
+        poverty = float(frame["acs_poverty_percent"].iloc[0])
+        probability = 0.8 if poverty >= 20.0 else 0.2
+        return np.array([[1.0 - probability, probability]])
 
 
 def _write_bundle(base_dir: Path) -> str:
@@ -367,6 +381,84 @@ def test_artifact_engine_selects_positive_class_probability(tmp_path: Path) -> N
     )
     scores = engine.evaluate(profile)
     assert scores[0].probability == pytest.approx(0.2)
+
+
+def test_artifact_engine_uses_manifest_context_lookup_for_selected_geography(
+    tmp_path: Path,
+) -> None:
+    """Selected state-year geography should populate only manifest-declared context features."""
+    base_dir = tmp_path / "models"
+    bundle_id = "bundle-context"
+    bundle_dir = base_dir / bundle_id
+    bundle_dir.mkdir(parents=True)
+    pipeline_path = bundle_dir / "heart_disease.joblib"
+    joblib.dump(ContextAwarePipeline(), pipeline_path)
+    lookup_path = bundle_dir / "context_state_year_lookup.json"
+    lookup_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "feature_names": ["acs_poverty_percent"],
+                "join_keys": ["state_fips", "year"],
+                "rows": [
+                    {"state_fips": "06", "year": 2023, "acs_poverty_percent": 25.0},
+                    {"state_fips": "13", "year": 2023, "acs_poverty_percent": 8.0},
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    save_manifest(
+        ArtifactManifest(
+            dataset=DatasetInfo(name="integrated_person_year", version="2023"),
+            features=[
+                "age",
+                "bmi",
+                "smoker",
+                "alcohol_servings_per_week",
+                "exercise_minutes_per_week",
+                "annual_aqi",
+                "acs_poverty_percent",
+            ],
+            context_features=ContextFeatureManifest(
+                feature_names=["acs_poverty_percent"],
+                source_ids=["census_acs5_api_context"],
+                join_keys=["state_fips", "year"],
+                data_vintage="ACS 2023 5-year",
+                lookup_path=lookup_path.name,
+                default_values={"acs_poverty_percent": 10.0},
+                caveats=[
+                    "State-year context is background geography context, not a personal behavior.",
+                ],
+            ),
+            conditions=[
+                ConditionArtifact(
+                    condition_id="heart_disease",
+                    pipeline_path=pipeline_path.name,
+                    explanation_method="tree_path",
+                )
+            ],
+        ),
+        bundle_dir / "manifest.json",
+    )
+
+    engine = ArtifactScenarioEngine(store=ArtifactStore(base_dir), bundle_id=bundle_id)
+    profile = FeatureProfile()
+
+    california = engine.evaluate(
+        profile,
+        geography=ScenarioGeographySelection(level="state", state_fips="06", year=2023),
+    )
+    georgia = engine.evaluate(
+        profile,
+        geography=ScenarioGeographySelection(level="state", state_fips="13", year=2023),
+    )
+    defaulted = engine.evaluate(profile)
+
+    assert california[0].probability == pytest.approx(0.8)
+    assert georgia[0].probability == pytest.approx(0.2)
+    assert defaulted[0].probability == pytest.approx(0.2)
 
 
 def test_artifact_engine_rejects_path_traversal(tmp_path: Path) -> None:

@@ -46,10 +46,12 @@ All of these are **gitignored** outputs written under `data/processed/`.
 - Required columns:
   - all `brfss_person` required columns
   - plus `annual_aqi`
+  - plus curated ACS/SVI state-year context columns when
+    `data/processed/context/context_state_year.parquet` is present
 
 ## BRFSS v2 feature roles
 
-Training uses the union of scenario-editable, adjustment, and context features, with
+Training uses the union of scenario-editable, adjustment, and manifest-gated context features, with
 condition-specific exclusions to avoid symptom-like label leakage:
 
 - Scenario-editable: `age`, `bmi`, `smoker`, `alcohol_servings_per_week`,
@@ -59,6 +61,13 @@ condition-specific exclusions to avoid symptom-like label leakage:
 - BRFSS adjustment covariates: `sex`, `race_ethnicity`, `has_healthcare_coverage`,
   `has_personal_doctor`, `cost_barrier_to_care`, `last_checkup_within_year`,
   `sleep_hours_per_night`, `physical_health_days`, `mental_health_days`
+- State-year ACS/SVI context features: `acs_total_population`, `acs_poverty_percent`,
+  `acs_median_household_income`, `acs_bachelors_degree_or_higher_percent`,
+  `acs_uninsured_percent`, `acs_disability_percent`, `acs_broadband_percent`,
+  `svi_overall_percentile`, `svi_theme1_socioeconomic_percentile`,
+  `svi_theme2_household_characteristics_percentile`,
+  `svi_theme3_racial_ethnic_minority_status_percentile`, and
+  `svi_theme4_housing_transportation_percentile`.
 - Survey weights: `survey_weight` is a sample-weight column, not a prediction feature.
 - Leakage exclusions:
   - `physical_health_days` is excluded when training heart disease, chronic lung disease,
@@ -72,8 +81,9 @@ direct clients cannot create scenario deltas by changing adjustment fields.
 
 `GET /api/evidence/status` exposes the comprehensive evidence contract used by the Data Evidence
 page: public source roles, local asset readiness, generated reports, production artifact download
-configuration, active-vs-available feature inventory, and explicitly inactive gaps such as ACS/SVI
-context features that are not served until geography-aware scenario inputs exist.
+configuration, active-vs-available feature inventory, active state-year ACS/SVI context only when
+the artifact manifest declares context lookup provenance, and explicitly inactive gaps such as
+county-level context.
 
 ## API contract v2
 
@@ -93,8 +103,9 @@ clients that read the original organs, conditions, runtime, and scenario scores 
 - `uncertainty_available` and `uncertainty_methods`: whether calibrated uncertainty summaries are
   available from the active artifact bundle.
 - `contextual_geography`: the geographic context levels inferred from artifact features, such as
-  state-level AQI or manifest-declared state-year ACS/SVI context. County-level prediction
-  semantics are not exposed because BRFSS person rows only support state-year serving joins.
+  state-level AQI or manifest-declared state-year ACS/SVI context. This object also includes
+  `feature_count`, `features`, and `caveat`. County-level prediction semantics are not exposed
+  because BRFSS person rows only support state-year serving joins.
 
 `GET /api/metadata/bootstrap` also includes a `geography` object for explicit serving context:
 
@@ -118,18 +129,20 @@ returns fallback state options with `context_available: false` and never exposes
 paths.
 
 `POST /api/scenario/compare` accepts optional `geography` metadata with `level: "state"`,
-`state_fips`, and `year`. Existing requests without geography remain valid. PR 19 accepts this
-metadata but does not inject ACS/SVI features into scoring; demo and artifact scores must not
-change solely because a state is selected. Context-aware scoring requires a later artifact manifest
-that explicitly declares context features.
+`state_fips`, and `year`. Existing requests without geography remain valid. Demo scoring ignores
+geography. Artifact scoring injects ACS/SVI state-year context only when the active manifest
+declares `context_features` metadata with exact feature names, source IDs, join keys, data vintage,
+caveats, defaults, and a trusted bundle-local lookup path. If geography is missing or absent from
+the lookup, the engine uses manifest-declared defaults.
 
 `GET /api/models/cards` exposes model-card metrics for the same active model contract:
 
 - `available`: whether trusted local metrics files were found for the active artifact bundle.
 - `artifact_id`: the active relative bundle id, including nested path segments when applicable.
 - `condition_cards`: per-condition rows with `rows_total`, train/test row counts, positive rate,
-  feature count, calibrated/base/no-AQI metric sets, best tree parameters, and AQI average-precision
-  delta.
+  feature count, context feature count/list, calibrated/base/no-context/no-AQI/no-pollutants
+  metric sets, best tree parameters, and average-precision deltas for context, AQI, and pollutant
+  ablations.
 
 When demo mode is active or the active artifact has no readable metrics files, the endpoint returns
 `available: false` instead of failing the UI.

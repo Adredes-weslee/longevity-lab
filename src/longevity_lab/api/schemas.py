@@ -100,6 +100,9 @@ class ContextualGeographyMetadataResponse(BaseModel):
     available: bool
     levels: list[GeographyLevel] = Field(default_factory=list)
     source: str | None = None
+    feature_count: int = 0
+    features: list[str] = Field(default_factory=list)
+    caveat: str | None = None
 
 
 class ModelMetadataResponse(BaseModel):
@@ -469,11 +472,15 @@ class ConditionModelCardResponse(BaseModel):
     positive_rate: float | None = None
     feature_count: int | None = None
     features: list[str] = Field(default_factory=list)
+    context_feature_count: int = 0
+    context_features: list[str] = Field(default_factory=list)
     best_params: dict[str, Any] = Field(default_factory=dict)
     base_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
     calibrated_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
+    no_context_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
     no_aqi_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
     no_pollutants_metrics: ModelMetricSetResponse = Field(default_factory=ModelMetricSetResponse)
+    context_average_precision_delta: float | None = None
     aqi_average_precision_delta: float | None = None
     pollutant_average_precision_delta: float | None = None
 
