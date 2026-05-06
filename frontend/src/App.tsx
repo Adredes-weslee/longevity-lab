@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import {
   compareScenarios,
   fetchBootstrap,
+  fetchContextGeographies,
   fetchEvidenceStatus,
   fetchModelCards,
 } from './api/client'
@@ -16,6 +17,7 @@ import type {
   MetadataBootstrapResponse,
   ModelCardBundleResponse,
   EvidenceStatusResponse,
+  GeographyOptionsResponse,
   ScenarioCompareResponse,
 } from './types'
 
@@ -49,6 +51,9 @@ function App(): JSX.Element {
   const { state, dispatch } = useScenario()
   const [bootstrap, setBootstrap] = useState<MetadataBootstrapResponse | null>(null)
   const [bootstrapLoading, setBootstrapLoading] = useState(false)
+  const [geographies, setGeographies] = useState<GeographyOptionsResponse | null>(null)
+  const [geographiesLoading, setGeographiesLoading] = useState(false)
+  const [geographiesError, setGeographiesError] = useState<string | null>(null)
   const [comparison, setComparison] = useState<ScenarioCompareResponse | null>(null)
   const [evidenceStatus, setEvidenceStatus] = useState<EvidenceStatusResponse | null>(null)
   const [evidenceError, setEvidenceError] = useState<string | null>(null)
@@ -86,6 +91,7 @@ function App(): JSX.Element {
       const nextComparison = await compareScenarios({
         baseline: state.baseline,
         candidate: state.candidate,
+        geography: state.geography,
       })
       if (requestSequence.current !== nextSequence) {
         return
@@ -109,7 +115,22 @@ function App(): JSX.Element {
         setBusy(false)
       }
     }
-  }, [dispatch, state.baseline, state.candidate, state.selectedOrganId])
+  }, [dispatch, state.baseline, state.candidate, state.geography, state.selectedOrganId])
+
+  const loadGeographies = useCallback(async (year: number): Promise<void> => {
+    setGeographiesLoading(true)
+    setGeographiesError(null)
+    try {
+      const nextGeographies = await fetchContextGeographies(year)
+      setGeographies(nextGeographies)
+    } catch (error) {
+      setGeographiesError(
+        error instanceof Error ? error.message : 'Geography context unavailable.',
+      )
+    } finally {
+      setGeographiesLoading(false)
+    }
+  }, [])
 
   const loadEvidenceStatus = useCallback(async (): Promise<void> => {
     setEvidenceLoading(true)
@@ -144,6 +165,28 @@ function App(): JSX.Element {
   useEffect(() => {
     void loadBootstrap()
   }, [loadBootstrap])
+
+  useEffect(() => {
+    if (!bootstrap) {
+      return
+    }
+    void loadGeographies(bootstrap.geography.default_year)
+  }, [bootstrap, loadGeographies])
+
+  useEffect(() => {
+    if (state.geography || !geographies?.options.length) {
+      return
+    }
+    const firstOption = geographies.options[0]
+    dispatch({
+      type: 'setGeography',
+      geography: {
+        level: firstOption.level,
+        state_fips: firstOption.state_fips,
+        year: firstOption.year,
+      },
+    })
+  }, [dispatch, geographies, state.geography])
 
   useEffect(() => {
     function handleHashChange(): void {
@@ -214,6 +257,9 @@ function App(): JSX.Element {
               bootstrap={bootstrap}
               busy={busy}
               comparison={comparison}
+              geographies={geographies}
+              geographiesError={geographiesError}
+              geographiesLoading={geographiesLoading}
               heatmapMode={heatmapMode}
               onChangeHeatmapMode={setHeatmapMode}
             />

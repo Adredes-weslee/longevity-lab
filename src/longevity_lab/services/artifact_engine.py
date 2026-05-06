@@ -14,7 +14,7 @@ import joblib  # type: ignore[import-untyped]
 import numpy as np  # type: ignore[import-untyped]
 import pandas as pd  # type: ignore[import-untyped]
 
-from longevity_lab.api.schemas import FeatureProfile
+from longevity_lab.api.schemas import FeatureProfile, ScenarioGeographySelection
 from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
 from longevity_lab.domain.catalog import CONDITIONS
 from longevity_lab.services.engine_types import ConditionScore, ScenarioEngine
@@ -52,8 +52,18 @@ class ArtifactScenarioEngine(ScenarioEngine):
             )
         self._models = self._load_models(self._bundle)
 
-    def evaluate(self, profile: FeatureProfile) -> list[ConditionScore]:
-        """Evaluate a profile by calling each loaded per-condition pipeline."""
+    def evaluate(
+        self,
+        profile: FeatureProfile,
+        geography: ScenarioGeographySelection | None = None,
+    ) -> list[ConditionScore]:
+        """Evaluate a profile by calling each loaded per-condition pipeline.
+
+        The selected geography is accepted as serving metadata in PR 19. It is not
+        injected into the feature frame until a trusted artifact explicitly carries
+        context lookup assets in a later PR.
+        """
+        _ = geography
         frame = self._profile_frame(profile)
         results: list[ConditionScore] = []
         for condition in self._bundle.manifest.conditions:

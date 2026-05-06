@@ -31,6 +31,8 @@ Legend:
 - [DONE] Explorer UX upgrade for input deltas, accessible anatomy selection, explanation caveats, uncertainty copy, and color-blind-safe legends.
 - [DONE] Deployment packaging for Render API/static frontend and Vercel static frontend handoff.
 - [DONE] Public GitHub Release artifact download with SHA256 verification for Render artifact mode.
+- [DONE] Geography serving foundation with explicit state-year context selection, readiness lookup,
+  and inactive ACS/SVI scoring semantics.
 
 ## Current baseline
 
@@ -96,6 +98,7 @@ Legend:
 - [DONE] Pipeline status endpoint (`GET /api/pipeline/status`) (`src/longevity_lab/api/routes/pipeline.py`).
 - [DONE] Model-card endpoint exposes active artifact metrics (`GET /api/models/cards`) (`src/longevity_lab/api/routes/models.py`).
 - [DONE] Evidence endpoint exposes source registry roles, asset readiness, production artifact download status, active-vs-available features, reports, and inactive gaps (`GET /api/evidence/status`) (`src/longevity_lab/api/routes/evidence.py`).
+- [DONE] Geography context endpoint exposes state-year options and local context readiness without absolute local paths (`GET /api/context/geographies`) (`src/longevity_lab/api/routes/context.py`).
 - [DONE] Service layer and engine abstraction (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Artifact-backed engine path (`src/longevity_lab/services/artifact_engine.py`).
 - [DONE] Versioned v2 response metadata shares active model mode, artifact id, data vintage, explanation methods, uncertainty availability, and inferred contextual geography across bootstrap and scenario compare responses (`src/longevity_lab/services/contract_metadata.py`).
@@ -109,6 +112,7 @@ Legend:
 - [DONE] Scenario editing is live and updates the evaluation snapshot automatically.
 - [DONE] High-risk drill-down panels surface public-health guidance links when either current or what-if profile is in the red band.
 - [DONE] Explorer view shows a compact non-diagnostic disclaimer and runtime scoring-mode banner.
+- [DONE] Explorer keeps state-year geography context separate from lifestyle scenario inputs and labels it as background context.
 - [DONE] Named product pages separate the Explorer, data evidence, active model-card metadata, and scenario summary workflows (`frontend/src/pages/`).
 - [DONE] Better "what changed" deltas per organ/condition through visible changed-input chips and drill-down delta summaries.
 - [DONE] Basic accessibility pass for keyboard-selectable anatomy overlays and text-supported color legends.

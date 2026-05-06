@@ -10,8 +10,14 @@ ExplanationDirection = Literal["increases", "decreases", "neutral"]
 ExplanationMethod = Literal["demo", "tree_path", "shap"]
 UncertaintyMethod = Literal["calibration_interval"]
 GeographyLevel = Literal["state", "county", "tract", "zcta"]
+ScenarioGeographyLevel = Literal["state"]
 
 API_CONTRACT_VERSION: ApiContractVersion = "v2"
+
+
+def _default_supported_geography_levels() -> list[ScenarioGeographyLevel]:
+    """Return state-only serving geography levels."""
+    return ["state"]
 
 
 class HealthResponse(BaseModel):
@@ -113,6 +119,20 @@ class ModelMetadataResponse(BaseModel):
     contextual_geography: ContextualGeographyMetadataResponse
 
 
+class GeographyServingMetadataResponse(BaseModel):
+    """Geography-selection metadata for state-year context serving."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    supported_levels: list[ScenarioGeographyLevel] = Field(
+        default_factory=_default_supported_geography_levels
+    )
+    default_year: int = Field(default=2023, ge=2000, le=2100)
+    context_lookup_active: bool
+    geographies_endpoint: str = "/api/context/geographies"
+    caveat: str
+
+
 class MetadataBootstrapResponse(BaseModel):
     """Bootstrap metadata for the frontend."""
 
@@ -124,6 +144,7 @@ class MetadataBootstrapResponse(BaseModel):
     conditions: list[ConditionDefinitionResponse]
     runtime: RuntimeMetadataResponse
     model_metadata: ModelMetadataResponse
+    geography: GeographyServingMetadataResponse
 
 
 class ExplanationRecordResponse(BaseModel):
@@ -202,6 +223,16 @@ class OrganDeltaResponse(BaseModel):
     top_conditions: list[str]
 
 
+class ScenarioGeographySelection(BaseModel):
+    """State-year geography context attached to a scenario comparison."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    level: ScenarioGeographyLevel = "state"
+    state_fips: str = Field(pattern=r"^\d{2}$")
+    year: int = Field(default=2023, ge=2000, le=2100)
+
+
 class ScenarioCompareRequest(BaseModel):
     """Compare request between baseline and candidate profiles."""
 
@@ -209,6 +240,7 @@ class ScenarioCompareRequest(BaseModel):
 
     baseline: FeatureProfile
     candidate: FeatureProfile
+    geography: ScenarioGeographySelection | None = None
 
 
 class ScenarioCompareResponse(BaseModel):
@@ -221,6 +253,46 @@ class ScenarioCompareResponse(BaseModel):
     candidate: ScenarioEvaluationResponse
     organ_deltas: list[OrganDeltaResponse]
     model_metadata: ModelMetadataResponse
+
+
+class ContextReadinessResponse(BaseModel):
+    """Readiness metadata for local processed context lookup tables."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    active: bool
+    table_exists: bool
+    year_available: bool
+    table_path: str
+    state_count: int
+    available_years: list[int] = Field(default_factory=list)
+    message: str
+
+
+class StateGeographyOptionResponse(BaseModel):
+    """One selectable state-year context option."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    level: ScenarioGeographyLevel = "state"
+    state_fips: str = Field(pattern=r"^\d{2}$")
+    label: str
+    year: int
+    context_available: bool
+
+
+class GeographyOptionsResponse(BaseModel):
+    """State-year geography options for scenario background context."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_version: ApiContractVersion = API_CONTRACT_VERSION
+    selected_year: int
+    supported_levels: list[ScenarioGeographyLevel] = Field(
+        default_factory=_default_supported_geography_levels
+    )
+    options: list[StateGeographyOptionResponse]
+    readiness: ContextReadinessResponse
 
 
 class PipelineArtifactStatus(BaseModel):

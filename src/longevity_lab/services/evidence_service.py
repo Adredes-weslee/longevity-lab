@@ -409,20 +409,34 @@ class EvidenceService:
         active = set(bundle.manifest.features if bundle else [])
         gaps: list[EvidenceInactiveGap] = []
         context_candidates = set(self._available_context_features())
-        inactive_context = sorted(context_candidates - active)
+        inactive_context = sorted(context_candidates)
         if inactive_context:
+            active_context = sorted(context_candidates & active)
+            if active_context:
+                explanation = (
+                    "The active artifact declares ACS/SVI-like context feature columns, but "
+                    "PR 19 intentionally does not inject selected geography into inference. "
+                    "These columns remain inactive from a serving-semantics perspective until "
+                    "a PR 20 artifact bundles a trusted lookup table and the engine consumes it."
+                )
+                evidence = active_context
+            else:
+                explanation = (
+                    "These features are built as geography context tables, but the current "
+                    "scoring artifact does not declare or consume ACS/SVI context features."
+                )
+                evidence = inactive_context
             gaps.append(
                 EvidenceInactiveGap(
                     gap_id="context_not_active",
                     label="ACS/SVI context is implemented but not active in scoring",
                     status="implemented_not_active",
-                    evidence=inactive_context,
-                    explanation=(
-                        "These features are built as geography context tables, but the current "
-                        "scenario contract has no geography selector or artifact-bundled "
-                        "context lookup."
+                    evidence=evidence,
+                    explanation=explanation,
+                    next_action=(
+                        "Train and publish context-aware state-year artifacts before using "
+                        "these features in predictions."
                     ),
-                    next_action="Add geography-aware serving before using these in predictions.",
                 )
             )
         gaps.append(

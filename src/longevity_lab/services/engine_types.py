@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from longevity_lab.api.schemas import FeatureProfile
+from longevity_lab.api.schemas import FeatureProfile, ScenarioGeographySelection
 from longevity_lab.services.explanations import ExplanationRecord
 from longevity_lab.services.uncertainty import UncertaintySummary
 
@@ -26,5 +26,9 @@ class ConditionScore:
 class ScenarioEngine(Protocol):
     """Protocol for scenario scoring engines."""
 
-    def evaluate(self, profile: FeatureProfile) -> list[ConditionScore]:
+    def evaluate(
+        self,
+        profile: FeatureProfile,
+        geography: ScenarioGeographySelection | None = None,
+    ) -> list[ConditionScore]:
         """Return condition-level scores for a single profile."""

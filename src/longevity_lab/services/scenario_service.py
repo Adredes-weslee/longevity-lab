@@ -14,6 +14,7 @@ from longevity_lab.api.schemas import (
     RiskBand,
     ScenarioCompareResponse,
     ScenarioEvaluationResponse,
+    ScenarioGeographySelection,
     UncertaintySummaryResponse,
 )
 from longevity_lab.domain.catalog import CONDITIONS, ORGANS
@@ -25,8 +26,17 @@ from longevity_lab.services.explanations import demo_explanation_records
 class DemoScenarioEngine:
     """Deterministic placeholder engine used before trained artifacts exist."""
 
-    def evaluate(self, profile: FeatureProfile) -> list[ConditionScore]:
-        """Score the profile with simple transparent heuristics."""
+    def evaluate(
+        self,
+        profile: FeatureProfile,
+        geography: ScenarioGeographySelection | None = None,
+    ) -> list[ConditionScore]:
+        """Score the profile with simple transparent heuristics.
+
+        Geography is accepted for the v2 serving contract but intentionally ignored by
+        demo scoring. PR 20 will introduce artifact-declared context features.
+        """
+        _ = geography
         smoker_score = 1.0 if profile.smoker else 0.0
         bmi_pressure = max(profile.bmi - 25.0, 0.0) / 20.0
         age_pressure = max(profile.age - 40, 0) / 45.0
@@ -153,10 +163,12 @@ class ScenarioService:
         self,
         baseline: FeatureProfile,
         candidate: FeatureProfile,
+        *,
+        geography: ScenarioGeographySelection | None = None,
     ) -> ScenarioCompareResponse:
         """Compare two profiles and return organ deltas."""
-        baseline_eval = self._evaluate(baseline)
-        candidate_eval = self._evaluate(candidate)
+        baseline_eval = self._evaluate(baseline, geography=geography)
+        candidate_eval = self._evaluate(candidate, geography=geography)
 
         organ_deltas: list[OrganDeltaResponse] = []
         baseline_organs = {organ.organ_id: organ for organ in baseline_eval.organs}
@@ -182,9 +194,14 @@ class ScenarioService:
             model_metadata=self._model_metadata,
         )
 
-    def _evaluate(self, profile: FeatureProfile) -> ScenarioEvaluationResponse:
+    def _evaluate(
+        self,
+        profile: FeatureProfile,
+        *,
+        geography: ScenarioGeographySelection | None,
+    ) -> ScenarioEvaluationResponse:
         """Evaluate a single profile."""
-        condition_scores = self._engine.evaluate(profile)
+        condition_scores = self._engine.evaluate(profile, geography=geography)
         condition_responses: list[ConditionScoreResponse] = []
         for item in condition_scores:
             probability = round(item.probability, 4)

@@ -93,7 +93,35 @@ clients that read the original organs, conditions, runtime, and scenario scores 
 - `uncertainty_available` and `uncertainty_methods`: whether calibrated uncertainty summaries are
   available from the active artifact bundle.
 - `contextual_geography`: the geographic context levels inferred from artifact features, such as
-  state-level AQI or county-level ACS/SVI/PLACES context.
+  state-level AQI or manifest-declared state-year ACS/SVI context. County-level prediction
+  semantics are not exposed because BRFSS person rows only support state-year serving joins.
+
+`GET /api/metadata/bootstrap` also includes a `geography` object for explicit serving context:
+
+- `supported_levels`: currently `["state"]`.
+- `default_year`: the default context lookup year, currently `2023`.
+- `context_lookup_active`: whether a processed state-year context table is readable for the
+  default year.
+- `geographies_endpoint`: the relative route for geography options.
+- `caveat`: copy stating that geography context is background context, not a personal behavior.
+
+`GET /api/context/geographies?year=2023` returns selectable state-year context options:
+
+- `selected_year`
+- `supported_levels`: currently `["state"]`
+- `options`: state rows with `level`, `state_fips`, `label`, `year`, and `context_available`
+- `readiness`: `active`, `table_exists`, `year_available`, safe relative `table_path`,
+  `state_count`, `available_years`, and `message`
+
+When `data/processed/context/context_state_year.parquet` is missing or unreadable, the endpoint
+returns fallback state options with `context_available: false` and never exposes absolute local
+paths.
+
+`POST /api/scenario/compare` accepts optional `geography` metadata with `level: "state"`,
+`state_fips`, and `year`. Existing requests without geography remain valid. PR 19 accepts this
+metadata but does not inject ACS/SVI features into scoring; demo and artifact scores must not
+change solely because a state is selected. Context-aware scoring requires a later artifact manifest
+that explicitly declares context features.
 
 `GET /api/models/cards` exposes model-card metrics for the same active model contract:
 

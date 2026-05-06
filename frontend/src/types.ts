@@ -5,6 +5,7 @@ export type ExplanationDirection = 'increases' | 'decreases' | 'neutral'
 export type ExplanationMethod = 'demo' | 'tree_path' | 'shap'
 export type UncertaintyMethod = 'calibration_interval'
 export type GeographyLevel = 'state' | 'county' | 'tract' | 'zcta'
+export type ScenarioGeographyLevel = 'state'
 
 export interface FeatureProfile {
   age: number
@@ -48,6 +49,7 @@ export interface MetadataBootstrapResponse {
   conditions: ConditionDefinition[]
   runtime: RuntimeMetadataResponse
   model_metadata: ModelMetadataResponse
+  geography: GeographyServingMetadataResponse
 }
 
 export interface RuntimeMetadataResponse {
@@ -74,6 +76,14 @@ export interface ModelMetadataResponse {
   uncertainty_available: boolean
   uncertainty_methods: UncertaintyMethod[]
   contextual_geography: ContextualGeographyMetadataResponse
+}
+
+export interface GeographyServingMetadataResponse {
+  supported_levels: ScenarioGeographyLevel[]
+  default_year: number
+  context_lookup_active: boolean
+  geographies_endpoint: string
+  caveat: string
 }
 
 export interface ModelMetricSetResponse {
@@ -167,6 +177,7 @@ export interface OrganDeltaResponse {
 export interface ScenarioCompareRequest {
   baseline: FeatureProfile
   candidate: FeatureProfile
+  geography?: ScenarioGeographySelection | null
 }
 
 export interface ScenarioCompareResponse {
@@ -175,6 +186,38 @@ export interface ScenarioCompareResponse {
   candidate: ScenarioEvaluationResponse
   organ_deltas: OrganDeltaResponse[]
   model_metadata: ModelMetadataResponse
+}
+
+export interface ScenarioGeographySelection {
+  level: ScenarioGeographyLevel
+  state_fips: string
+  year: number
+}
+
+export interface ContextReadinessResponse {
+  active: boolean
+  table_exists: boolean
+  year_available: boolean
+  table_path: string
+  state_count: number
+  available_years: number[]
+  message: string
+}
+
+export interface StateGeographyOptionResponse {
+  level: ScenarioGeographyLevel
+  state_fips: string
+  label: string
+  year: number
+  context_available: boolean
+}
+
+export interface GeographyOptionsResponse {
+  contract_version: ApiContractVersion
+  selected_year: number
+  supported_levels: ScenarioGeographyLevel[]
+  options: StateGeographyOptionResponse[]
+  readiness: ContextReadinessResponse
 }
 
 export interface PipelineArtifactStatus {

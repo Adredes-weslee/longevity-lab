@@ -5,12 +5,14 @@ from collections.abc import Iterable
 from longevity_lab.api.schemas import (
     ConditionDefinitionResponse,
     FeatureDefinition,
+    GeographyServingMetadataResponse,
     MetadataBootstrapResponse,
     ModelMetadataResponse,
     OrganDefinitionResponse,
     RuntimeMetadataResponse,
 )
 from longevity_lab.domain.catalog import CONDITIONS, ORGANS, ConditionDefinition
+from longevity_lab.services.context_lookup import DEFAULT_CONTEXT_YEAR
 from longevity_lab.services.contract_metadata import build_demo_model_metadata
 
 
@@ -22,6 +24,7 @@ class MetadataService:
         runtime: RuntimeMetadataResponse | None = None,
         model_metadata: ModelMetadataResponse | None = None,
         condition_ids: Iterable[str] | None = None,
+        geography: GeographyServingMetadataResponse | None = None,
     ) -> None:
         """Store runtime metadata that should be visible to the UI."""
         self._runtime = runtime or RuntimeMetadataResponse(
@@ -32,6 +35,16 @@ class MetadataService:
         )
         self._model_metadata = model_metadata or build_demo_model_metadata()
         self._condition_ids = tuple(condition_ids) if condition_ids is not None else None
+        self._geography = geography or GeographyServingMetadataResponse(
+            supported_levels=["state"],
+            default_year=DEFAULT_CONTEXT_YEAR,
+            context_lookup_active=False,
+            geographies_endpoint="/api/context/geographies",
+            caveat=(
+                "Only state-year geography context is selectable. The selected state is "
+                "background context, not a personal behavior input."
+            ),
+        )
 
     def get_bootstrap(self) -> MetadataBootstrapResponse:
         """Return the bootstrap payload for the frontend."""
@@ -122,6 +135,7 @@ class MetadataService:
             conditions=conditions,
             runtime=self._runtime,
             model_metadata=self._model_metadata,
+            geography=self._geography,
         )
 
     def _condition_definitions(self) -> list[ConditionDefinition]:

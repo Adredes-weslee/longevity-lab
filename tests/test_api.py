@@ -236,10 +236,12 @@ def _configured_client(
     monkeypatch: pytest.MonkeyPatch,
     *,
     artifacts_dir: Path,
+    data_dir: Path | None = None,
     engine: str | None = None,
     bundle_id: str | None = None,
 ) -> Iterator[TestClient]:
     """Yield a TestClient with isolated settings."""
+    monkeypatch.setenv("LONGEVITY_LAB_DATA_DIR", str(data_dir or artifacts_dir.parent / "data"))
     monkeypatch.setenv("LONGEVITY_LAB_ARTIFACTS_DIR", str(artifacts_dir))
     if engine is None:
         monkeypatch.delenv("LONGEVITY_LAB_ENGINE", raising=False)
@@ -261,6 +263,7 @@ def _configured_client(
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[TestClient]:
     """Yield a lifespan-aware API test client isolated from local artifacts."""
+    monkeypatch.setenv("LONGEVITY_LAB_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("LONGEVITY_LAB_ARTIFACTS_DIR", str(tmp_path / "artifacts"))
     monkeypatch.delenv("LONGEVITY_LAB_ENGINE", raising=False)
     monkeypatch.delenv("LONGEVITY_LAB_ARTIFACT_BUNDLE", raising=False)
@@ -305,6 +308,16 @@ def test_metadata_bootstrap(client: TestClient) -> None:
         "levels": [],
         "source": None,
     }
+    assert payload["geography"] == {
+        "supported_levels": ["state"],
+        "default_year": 2023,
+        "context_lookup_active": False,
+        "geographies_endpoint": "/api/context/geographies",
+        "caveat": (
+            "Only state-year geography context is selectable. The selected state is "
+            "background context, not a personal behavior input."
+        ),
+    }
     assert {item["field"] for item in payload["features"]} == {
         "age",
         "bmi",
@@ -315,6 +328,23 @@ def test_metadata_bootstrap(client: TestClient) -> None:
         "pm25_mean",
         "ozone_mean",
     }
+
+
+def test_context_geographies_missing_table_returns_state_options(client: TestClient) -> None:
+    """The context geography route should be safe and state-year-only without local data."""
+    response = client.get("/api/context/geographies?year=2023")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["contract_version"] == "v2"
+    assert payload["selected_year"] == 2023
+    assert payload["supported_levels"] == ["state"]
+    assert payload["readiness"]["active"] is False
+    assert payload["readiness"]["table_exists"] is False
+    assert not Path(payload["readiness"]["table_path"]).is_absolute()
+    assert payload["options"]
+    assert {option["level"] for option in payload["options"]} == {"state"}
+    assert all(option["context_available"] is False for option in payload["options"])
 
 
 def test_model_cards_demo_reports_unavailable(client: TestClient) -> None:
@@ -354,9 +384,9 @@ def test_metadata_bootstrap_auto_selects_artifact_bundle(
         assert model_metadata["uncertainty_available"] is False
         assert model_metadata["uncertainty_methods"] == []
         assert model_metadata["contextual_geography"] == {
-            "available": True,
-            "levels": ["state"],
-            "source": "artifact_features",
+            "available": False,
+            "levels": [],
+            "source": None,
         }
 
 
@@ -572,11 +602,66 @@ def test_scenario_compare_auto_selected_artifact_reports_model_metadata(
         assert payload["model_metadata"]["data_vintage"] == "test"
         assert payload["model_metadata"]["explanation_methods"] == []
         assert payload["baseline"]["conditions"][0]["explanations"] == []
-        assert payload["model_metadata"]["contextual_geography"]["levels"] == ["state"]
+        assert payload["model_metadata"]["contextual_geography"] == {
+            "available": False,
+            "levels": [],
+            "source": None,
+        }
         assert [item["condition_id"] for item in payload["candidate"]["conditions"]] == [
             "heart_disease"
         ]
         assert [item["organ_id"] for item in payload["organ_deltas"]] == ["heart"]
+
+
+def test_artifact_scenario_compare_accepts_geography_without_score_change(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Artifact scoring should accept geography metadata but not use ACS/SVI yet."""
+    _write_api_bundle(tmp_path / "artifacts")
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        expected = test_client.post("/api/scenario/compare", json=_compare_payload())
+        payload = {
+            **_compare_payload(),
+            "geography": {"level": "state", "state_fips": "06", "year": 2023},
+        }
+        response = test_client.post("/api/scenario/compare", json=payload)
+
+        assert response.status_code == 200
+        assert response.json() == expected.json()
+
+
+def test_context_feature_artifact_is_not_marked_geography_active(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """PR 19 must not claim geography-active artifacts before context injection exists."""
+    bundle_id = _write_api_bundle(tmp_path / "artifacts")
+    bundle_dir = tmp_path / "artifacts" / "models" / bundle_id
+    manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+    manifest["features"].extend(["acs_poverty_percent", "svi_overall_percentile"])
+    (bundle_dir / "manifest.json").write_text(
+        json.dumps(manifest) + "\n",
+        encoding="utf-8",
+    )
+
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        bootstrap = test_client.get("/api/metadata/bootstrap").json()
+        evidence = test_client.get("/api/evidence/status").json()
+
+        assert bootstrap["model_metadata"]["contextual_geography"] == {
+            "available": False,
+            "levels": [],
+            "source": None,
+        }
+        context_gap = next(
+            gap for gap in evidence["inactive_gaps"] if gap["gap_id"] == "context_not_active"
+        )
+        assert context_gap["evidence"] == [
+            "acs_poverty_percent",
+            "svi_overall_percentile",
+        ]
+        assert "intentionally does not inject selected geography" in context_gap["explanation"]
 
 
 def test_metadata_bootstrap_auto_falls_back_on_wrong_object_bundle(
@@ -731,6 +816,35 @@ def test_scenario_compare(client: TestClient) -> None:
         "method",
         "caveat",
     }
+
+
+def test_scenario_compare_accepts_optional_state_geography_without_score_change(
+    client: TestClient,
+) -> None:
+    """Selecting state-year geography should not affect demo scores in PR 19."""
+    expected = client.post("/api/scenario/compare", json=_compare_payload())
+    assert expected.status_code == 200
+
+    payload = {
+        **_compare_payload(),
+        "geography": {"level": "state", "state_fips": "06", "year": 2023},
+    }
+    response = client.post("/api/scenario/compare", json=payload)
+
+    assert response.status_code == 200
+    assert response.json() == expected.json()
+
+
+def test_scenario_compare_rejects_county_geography(client: TestClient) -> None:
+    """The public compare contract should not expose county-level prediction semantics."""
+    payload = {
+        **_compare_payload(),
+        "geography": {"level": "county", "state_fips": "06", "year": 2023},
+    }
+
+    response = client.post("/api/scenario/compare", json=payload)
+
+    assert response.status_code == 422
 
 
 def test_scenario_compare_missing_baseline_fields_uses_defaults(client: TestClient) -> None:

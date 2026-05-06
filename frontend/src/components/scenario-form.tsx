@@ -1,11 +1,19 @@
 import { useState, type ChangeEvent, type JSX } from 'react'
 
 import { useScenario } from '../state/scenario-context'
-import type { FeatureDefinition, FeatureProfile } from '../types'
+import type {
+  FeatureDefinition,
+  FeatureProfile,
+  GeographyOptionsResponse,
+  StateGeographyOptionResponse,
+} from '../types'
 
 interface ScenarioFormProps {
   features: FeatureDefinition[]
   busy: boolean
+  geographyOptions: GeographyOptionsResponse | null
+  geographyLoading: boolean
+  geographyError: string | null
 }
 
 type ProfileKey = 'baseline' | 'candidate'
@@ -361,9 +369,104 @@ function ProfileSection({
   )
 }
 
+function GeographyContextSection({
+  geographyOptions,
+  geographyLoading,
+  geographyError,
+}: {
+  geographyOptions: GeographyOptionsResponse | null
+  geographyLoading: boolean
+  geographyError: string | null
+}): JSX.Element {
+  const { state, dispatch } = useScenario()
+  const selectedGeography = state.geography
+  const selectedOption = selectedGeography
+    ? geographyOptions?.options.find(
+        (option) =>
+          option.state_fips === selectedGeography.state_fips &&
+          option.year === selectedGeography.year,
+      )
+    : undefined
+  const options = geographyOptions?.options ?? []
+  const selectedValue = selectedGeography?.state_fips ?? ''
+  const statusCopy = geographyError
+    ? geographyError
+    : geographyLoading
+      ? 'Loading state-year context options.'
+      : geographyOptions?.readiness.message ?? 'State-year context options are not loaded.'
+
+  function setGeography(option: StateGeographyOptionResponse | undefined): void {
+    dispatch({
+      type: 'setGeography',
+      geography: option
+        ? {
+            level: option.level,
+            state_fips: option.state_fips,
+            year: option.year,
+          }
+        : null,
+    })
+  }
+
+  function handleStateChange(event: ChangeEvent<HTMLSelectElement>): void {
+    setGeography(options.find((option) => option.state_fips === event.target.value))
+  }
+
+  return (
+    <section className="geography-context-panel" data-testid="geography-context">
+      <div className="geography-context-header">
+        <div>
+          <p className="section-kicker">Geography context</p>
+          <h2>State-year background</h2>
+        </div>
+        <span
+          className={
+            geographyOptions?.readiness.active
+              ? 'status-pill status-pill-ok'
+              : 'status-pill status-pill-missing'
+          }
+        >
+          {geographyOptions?.readiness.active ? 'Context ready' : 'Context inactive'}
+        </span>
+      </div>
+      <p className="geography-context-copy">
+        State context is background context for public state-year data, not a
+        personal behavior like smoking, BMI, or activity.
+      </p>
+      <label className="context-select-label" htmlFor="geography-state-select">
+        State context
+      </label>
+      <select
+        aria-label="State context"
+        className="context-select"
+        disabled={geographyLoading || options.length === 0}
+        id="geography-state-select"
+        onChange={handleStateChange}
+        value={selectedValue}
+      >
+        <option value="">Select a state</option>
+        {options.map((option) => (
+          <option key={`${option.year}-${option.state_fips}`} value={option.state_fips}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <div className="geography-context-status">
+        <p data-testid="selected-geography-context">
+          Selected: {selectedOption ? `${selectedOption.label} (${selectedOption.year})` : 'None'}
+        </p>
+        <p>{statusCopy}</p>
+      </div>
+    </section>
+  )
+}
+
 export function ScenarioForm({
   features,
   busy,
+  geographyOptions,
+  geographyLoading,
+  geographyError,
 }: ScenarioFormProps): JSX.Element {
   const [openGroups, setOpenGroups] = useState<Set<string>>(
     () => new Set(defaultOpenGroups),
@@ -394,6 +497,12 @@ export function ScenarioForm({
             refresh live as the sliders move.
           </p>
         </div>
+
+        <GeographyContextSection
+          geographyError={geographyError}
+          geographyLoading={geographyLoading}
+          geographyOptions={geographyOptions}
+        />
 
         <div className="toolbar toolbar-prominent live-toolbar" data-testid="live-update-status">
           <p className="toolbar-helper">

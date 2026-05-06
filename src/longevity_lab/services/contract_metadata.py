@@ -6,13 +6,10 @@ from typing import cast
 from longevity_lab.api.schemas import (
     ContextualGeographyMetadataResponse,
     ExplanationMethod,
-    GeographyLevel,
     ModelMetadataResponse,
     UncertaintyMethod,
 )
 from longevity_lab.artifacts.store import ArtifactBundle
-
-_GEOGRAPHY_LEVEL_ORDER: tuple[GeographyLevel, ...] = ("state", "county", "tract", "zcta")
 
 
 def build_demo_model_metadata() -> ModelMetadataResponse:
@@ -65,33 +62,14 @@ def build_artifact_model_metadata(
         explanation_methods=explanation_methods,
         uncertainty_available=bool(uncertainty_methods),
         uncertainty_methods=uncertainty_methods,
-        contextual_geography=_infer_contextual_geography(bundle.manifest.features),
+        contextual_geography=ContextualGeographyMetadataResponse(
+            available=False,
+            levels=[],
+            source=None,
+        ),
     )
 
 
 def _unique_sorted(values: Iterable[object]) -> list[str]:
     """Return deterministic unique string values from a small iterable."""
     return sorted({str(value) for value in values})
-
-
-def _infer_contextual_geography(features: list[str]) -> ContextualGeographyMetadataResponse:
-    levels: set[GeographyLevel] = set()
-    for feature in features:
-        normalized = feature.lower()
-        if normalized in {"annual_aqi", "state_fips"} or normalized.startswith(
-            ("pm25_", "ozone_", "aqi_", "state_")
-        ):
-            levels.add("state")
-        if "county" in normalized or normalized.startswith(("places_", "svi_", "acs_")):
-            levels.add("county")
-        if "tract" in normalized:
-            levels.add("tract")
-        if "zcta" in normalized:
-            levels.add("zcta")
-
-    ordered_levels = [level for level in _GEOGRAPHY_LEVEL_ORDER if level in levels]
-    return ContextualGeographyMetadataResponse(
-        available=bool(ordered_levels),
-        levels=ordered_levels,
-        source="artifact_features" if ordered_levels else None,
-    )

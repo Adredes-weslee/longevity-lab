@@ -6,6 +6,12 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Longevity Lab' })).toBeVisible()
 
   await expect(page.getByTestId('scenario-form')).toBeVisible()
+  await expect(page.getByTestId('geography-context')).toBeVisible()
+  await expect(page.getByTestId('geography-context')).toContainText('Geography context')
+  await expect(page.getByTestId('geography-context')).toContainText('background context')
+  await expect(page.getByLabel('State context')).toBeVisible()
+  await page.getByLabel('State context').selectOption('06')
+  await expect(page.getByTestId('selected-geography-context')).toContainText('California')
   await expect(page.getByTestId('live-update-status')).toContainText('Live preview')
   await expect(page.getByTestId('explorer-disclaimer')).toBeVisible()
   await expect(page.getByTestId('explorer-disclaimer')).toContainText(

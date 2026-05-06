@@ -8,7 +8,7 @@ import {
   type PropsWithChildren,
 } from 'react'
 
-import type { FeatureProfile } from '../types'
+import type { FeatureProfile, ScenarioGeographySelection } from '../types'
 
 type ProfileKey = 'baseline' | 'candidate'
 type ProfileField = keyof FeatureProfile
@@ -16,6 +16,7 @@ type ProfileField = keyof FeatureProfile
 interface ScenarioState {
   baseline: FeatureProfile
   candidate: FeatureProfile
+  geography: ScenarioGeographySelection | null
   selectedOrganId: string | null
 }
 
@@ -27,6 +28,7 @@ type ScenarioAction =
       value: FeatureProfile[ProfileField]
     }
   | { type: 'resetProfile'; profile: ProfileKey }
+  | { type: 'setGeography'; geography: ScenarioGeographySelection | null }
   | { type: 'selectOrgan'; organId: string | null }
 
 interface ScenarioContextValue {
@@ -77,6 +79,11 @@ function scenarioReducer(
         [action.profile]:
           action.profile === 'baseline' ? defaultBaseline : defaultCandidate,
       }
+    case 'setGeography':
+      return {
+        ...state,
+        geography: action.geography,
+      }
     case 'selectOrgan':
       return {
         ...state,
@@ -93,6 +100,7 @@ export function ScenarioProvider({
   const [state, dispatch] = useReducer(scenarioReducer, {
     baseline: defaultBaseline,
     candidate: defaultCandidate,
+    geography: null,
     selectedOrganId: 'heart',
   })
 
