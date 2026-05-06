@@ -62,6 +62,18 @@ function conditionCard(card: ConditionModelCardResponse): JSX.Element {
           <span>Features</span>
           <strong>{card.feature_count ?? card.features.length}</strong>
         </li>
+        <li>
+          <span>Context AP lift</span>
+          <strong>{formatMetric(card.context_average_precision_delta, 4)}</strong>
+        </li>
+        <li>
+          <span>Context features</span>
+          <strong>
+            {card.context_feature_count
+              ? `${card.context_feature_count}: ${card.context_features.join(', ')}`
+              : 'None declared'}
+          </strong>
+        </li>
       </ul>
     </article>
   )
@@ -167,6 +179,38 @@ export function ModelCardsPage({
                   ? `${model.contextual_geography.levels.join(', ')} (${model.contextual_geography.source ?? 'source not declared'})`
                   : 'No contextual geography declared'}
               </dd>
+            </div>
+          </dl>
+        </article>
+
+        <article className="panel info-card" data-testid="model-context-section">
+          <div className="panel-header">
+            <h3>Context and subgroup caveats</h3>
+            <p>
+              Context rows show state-year ACS/SVI signals only when manifest-declared. Subgroup
+              metrics are audit evidence and should be interpreted with sample-size caveats.
+            </p>
+          </div>
+          <dl className="metadata-list">
+            <div>
+              <dt>Context status</dt>
+              <dd>
+                {model.contextual_geography.available
+                  ? 'Active state-year context'
+                  : 'No active context features'}
+              </dd>
+            </div>
+            <div>
+              <dt>Context feature list</dt>
+              <dd>
+                {model.contextual_geography.features.length
+                  ? model.contextual_geography.features.join(', ')
+                  : 'No active ACS/SVI context declared'}
+              </dd>
+            </div>
+            <div>
+              <dt>Subgroup caveat</dt>
+              <dd>Slice metrics can be unstable for small or underrepresented groups.</dd>
             </div>
           </dl>
         </article>

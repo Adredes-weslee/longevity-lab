@@ -63,6 +63,9 @@ export interface ContextualGeographyMetadataResponse {
   available: boolean
   levels: GeographyLevel[]
   source: string | null
+  feature_count: number
+  features: string[]
+  caveat: string | null
 }
 
 export interface ModelMetadataResponse {
@@ -103,11 +106,15 @@ export interface ConditionModelCardResponse {
   positive_rate: number | null
   feature_count: number | null
   features: string[]
+  context_feature_count: number
+  context_features: string[]
   best_params: Record<string, unknown>
   base_metrics: ModelMetricSetResponse
   calibrated_metrics: ModelMetricSetResponse
+  no_context_metrics: ModelMetricSetResponse
   no_aqi_metrics: ModelMetricSetResponse
   no_pollutants_metrics: ModelMetricSetResponse
+  context_average_precision_delta: number | null
   aqi_average_precision_delta: number | null
   pollutant_average_precision_delta: number | null
 }

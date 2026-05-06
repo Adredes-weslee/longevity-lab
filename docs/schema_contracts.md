@@ -147,6 +147,16 @@ the lookup, the engine uses manifest-declared defaults.
 When demo mode is active or the active artifact has no readable metrics files, the endpoint returns
 `available: false` instead of failing the UI.
 
+Frontend pages must keep contextual geography visible as a separate background-context layer:
+
+- Explorer shows the selected state/year, lookup readiness, active-vs-inactive model status,
+  context feature count/list, data vintage, and caveat outside the editable scenario controls.
+- Data Evidence groups active state-year context, inactive county context, and validation-only
+  PLACES evidence separately from personal scenario inputs.
+- Model Cards show context ablation lift, context feature lists, and subgroup caveats when
+  artifact metrics are available.
+- Scenario Lab includes geography/context rows in the export-style scenario summary.
+
 ## Scenario response explanations and uncertainty
 
 `POST /api/scenario/compare` condition responses include:

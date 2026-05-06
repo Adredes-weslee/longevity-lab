@@ -35,6 +35,8 @@ Legend:
   lookup.
 - [DONE] Context-aware artifact training and serving activation for manifest-declared state-year
   ACS/SVI features, with county-level context kept inactive.
+- [DONE] Context transparency UX separates editable personal inputs from background state-year
+  context across Explorer, Data Evidence, Model Cards, and Scenario Lab.
 
 ## Current baseline
 
@@ -115,10 +117,15 @@ Legend:
 - [DONE] High-risk drill-down panels surface public-health guidance links when either current or what-if profile is in the red band.
 - [DONE] Explorer view shows a compact non-diagnostic disclaimer and runtime scoring-mode banner.
 - [DONE] Explorer keeps state-year geography context separate from lifestyle scenario inputs and labels it as background context.
+- [DONE] Explorer shows selected state/year, lookup readiness, context feature count, model
+  active/inactive status, data vintage, and caveats in a dedicated context card.
 - [DONE] Named product pages separate the Explorer, data evidence, active model-card metadata, and scenario summary workflows (`frontend/src/pages/`).
 - [DONE] Better "what changed" deltas per organ/condition through visible changed-input chips and drill-down delta summaries.
 - [DONE] Basic accessibility pass for keyboard-selectable anatomy overlays and text-supported color legends.
 - [DONE] Mobile/responsive layout pass.
+- [DONE] Data Evidence, Model Cards, and Scenario Lab group active state-year context, inactive
+  county context, validation-only PLACES, context ablation lift, subgroup caveats, and
+  geography/context summary rows separately from lifestyle inputs.
 
 ### Reproducibility
 
@@ -140,7 +147,5 @@ Legend:
 
 Detailed PR scopes and Codex prompts are in `docs/superpowers/plans/2026-05-06-remaining-work-pr-roadmap.md`.
 
-1. Harden the context transparency UX for active state-year context and inactive county context.
-2. Extend typed explanation and uncertainty coverage as new artifact families are trained.
-3. Extend the non-serving causal workbench beyond the smoking prototype.
-4. Add one-command dev bootstrap for Windows and macOS.
+1. Extend typed explanation and uncertainty coverage as new artifact families are trained.
+2. Add one-command dev bootstrap for Windows and macOS.

@@ -10,6 +10,7 @@ import type {
   HeatmapMode,
   GeographyOptionsResponse,
   MetadataBootstrapResponse,
+  StateGeographyOptionResponse,
   ScenarioCompareResponse,
 } from '../types'
 
@@ -51,6 +52,96 @@ function formatContractMetadata(metadata: MetadataBootstrapResponse): string {
     : 'geography: none'
 
   return `API ${metadata.contract_version}; data vintage ${dataVintage}; explanations: ${explanationMethods}; ${uncertainty}; ${geography}.`
+}
+
+function selectedStateOption(
+  geographyOptions: GeographyOptionsResponse | null,
+  stateFips: string | null,
+): StateGeographyOptionResponse | null {
+  if (!stateFips) {
+    return null
+  }
+  return geographyOptions?.options.find((option) => option.state_fips === stateFips) ?? null
+}
+
+function ContextTransparencyCard({
+  bootstrap,
+  geographies,
+  geographiesError,
+}: {
+  bootstrap: MetadataBootstrapResponse
+  geographies: GeographyOptionsResponse | null
+  geographiesError: string | null
+}): JSX.Element {
+  const { state } = useScenario()
+  const selectedOption = selectedStateOption(geographies, state.geography?.state_fips ?? null)
+  const context = bootstrap.model_metadata.contextual_geography
+  const modelStatus = context.available
+    ? 'Active in artifact scoring'
+    : 'Inactive for scoring'
+  const lookupStatus = geographiesError
+    ? geographiesError
+    : geographies?.readiness.message ?? bootstrap.geography.caveat
+  const contextFeatures = context.features.slice(0, 6)
+
+  return (
+    <section className="panel context-transparency-card" data-testid="context-transparency-card">
+      <div className="panel-header compact">
+        <p className="section-kicker">Context transparency</p>
+        <h2>State-year context status</h2>
+        <p>
+          Personal scenario edits stay in the current and what-if profiles. State context is
+          joined as background geography metadata only when the active artifact declares it.
+        </p>
+      </div>
+      <dl className="metadata-list compact-metadata-list">
+        <div>
+          <dt>Selected state/year</dt>
+          <dd>
+            {selectedOption
+              ? `${selectedOption.label} (${selectedOption.year})`
+              : 'No state selected'}
+          </dd>
+        </div>
+        <div>
+          <dt>Model use</dt>
+          <dd>{modelStatus}</dd>
+        </div>
+        <div>
+          <dt>Lookup readiness</dt>
+          <dd>
+            {geographies?.readiness.active
+              ? 'State-year lookup ready'
+              : 'State-year lookup inactive'}
+          </dd>
+        </div>
+        <div>
+          <dt>Data vintage</dt>
+          <dd>{context.available ? bootstrap.model_metadata.data_vintage ?? 'Not declared' : 'n/a'}</dd>
+        </div>
+        <div>
+          <dt>Context features</dt>
+          <dd>
+            {context.available
+              ? `${context.feature_count} declared`
+              : '0 active'}
+          </dd>
+        </div>
+      </dl>
+      {contextFeatures.length ? (
+        <div className="driver-list" aria-label="Active context features">
+          {contextFeatures.map((feature) => (
+            <span className="driver-chip" key={feature}>{feature}</span>
+          ))}
+          {context.feature_count > contextFeatures.length ? (
+            <span className="driver-chip">+{context.feature_count - contextFeatures.length} more</span>
+          ) : null}
+        </div>
+      ) : null}
+      <p className="muted">Lookup status: {lookupStatus}</p>
+      {context.caveat ? <p className="muted">Model caveat: {context.caveat}</p> : null}
+    </section>
+  )
 }
 
 export function ExplorerPage({
@@ -147,6 +238,12 @@ export function ExplorerPage({
               <p>{disclaimers.context.body}</p>
             </div>
           </section>
+
+          <ContextTransparencyCard
+            bootstrap={bootstrap}
+            geographies={geographies}
+            geographiesError={geographiesError}
+          />
 
           <ScenarioForm
             busy={busy}
