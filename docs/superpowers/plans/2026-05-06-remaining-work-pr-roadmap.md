@@ -358,13 +358,13 @@ Scope:
 Implementation:
 - Add optional SHAP dependency under a training/explainability extra.
 - During training, save compact background samples and per-condition explainer metadata for supported tree ensembles.
-- Extend the manifest with explanation method records: `tree_path`, `tree_shap`, background sample size, feature names, and caveats.
+- Extend the manifest with explanation method records: `tree_path`, `shap`, background sample size, feature names, and caveats.
 - Update artifact scoring to return typed explanation records from SHAP when available, falling back to rule-path or manifest-declared unavailable records.
 - Add tests with tiny synthetic artifacts so CI does not require full training data.
 
 Acceptance:
 - Explanation methods in API metadata exactly match artifact manifest methods.
-- UI receives `method=tree_shap` only when a SHAP artifact exists.
+- UI receives `method=shap` only when a SHAP artifact exists.
 - Missing optional SHAP dependency produces a skipped training artifact, not a runtime crash.
 
 Validation:
@@ -592,10 +592,10 @@ Validation:
 
 ## Current Non-Requested Remaining Item
 
-`docs/feature_status.md` still lists one-command dev bootstrap for Windows and macOS as TODO. It is not included in the requested scope above. If implemented, it should be a separate PR after PR 26 or in parallel with PR 27:
+Completed by PR #31 after the original remaining-work scope:
 
-- Branch: `codex/pr-29-dev-bootstrap`
-- Scope: dependency install, sample data setup, optional artifact download, local API/frontend launch, and smoke checks.
+- Branch: `codex/pr-31-dev-bootstrap-docs`
+- Scope: backend dev/train dependency install, frontend lockfile install, optional explainability/notebook extras, and optional local smoke checks.
 - Checks: `scripts/check_all.ps1`, `scripts/check_all.sh`, `pdm run pytest`, `cd frontend; npm run build`.
 
 ## Recommended Execution Order

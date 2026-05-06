@@ -281,4 +281,91 @@ def test_integrate_brfss_epa_joins_state_year_context_features() -> None:
     assert (
         integrated.loc[integrated["state_fips"] == "13", "svi_overall_percentile"].iloc[0] == 0.31
     )
+    assert integrated.loc[integrated["state_fips"] == "06", "context_data_year"].iloc[0] == 2023
     assert "county_fips" not in integrated.columns
+
+
+def test_integrate_brfss_epa_joins_explicit_context_vintage() -> None:
+    """Integrated rows can explicitly use a different ACS/SVI context release year."""
+    brfss = pd.DataFrame(
+        _with_v2_covariates(
+            {
+                "year": [2023],
+                "state_fips": ["06"],
+                "age": [42],
+                "bmi": [30.1],
+                "smoker": [False],
+                "alcohol_servings_per_week": [0],
+                "exercise_minutes_per_week": [200],
+                "label_heart_disease": [1],
+                "label_chronic_lung_disease": [0],
+                "label_stroke": [0],
+                "label_depression": [1],
+                "label_diabetes": [0],
+                "survey_weight": [2.0],
+            }
+        )
+    )
+    epa = pd.DataFrame({"year": [2023], "state_fips": ["06"], "annual_aqi": [60]})
+    context = pd.DataFrame(
+        {
+            "year": [2022],
+            "state_fips": ["06"],
+            "geography_name": ["California"],
+            "acs_poverty_percent": [12.5],
+            "svi_overall_percentile": [0.42],
+        }
+    )
+
+    integrated = integrate_brfss_epa(
+        brfss,
+        epa,
+        context_state_year=context,
+        context_year=2022,
+        allow_missing_aqi=False,
+    )
+
+    assert integrated.loc[0, "year"] == 2023
+    assert integrated.loc[0, "context_data_year"] == 2022
+    assert integrated.loc[0, "acs_poverty_percent"] == 12.5
+    assert integrated.loc[0, "svi_overall_percentile"] == 0.42
+
+
+def test_integrate_brfss_epa_rejects_missing_explicit_context_vintage() -> None:
+    """An explicit context vintage should fail loudly when the table does not contain it."""
+    brfss = pd.DataFrame(
+        _with_v2_covariates(
+            {
+                "year": [2023],
+                "state_fips": ["06"],
+                "age": [42],
+                "bmi": [30.1],
+                "smoker": [False],
+                "alcohol_servings_per_week": [0],
+                "exercise_minutes_per_week": [200],
+                "label_heart_disease": [1],
+                "label_chronic_lung_disease": [0],
+                "label_stroke": [0],
+                "label_depression": [1],
+                "label_diabetes": [0],
+                "survey_weight": [2.0],
+            }
+        )
+    )
+    epa = pd.DataFrame({"year": [2023], "state_fips": ["06"], "annual_aqi": [60]})
+    context = pd.DataFrame(
+        {
+            "year": [2022],
+            "state_fips": ["06"],
+            "acs_poverty_percent": [12.5],
+        }
+    )
+
+    with pytest.raises(ValueError, match="context_year 2023"):
+        integrate_brfss_epa(
+            brfss,
+            epa,
+            context_state_year=context,
+            context_year=2023,
+            allow_missing_aqi=False,
+        )

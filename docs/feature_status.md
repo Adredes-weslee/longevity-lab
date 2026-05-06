@@ -45,8 +45,8 @@ Legend:
 - [DONE] UI loads metadata and default scenarios (`frontend/src/App.tsx`).
 - [DONE] User edits current and what-if inputs side by side with live compare updates (`frontend/src/components/scenario-form.tsx`).
 - [DONE] UI calls compare endpoint and renders results (`frontend/src/api/client.ts`).
-- [DEMO] Organ heatmap renders delta, baseline, and scenario views with callouts (`frontend/src/components/body-heatmap.tsx`).
-- [DEMO] Drill-down shows condition probabilities, drivers, citations, and guidance (`frontend/src/components/condition-inspector.tsx`).
+- [DONE] Organ heatmap renders delta, baseline, and scenario views with callouts, keyboard-selectable overlays, and responsive layout coverage (`frontend/src/components/body-heatmap.tsx`).
+- [DONE] Drill-down shows condition probabilities, drivers, citations, explanation caveats, uncertainty copy, and guidance (`frontend/src/components/condition-inspector.tsx`).
 - [DONE] Backend exposes stable typed contract (`src/longevity_lab/api/schemas.py`).
 - [DONE] Backend compares two scenarios through `POST /api/scenario/compare`, using artifact-backed scoring when a valid local bundle exists and labeled demo scoring otherwise (`src/longevity_lab/api/routes/scenario.py`).
 
@@ -144,7 +144,7 @@ Legend:
 - [DONE] E2E smoke tests (`frontend/e2e/`).
 - [DONE] Free-tier deployment profile documented with Render Blueprint config and Vite API-origin support (`render.yaml`, `docs/deployment.md`, `frontend/vite.config.ts`, `frontend/.env.example`).
 - [DONE] Build-time model artifact downloader verifies public release bundles before production artifact mode (`scripts/download_model_bundle.py`).
-- [TODO] One-command dev bootstrap for Windows and macOS.
+- [DONE] One-command dev bootstrap for Windows and macOS (`scripts/bootstrap_dev.ps1`, `scripts/bootstrap_dev.sh`).
 - [DONE] Artifact-backed runtime no longer requires Optuna just to load packaged bundles (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Dataset sources and provenance docs (`docs/datasets.md`, `docs/data_dictionary.md`).
 - [DONE] Finalize ethics and health disclaimer language across the UI and documentation through shared frontend copy, E2E assertions, and docs interpretation limits.
@@ -154,4 +154,4 @@ Legend:
 Detailed PR scopes and Codex prompts are in `docs/superpowers/plans/2026-05-06-remaining-work-pr-roadmap.md`.
 
 1. Extend typed explanation and uncertainty coverage as new artifact families are trained.
-2. Add one-command dev bootstrap for Windows and macOS.
+2. Train and promote newer artifact families when their benchmark evidence justifies activation.

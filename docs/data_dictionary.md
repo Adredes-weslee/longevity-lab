@@ -316,6 +316,8 @@ This is the modeling table. It must include:
   `ozone_mean`, `ozone_monitor_count`, `ozone_observation_percent`, `ozone_observation_complete`
 - plus curated ACS/SVI state-year context columns when
   `data/processed/context/context_state_year.parquet` is available
+- plus `context_data_year` when ACS/SVI context is joined from an explicit or exact context
+  vintage
 - plus stable join keys used
 
 Join caveat:
@@ -393,11 +395,13 @@ This report compares aggregate model risk patterns with population-weighted PLAC
 
 ## Join strategy (must be documented and tested)
 
-V2 joins by **state-year**:
+V2 joins by **state-year**, with an explicit context-vintage override when needed:
 
 - BRFSS key: (`state_fips`, `year`)
 - EPA key: (`state_fips`, `year`)
-- ACS/SVI state context key: (`state_fips`, `year`)
+- ACS/SVI state context key: (`state_fips`, `year`) by default.
+- ACS/SVI explicit context-vintage key: `state_fips` after filtering the processed context table to
+  `--context-year`; the output records this value in `context_data_year`.
 
 Rationale:
 
@@ -405,6 +409,9 @@ Rationale:
 - EPA annual AQI file does not contain FIPS identifiers; it provides state/county names only.
 - Current BRFSS rows can join ACS/SVI context only at state-year granularity. County-level context
   remains non-serving context or validation data.
+- SVI is currently registry-supported through the 2022 release. When building 2023 BRFSS artifacts
+  with 2022 ACS/SVI context, the integrated build must use `--context-year 2022` so context vintage
+  is explicit and auditable.
 
 ## Provenance format (v2, implemented)
 

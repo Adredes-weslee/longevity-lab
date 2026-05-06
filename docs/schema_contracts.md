@@ -48,6 +48,8 @@ All of these are **gitignored** outputs written under `data/processed/`.
   - plus `annual_aqi`
   - plus curated ACS/SVI state-year context columns when
     `data/processed/context/context_state_year.parquet` is present
+  - plus `context_data_year` when ACS/SVI context is joined from an explicit or exact context
+    vintage
 
 ## BRFSS v2 feature roles
 
@@ -68,6 +70,8 @@ condition-specific exclusions to avoid symptom-like label leakage:
   `svi_theme2_household_characteristics_percentile`,
   `svi_theme3_racial_ethnic_minority_status_percentile`, and
   `svi_theme4_housing_transportation_percentile`.
+- Context vintage marker: `context_data_year` records the processed ACS/SVI context release year
+  when those fields are joined. It is provenance metadata, not a prediction feature.
 - Survey weights: `survey_weight` is a sample-weight column, not a prediction feature.
 - Leakage exclusions:
   - `physical_health_days` is excluded when training heart disease, chronic lung disease,
