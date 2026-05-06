@@ -10,6 +10,10 @@
 
 ---
 
+## Completion Status
+
+Completed by PR #18, "Expand active evidence and production model artifact", and the follow-up deployment digest commit `1ddbe22`. The checklist below is retained as implementation history, with completed boxes marked.
+
 ## Scope Decisions
 
 - Add active model features `pm25_mean` and `ozone_mean` because they are already quality-gated in the integrated table and can be safely surfaced as scenario-editable environmental inputs.
@@ -29,10 +33,10 @@
 - Modify: `src/longevity_lab/api/main.py`
 - Test: `tests/test_evidence_status_api.py`
 
-- [ ] Add schema types for source registry summaries, grouped local assets, production artifact status, feature inventory, report evidence, and inactive gaps.
-- [ ] Implement `EvidenceService` that reads `conf/data_sources.yaml`, pipeline paths, provenance files, report directories, active artifact manifests, and training config.
-- [ ] Add `GET /api/evidence/status?year=2023` as an additive route.
-- [ ] Test that the endpoint exposes all implemented source families, never leaks absolute paths or release URLs, and distinguishes active model features from available inactive features.
+- [x] Add schema types for source registry summaries, grouped local assets, production artifact status, feature inventory, report evidence, and inactive gaps.
+- [x] Implement `EvidenceService` that reads `conf/data_sources.yaml`, pipeline paths, provenance files, report directories, active artifact manifests, and training config.
+- [x] Add `GET /api/evidence/status?year=2023` as an additive route.
+- [x] Test that the endpoint exposes all implemented source families, never leaks absolute paths or release URLs, and distinguishes active model features from available inactive features.
 
 ### Task 2: BRFSS Conditions and Catalog
 
@@ -44,11 +48,11 @@
 - Test: `tests/test_brfss_decode.py`, `tests/test_integration_join.py`, `tests/test_api.py`
 - Docs: `docs/data_dictionary.md`, `docs/schema_contracts.md`, `docs/feature_status.md`
 
-- [ ] Decode `label_asthma` from `ASTHMA3` + `ASTHNOW`, `label_kidney_disease` from `CHCKDNY2`, and `label_arthritis` from `HAVARTH4`.
-- [ ] Carry the new labels into `integrated_person_year`.
-- [ ] Add catalog entries for asthma, chronic kidney disease, and arthritis, plus kidneys and joints organ metadata.
-- [ ] Add CDC-backed high-risk guidance copy for the three new conditions.
-- [ ] Test decoding, integration, bootstrap metadata, and scenario output compatibility.
+- [x] Decode `label_asthma` from `ASTHMA3` + `ASTHNOW`, `label_kidney_disease` from `CHCKDNY2`, and `label_arthritis` from `HAVARTH4`.
+- [x] Carry the new labels into `integrated_person_year`.
+- [x] Add catalog entries for asthma, chronic kidney disease, and arthritis, plus kidneys and joints organ metadata.
+- [x] Add CDC-backed high-risk guidance copy for the three new conditions.
+- [x] Test decoding, integration, bootstrap metadata, and scenario output compatibility.
 
 ### Task 3: Active Pollutant Feature Contract
 
@@ -62,11 +66,11 @@
 - Modify: `conf/train.yaml`, `conf/benchmark.yaml`
 - Test: `tests/test_api.py`, `tests/test_training_pipeline.py`, `tests/test_benchmarks.py`
 
-- [ ] Add `pm25_mean` and `ozone_mean` as bounded scenario-editable environmental inputs.
-- [ ] Keep `annual_aqi` for backwards compatibility and ablation continuity.
-- [ ] Add pollutant features to default training and benchmark configs with monotonic constraints.
-- [ ] Ensure artifact inference receives pollutant values from the profile instead of median-only defaults.
-- [ ] Test metadata bootstrap, profile validation, training manifests, and feature preprocessing.
+- [x] Add `pm25_mean` and `ozone_mean` as bounded scenario-editable environmental inputs.
+- [x] Keep `annual_aqi` for backwards compatibility and ablation continuity.
+- [x] Add pollutant features to default training and benchmark configs with monotonic constraints.
+- [x] Ensure artifact inference receives pollutant values from the profile instead of median-only defaults.
+- [x] Test metadata bootstrap, profile validation, training manifests, and feature preprocessing.
 
 ### Task 4: Evidence and Explorer UI
 
@@ -81,11 +85,11 @@
 - Modify: `frontend/src/styles.css`
 - Test: `frontend/e2e/app.spec.ts`
 
-- [ ] Replace the legacy-only Data Evidence view with source registry, local assets, production artifact, reports, feature inventory, and known gaps.
-- [ ] Add model-card active-vs-available feature coverage.
-- [ ] Add compact Explorer copy explaining editable inputs versus defaulted non-editable covariates.
-- [ ] Draw supported kidney and joints overlays/callouts.
-- [ ] Test the new UI sections and new condition/organ navigation.
+- [x] Replace the legacy-only Data Evidence view with source registry, local assets, production artifact, reports, feature inventory, and known gaps.
+- [x] Add model-card active-vs-available feature coverage.
+- [x] Add compact Explorer copy explaining editable inputs versus defaulted non-editable covariates.
+- [x] Draw supported kidney and joints overlays/callouts.
+- [x] Test the new UI sections and new condition/organ navigation.
 
 ### Task 5: Documentation and Deployment Config
 
@@ -99,17 +103,17 @@
 - Modify: `docs/feature_status.md`
 - Modify: `render.yaml` after the new release artifact is published.
 
-- [ ] Document what is active in scoring versus implemented only as context/evidence.
-- [ ] Document the new condition labels and environmental inputs.
-- [ ] Update deployment artifact id, release URL, and SHA after packaging.
+- [x] Document what is active in scoring versus implemented only as context/evidence.
+- [x] Document the new condition labels and environmental inputs.
+- [x] Update deployment artifact id, release URL, and SHA after packaging.
 
 ### Task 6: Train, Package, Validate, Review, PR
 
 **Generated outputs stay uncommitted:** `data/external/`, `data/processed/`, `artifacts/models/`, `reports/`.
 
-- [ ] Run the full pipeline using existing local raw data or downloads.
-- [ ] Train bundle `real-20260504-full` with `data.use_sample_if_missing=false`.
-- [ ] Evaluate, package a POSIX-path zip, publish to GitHub Releases, update checksum references.
-- [ ] Run targeted tests, full backend/frontend checks, Playwright E2E, local artifact download smoke, Render blueprint validation, and production smoke after merge/deploy.
-- [ ] Run local adversarial review against `origin/main..HEAD` until no open P0/P1/P2 issues remain.
-- [ ] Push branch, open PR, wait for CI, merge, clean up worktree/branch.
+- [x] Run the full pipeline using existing local raw data or downloads.
+- [x] Train bundle `real-20260504-full` with `data.use_sample_if_missing=false`.
+- [x] Evaluate, package a POSIX-path zip, publish to GitHub Releases, update checksum references.
+- [x] Run targeted tests, full backend/frontend checks, Playwright E2E, local artifact download smoke, Render blueprint validation, and production smoke after merge/deploy.
+- [x] Run local adversarial review against `origin/main..HEAD` until no open P0/P1/P2 issues remain.
+- [x] Push branch, open PR, wait for CI, merge, clean up worktree/branch.

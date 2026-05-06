@@ -130,6 +130,8 @@ Legend:
 
 ## Highest-ROI next tasks
 
+Detailed PR scopes and Codex prompts are in `docs/superpowers/plans/2026-05-06-remaining-work-pr-roadmap.md`.
+
 1. Add geography-aware serving before activating ACS/SVI context features in predictions.
 2. Extend typed explanation and uncertainty coverage as new artifact families are trained.
 3. Extend the non-serving causal workbench beyond the smoking prototype.
