@@ -276,7 +276,7 @@ def _shap_explanations(
 
 def _import_shap_module() -> ShapModule:
     try:
-        import shap  # type: ignore[import-not-found]
+        import shap  # type: ignore[import-not-found, import-untyped]
     except ImportError as exc:
         raise RuntimeError(
             "SHAP explanations require the optional `shap` package in the serving environment."

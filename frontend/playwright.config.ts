@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5173'
+const reuseExistingServer = process.env.E2E_REUSE_SERVER === '1'
 
 export default defineConfig({
   testDir: './e2e',
@@ -21,13 +22,13 @@ export default defineConfig({
       },
       url: 'http://127.0.0.1:8000/api/health',
       cwd: '..',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 120_000,
     },
     {
       command: 'npm run dev -- --host 127.0.0.1 --port 5173',
       url: baseURL,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 120_000,
     },
   ],
