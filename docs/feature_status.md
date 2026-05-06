@@ -89,6 +89,9 @@ Legend:
   artifacts for supported tree ensembles, and manifest-declared uncertainty intervals
   (`src/longevity_lab/services/artifact_engine.py`,
   `src/longevity_lab/services/explanations.py`, `src/longevity_lab/services/uncertainty.py`).
+- [DONE] Training packages held-out empirical calibration-interval payloads per condition and
+  surfaces uncertainty diagnostics in scenario responses and model cards
+  (`src/longevity_lab/pipeline/modeling.py`, `src/longevity_lab/services/model_card_service.py`).
 
 ### Causal inference
 

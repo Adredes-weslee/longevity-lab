@@ -40,8 +40,7 @@ def build_artifact_model_metadata(
     """Return v2 model metadata derived from an artifact bundle manifest."""
     uncertainty_methods = [
         cast(UncertaintyMethod, method)
-        for method in _unique_sorted(item.uncertainty_method for item in bundle.manifest.conditions)
-        if method != "none"
+        for method in _unique_sorted(_manifest_uncertainty_methods(bundle))
     ]
     explanation_methods = [
         cast(ExplanationMethod, method)
@@ -94,6 +93,19 @@ def _manifest_explanation_methods(bundle: ArtifactBundle) -> list[str]:
                 methods.append(str(record.method))
         if item.explanation_path is not None and _bundle_path_exists(bundle, item.explanation_path):
             methods.append(str(item.explanation_method))
+    return methods
+
+
+def _manifest_uncertainty_methods(bundle: ArtifactBundle) -> list[str]:
+    """Return manifest-declared uncertainty methods with bundle-local artifact paths."""
+    methods: list[str] = []
+    for item in bundle.manifest.conditions:
+        if (
+            item.uncertainty_method != "none"
+            and item.uncertainty_path is not None
+            and _bundle_path_exists(bundle, item.uncertainty_path)
+        ):
+            methods.append(str(item.uncertainty_method))
     return methods
 
 

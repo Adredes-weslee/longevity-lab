@@ -29,6 +29,7 @@ def _write_api_bundle(
     *,
     created_at: dt.datetime | None = None,
     write_metrics: bool = False,
+    declare_uncertainty: bool = False,
 ) -> str:
     """Write a minimal loadable artifact bundle for API startup tests."""
     models_dir = artifacts_dir / "models"
@@ -59,6 +60,22 @@ def _write_api_bundle(
     pipeline_path = bundle_dir / "heart_disease.joblib"
     joblib.dump(pipeline, pipeline_path)
     metrics_path = bundle_dir / "heart_disease_metrics.json"
+    uncertainty_path = bundle_dir / "heart_disease_uncertainty.json"
+    if declare_uncertainty:
+        uncertainty_path.write_text(
+            json.dumps(
+                {
+                    "method": "calibration_interval",
+                    "half_width": 0.12,
+                    "confidence_level": 0.9,
+                    "empirical_coverage": 0.9,
+                    "diagnostics": {"expected_calibration_error": 0.03},
+                    "caveat": "Test held-out interval.",
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     if write_metrics:
         metrics_path.write_text(
             json.dumps(
@@ -90,6 +107,16 @@ def _write_api_bundle(
                         "roc_auc": 0.88,
                         "brier_score": 0.11,
                     },
+                    "uncertainty": {
+                        "status": "available",
+                        "artifact_path": uncertainty_path.name,
+                        "method": "calibration_interval",
+                        "half_width": 0.12,
+                        "confidence_level": 0.9,
+                        "empirical_coverage": 0.9,
+                        "diagnostics": {"expected_calibration_error": 0.03},
+                        "caveat": "Test held-out interval.",
+                    },
                 }
             )
             + "\n",
@@ -106,6 +133,8 @@ def _write_api_bundle(
                     pipeline_path=pipeline_path.name,
                     metrics_path=metrics_path.name if write_metrics else None,
                     explanation_method="tree_path",
+                    uncertainty_method=("calibration_interval" if declare_uncertainty else "none"),
+                    uncertainty_path=uncertainty_path.name if declare_uncertainty else None,
                 )
             ],
         ),
@@ -533,6 +562,32 @@ def test_model_cards_artifact_surfaces_condition_metrics(
         assert payload["condition_cards"][0]["pollutant_average_precision_delta"] == pytest.approx(
             0.02
         )
+        assert payload["condition_cards"][0]["uncertainty_method"] is None
+        assert payload["condition_cards"][0]["uncertainty_half_width"] is None
+
+
+def test_model_cards_surface_manifest_declared_uncertainty(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Model cards should surface uncertainty only when the manifest declares a payload."""
+    _write_api_bundle(
+        tmp_path / "artifacts",
+        write_metrics=True,
+        declare_uncertainty=True,
+    )
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        response = test_client.get("/api/models/cards")
+        assert response.status_code == 200
+        payload = response.json()
+        card = payload["condition_cards"][0]
+        assert payload["model_metadata"]["uncertainty_available"] is True
+        assert payload["model_metadata"]["uncertainty_methods"] == ["calibration_interval"]
+        assert card["uncertainty_method"] == "calibration_interval"
+        assert card["uncertainty_path"] == "heart_disease_uncertainty.json"
+        assert card["uncertainty_half_width"] == pytest.approx(0.12)
+        assert card["uncertainty_expected_calibration_error"] == pytest.approx(0.03)
+        assert card["uncertainty_empirical_coverage"] == pytest.approx(0.9)
 
 
 def test_model_cards_artifact_tolerates_corrupt_metrics(

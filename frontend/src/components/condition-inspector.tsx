@@ -75,6 +75,14 @@ function formatUncertainty(uncertainty: UncertaintySummaryResponse): string {
   return `${formatPercent(uncertainty.lower)}-${formatPercent(uncertainty.upper)}${confidence}`
 }
 
+function formatUncertaintyDiagnostics(uncertainty: UncertaintySummaryResponse): string | null {
+  const expectedCalibrationError = uncertainty.diagnostics.expected_calibration_error
+  if (expectedCalibrationError == null) {
+    return null
+  }
+  return `Expected calibration error ${(expectedCalibrationError * 100).toFixed(1)}%.`
+}
+
 export function ConditionInspector({
   comparison,
   conditions,
@@ -363,6 +371,8 @@ export function ConditionInspector({
                         Calibrated uncertainty: {formatUncertainty(condition.uncertainty)}.
                         {' '}
                         {condition.uncertainty.caveat}
+                        {' '}
+                        {formatUncertaintyDiagnostics(condition.uncertainty) ?? ''}
                         {' '}
                         {disclaimers.uncertainty.body}
                       </p>

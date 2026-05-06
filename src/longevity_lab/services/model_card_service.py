@@ -12,6 +12,7 @@ from longevity_lab.api.schemas import (
     ModelCardBundleResponse,
     ModelMetadataResponse,
     ModelMetricSetResponse,
+    UncertaintyMethod,
 )
 from longevity_lab.artifacts.manifest import ConditionArtifact
 from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
@@ -108,6 +109,11 @@ def _build_condition_card(
         )
     payload: dict[str, Any] = raw_payload
     context_features = _context_features(bundle=bundle, payload=payload)
+    uncertainty = _uncertainty_payload(
+        bundle=bundle,
+        condition=condition,
+        metrics_value=payload.get("uncertainty"),
+    )
     return ConditionModelCardResponse(
         condition_id=str(payload.get("condition_id", condition.condition_id)),
         label=label,
@@ -140,6 +146,15 @@ def _build_condition_card(
             payload,
             ablation_key="no_pollutants_metrics",
         ),
+        uncertainty_method=_optional_uncertainty_method(uncertainty.get("method")),
+        uncertainty_path=_optional_string(uncertainty.get("artifact_path")),
+        uncertainty_half_width=_optional_float(uncertainty.get("half_width")),
+        uncertainty_confidence_level=_optional_float(uncertainty.get("confidence_level")),
+        uncertainty_empirical_coverage=_optional_float(uncertainty.get("empirical_coverage")),
+        uncertainty_expected_calibration_error=_optional_float(
+            _diagnostics(uncertainty).get("expected_calibration_error")
+        ),
+        uncertainty_caveat=_optional_string(uncertainty.get("caveat")),
     )
 
 
@@ -205,6 +220,41 @@ def _coerce_best_params(value: object) -> dict[str, Any]:
         for key, item in value.items()
         if item is None or isinstance(item, str | int | float | bool)
     }
+
+
+def _uncertainty_payload(
+    *,
+    bundle: ArtifactBundle,
+    condition: ConditionArtifact,
+    metrics_value: object,
+) -> dict[str, Any]:
+    """Return uncertainty metadata only when manifest and payload agree."""
+    if condition.uncertainty_method == "none" or condition.uncertainty_path is None:
+        return {}
+    uncertainty_path = _safe_bundle_path(bundle.path, condition.uncertainty_path)
+    if uncertainty_path is None or not uncertainty_path.exists():
+        return {}
+    if isinstance(metrics_value, dict) and metrics_value.get("status") == "available":
+        return metrics_value
+    return {}
+
+
+def _diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return nested uncertainty diagnostics when present."""
+    diagnostics = payload.get("diagnostics")
+    return diagnostics if isinstance(diagnostics, dict) else {}
+
+
+def _optional_uncertainty_method(value: object) -> UncertaintyMethod | None:
+    """Return supported uncertainty method names for model-card responses."""
+    if value == "calibration_interval":
+        return "calibration_interval"
+    return None
+
+
+def _optional_string(value: object) -> str | None:
+    """Coerce optional string metadata."""
+    return str(value) if isinstance(value, str) and value else None
 
 
 def _optional_float(value: object) -> float | None:

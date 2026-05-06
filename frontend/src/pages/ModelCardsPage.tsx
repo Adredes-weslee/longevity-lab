@@ -74,6 +74,22 @@ function conditionCard(card: ConditionModelCardResponse): JSX.Element {
               : 'None declared'}
           </strong>
         </li>
+        <li>
+          <span>Uncertainty interval</span>
+          <strong>
+            {card.uncertainty_method
+              ? `${formatPercent(card.uncertainty_half_width)} half-width`
+              : 'Not declared'}
+          </strong>
+        </li>
+        <li>
+          <span>Calibration ECE</span>
+          <strong>{formatMetric(card.uncertainty_expected_calibration_error, 4)}</strong>
+        </li>
+        <li>
+          <span>Interval coverage</span>
+          <strong>{formatPercent(card.uncertainty_empirical_coverage)}</strong>
+        </li>
       </ul>
     </article>
   )

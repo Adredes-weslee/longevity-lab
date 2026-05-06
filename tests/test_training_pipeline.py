@@ -324,12 +324,16 @@ def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> No
     metrics_files = list(result.bundle_dir.glob("*_metrics.json"))
     prediction_files = list(result.bundle_dir.glob("*_predictions.parquet"))
     shap_skip_files = list(result.bundle_dir.glob("*_shap_explanation_skipped.json"))
+    uncertainty_files = list(result.bundle_dir.glob("*_uncertainty.json"))
     assert len(metrics_files) == 5
     assert len(prediction_files) == 5
     assert len(shap_skip_files) == 5
+    assert len(uncertainty_files) == 5
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["conditions"][0]["explanation_artifacts"][0]["method"] == "tree_path"
     assert manifest["conditions"][0]["explanation_method"] == "tree_path"
+    assert manifest["conditions"][0]["uncertainty_method"] == "calibration_interval"
+    assert manifest["conditions"][0]["uncertainty_path"].endswith("_uncertainty.json")
 
     engine = ArtifactScenarioEngine(
         store=ArtifactStore(tmp_path / "artifacts" / "models"),
@@ -347,6 +351,10 @@ def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> No
     )
     assert len(scores) == 5
     assert any(score.key_drivers for score in scores)
+    assert scores[0].uncertainty is not None
+    assert scores[0].uncertainty.method == "calibration_interval"
+    assert 0.0 <= scores[0].uncertainty.lower <= scores[0].uncertainty.upper <= 1.0
+    assert "expected_calibration_error" in scores[0].uncertainty.diagnostics
 
 
 def test_train_bundle_applies_brfss_v2_feature_contract(tmp_path: Path) -> None:
