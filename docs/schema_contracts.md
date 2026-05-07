@@ -115,8 +115,8 @@ clients that read the original organs, conditions, runtime, and scenario scores 
 
 - `supported_levels`: currently `["state"]`.
 - `default_year`: the default context lookup year, currently `2023`.
-- `context_lookup_active`: whether a processed state-year context table is readable for the
-  default year.
+- `context_lookup_active`: whether the active artifact bundle or processed state-year context
+  table can provide options for the default year.
 - `geographies_endpoint`: the relative route for geography options.
 - `caveat`: copy stating that geography context is background context, not a personal behavior.
 
@@ -128,9 +128,10 @@ clients that read the original organs, conditions, runtime, and scenario scores 
 - `readiness`: `active`, `table_exists`, `year_available`, safe relative `table_path`,
   `state_count`, `available_years`, and `message`
 
-When `data/processed/context/context_state_year.parquet` is missing or unreadable, the endpoint
-returns fallback state options with `context_available: false` and never exposes absolute local
-paths.
+When artifact mode is active and the bundle declares `context_features`, this endpoint uses the
+same trusted bundle-local state-year lookup that scoring uses. Otherwise it reads
+`data/processed/context/context_state_year.parquet`. If no lookup is readable, the endpoint returns
+fallback state options with `context_available: false` and never exposes absolute local paths.
 
 `POST /api/scenario/compare` accepts optional `geography` metadata with `level: "state"`,
 `state_fips`, and `year`. Existing requests without geography remain valid. Demo scoring ignores

@@ -110,7 +110,7 @@ Legend:
 - [DONE] Pipeline status endpoint (`GET /api/pipeline/status`) (`src/longevity_lab/api/routes/pipeline.py`).
 - [DONE] Model-card endpoint exposes active artifact metrics (`GET /api/models/cards`) (`src/longevity_lab/api/routes/models.py`).
 - [DONE] Evidence endpoint exposes source registry roles, asset readiness, production artifact download status, active-vs-available features, reports, and inactive gaps (`GET /api/evidence/status`) (`src/longevity_lab/api/routes/evidence.py`).
-- [DONE] Geography context endpoint exposes state-year options and local context readiness without absolute local paths (`GET /api/context/geographies`) (`src/longevity_lab/api/routes/context.py`).
+- [DONE] Geography context endpoint exposes state-year options and active artifact/local context readiness without absolute local paths (`GET /api/context/geographies`) (`src/longevity_lab/api/routes/context.py`).
 - [DONE] Service layer and engine abstraction (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Artifact-backed engine path (`src/longevity_lab/services/artifact_engine.py`).
 - [DONE] Versioned v2 response metadata shares active model mode, artifact id, data vintage, explanation methods, uncertainty availability, and inferred contextual geography across bootstrap and scenario compare responses (`src/longevity_lab/services/contract_metadata.py`).

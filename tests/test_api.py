@@ -844,8 +844,10 @@ def test_context_manifest_artifact_marks_state_year_context_active(
         bootstrap = test_client.get("/api/metadata/bootstrap").json()
         evidence = test_client.get("/api/evidence/status").json()
         cards = test_client.get("/api/models/cards").json()
+        geographies = test_client.get("/api/context/geographies?year=2023").json()
 
         assert bootstrap["runtime"]["artifact_bundle_id"] == bundle_id
+        assert bootstrap["geography"]["context_lookup_active"] is True
         assert bootstrap["model_metadata"]["contextual_geography"] == {
             "available": True,
             "levels": ["state"],
@@ -868,6 +870,17 @@ def test_context_manifest_artifact_marks_state_year_context_active(
         assert card["context_feature_count"] == 2
         assert card["context_features"] == ["acs_poverty_percent", "svi_overall_percentile"]
         assert card["context_average_precision_delta"] == pytest.approx(0.08)
+        assert geographies["readiness"]["active"] is True
+        assert geographies["readiness"]["table_exists"] is True
+        assert geographies["readiness"]["year_available"] is True
+        assert geographies["readiness"]["state_count"] == 2
+        assert geographies["readiness"]["available_years"] == [2023]
+        assert not Path(geographies["readiness"]["table_path"]).is_absolute()
+        assert "Active artifact context lookup" in geographies["readiness"]["message"]
+        assert [
+            (option["state_fips"], option["label"], option["context_available"])
+            for option in geographies["options"]
+        ] == [("06", "California", True), ("13", "Georgia", True)]
 
 
 def test_metadata_bootstrap_auto_falls_back_on_wrong_object_bundle(

@@ -145,12 +145,29 @@ def _bundle_condition_ids(bundle: ArtifactBundle) -> tuple[str, ...]:
     return tuple(condition.condition_id for condition in bundle.manifest.conditions)
 
 
+def _runtime_artifact_bundle(
+    *,
+    settings: Settings,
+    runtime: RuntimeMetadataResponse,
+) -> ArtifactBundle | None:
+    """Resolve the active runtime bundle for ancillary services when artifact mode is active."""
+    if runtime.engine_mode != "artifact" or runtime.artifact_bundle_id is None:
+        return None
+    try:
+        return ArtifactStore(settings.artifacts_dir / "models").resolve(runtime.artifact_bundle_id)
+    except Exception:
+        return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize app-scoped services once per process."""
     settings = get_settings()
     engine, runtime, model_metadata, condition_ids = _select_engine(settings)
-    context_lookup_service = ContextLookupService(settings.data_dir)
+    context_lookup_service = ContextLookupService(
+        settings.data_dir,
+        artifact_bundle=_runtime_artifact_bundle(settings=settings, runtime=runtime),
+    )
     app.state.context_lookup_service = context_lookup_service
     app.state.metadata_service = MetadataService(
         runtime=runtime,
