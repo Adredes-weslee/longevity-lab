@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ from longevity_lab.api.schemas import (
     ScenarioGeographySelection,
     StateGeographyOptionResponse,
 )
+from longevity_lab.artifacts.store import ArtifactBundle
 from longevity_lab.pipeline.build_context_tables import context_state_year_parquet
 
 DEFAULT_CONTEXT_YEAR = 2023
@@ -100,10 +102,12 @@ class _LoadedStateContext:
 class ContextLookupService:
     """Read processed state-year context tables without exposing local absolute paths."""
 
-    def __init__(self, data_dir: Path) -> None:
-        """Store the local data root used by processed pipeline outputs."""
+    def __init__(self, data_dir: Path, artifact_bundle: ArtifactBundle | None = None) -> None:
+        """Store the local data root and optional active artifact context lookup."""
         self._data_dir = data_dir
         self._state_table_path = context_state_year_parquet(data_dir)
+        self._artifact_lookup_path = _artifact_lookup_path(artifact_bundle)
+        self._artifact_context_features = _artifact_context_features(artifact_bundle)
 
     def get_serving_metadata(
         self,
@@ -166,6 +170,11 @@ class ContextLookupService:
         )
 
     def _load_state_context(self, *, year: int) -> _LoadedStateContext:
+        if self._artifact_lookup_path is not None:
+            return self._load_artifact_state_context(year=year)
+        return self._load_processed_state_context(year=year)
+
+    def _load_processed_state_context(self, *, year: int) -> _LoadedStateContext:
         table_path = self._state_table_path
         display_path = _display_path(table_path, root=self._data_dir)
         if not table_path.exists():
@@ -232,6 +241,75 @@ class ContextLookupService:
             readiness=readiness,
         )
 
+    def _load_artifact_state_context(self, *, year: int) -> _LoadedStateContext:
+        lookup_path = self._artifact_lookup_path
+        feature_names = self._artifact_context_features
+        if lookup_path is None or not feature_names:
+            return self._load_processed_state_context(year=year)
+
+        display_path = _safe_display_path(lookup_path)
+        if not lookup_path.exists():
+            readiness = ContextReadinessResponse(
+                active=False,
+                table_exists=False,
+                year_available=False,
+                table_path=display_path,
+                state_count=0,
+                available_years=[],
+                message=(
+                    "Active artifact declares state-year context, but its bundle-local lookup "
+                    "artifact is missing."
+                ),
+            )
+            return _LoadedStateContext(frame=None, readiness=readiness)
+
+        try:
+            payload = json.loads(lookup_path.read_text(encoding="utf-8"))
+            rows_payload = payload.get("rows") if isinstance(payload, dict) else None
+            payload_features = payload.get("feature_names") if isinstance(payload, dict) else None
+            payload_join_keys = payload.get("join_keys") if isinstance(payload, dict) else None
+            if payload_features != list(feature_names):
+                raise ValueError("feature_names mismatch")
+            if payload_join_keys != ["state_fips", "year"]:
+                raise ValueError("join_keys mismatch")
+            if not isinstance(rows_payload, list):
+                raise ValueError("rows is not a list")
+            frame = _artifact_rows_to_frame(rows_payload, feature_names=feature_names)
+        except Exception:
+            readiness = ContextReadinessResponse(
+                active=False,
+                table_exists=True,
+                year_available=False,
+                table_path=display_path,
+                state_count=0,
+                available_years=[],
+                message="Active artifact context lookup could not be read.",
+            )
+            return _LoadedStateContext(frame=None, readiness=readiness)
+
+        year_frame = frame.loc[frame["year"] == year].copy()
+        state_count = int(year_frame["state_fips"].nunique()) if not year_frame.empty else 0
+        year_available = state_count > 0
+        readiness = ContextReadinessResponse(
+            active=year_available,
+            table_exists=True,
+            year_available=year_available,
+            table_path=display_path,
+            state_count=state_count,
+            available_years=_available_years(frame),
+            message=(
+                "Active artifact context lookup is available for the selected serving year."
+                if year_available
+                else (
+                    "Active artifact context lookup exists but has no rows for this serving year."
+                )
+            ),
+        )
+        return _LoadedStateContext(
+            frame=year_frame if year_available else None,
+            readiness=readiness,
+        )
+
     @staticmethod
     def _options_from_frame(
         frame: pd.DataFrame,
@@ -284,6 +362,58 @@ def _display_path(path: Path, *, root: Path) -> str:
             return path.name
 
 
+def _safe_display_path(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
+def _artifact_lookup_path(bundle: ArtifactBundle | None) -> Path | None:
+    if bundle is None or bundle.manifest.context_features is None:
+        return None
+    relative_path = Path(bundle.manifest.context_features.lookup_path)
+    if relative_path.is_absolute():
+        return None
+    bundle_root = bundle.path.resolve()
+    lookup_path = (bundle.path / relative_path).resolve()
+    try:
+        lookup_path.relative_to(bundle_root)
+    except ValueError:
+        return None
+    return lookup_path
+
+
+def _artifact_context_features(bundle: ArtifactBundle | None) -> tuple[str, ...]:
+    if bundle is None or bundle.manifest.context_features is None:
+        return ()
+    return tuple(bundle.manifest.context_features.feature_names)
+
+
+def _artifact_rows_to_frame(
+    rows_payload: list[object],
+    *,
+    feature_names: tuple[str, ...],
+) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for row in rows_payload:
+        if not isinstance(row, dict):
+            continue
+        state_fips = _normalize_state_fips(row.get("state_fips"))
+        year = _normalize_year(row.get("year"))
+        if state_fips is None or year is None:
+            continue
+        rows.append(
+            {
+                "year": year,
+                "state_fips": state_fips,
+                "geography_name": _state_label(state_fips, row.get("geography_name")),
+                **{feature: row.get(feature) for feature in feature_names},
+            }
+        )
+    return pd.DataFrame(rows, columns=["year", "state_fips", "geography_name", *feature_names])
+
+
 def _normalize_state_fips(value: object) -> str | None:
     if value is None or pd.isna(value):
         return None
@@ -295,6 +425,15 @@ def _normalize_state_fips(value: object) -> str | None:
     except ValueError:
         return text.zfill(2) if text.isdigit() else None
     return f"{number:02d}"
+
+
+def _normalize_year(value: object) -> int | None:
+    if value is None or pd.isna(value):
+        return None
+    try:
+        return int(float(str(value).strip()))
+    except ValueError:
+        return None
 
 
 def _state_label(state_fips: str, geography_name: object) -> str:
