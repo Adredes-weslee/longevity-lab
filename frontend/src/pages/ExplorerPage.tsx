@@ -116,8 +116,8 @@ function ContextTransparencyCard({
           </dd>
         </div>
         <div>
-          <dt>Data vintage</dt>
-          <dd>{context.available ? bootstrap.model_metadata.data_vintage ?? 'Not declared' : 'n/a'}</dd>
+          <dt>Context vintage</dt>
+          <dd>{context.available ? context.data_vintage ?? 'Not declared' : 'n/a'}</dd>
         </div>
         <div>
           <dt>Context features</dt>

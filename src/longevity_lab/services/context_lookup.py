@@ -403,12 +403,15 @@ def _artifact_rows_to_frame(
         year = _normalize_year(row.get("year"))
         if state_fips is None or year is None:
             continue
+        feature_values = {feature: row.get(feature) for feature in feature_names}
+        if any(pd.isna(value) for value in feature_values.values()):
+            continue
         rows.append(
             {
                 "year": year,
                 "state_fips": state_fips,
                 "geography_name": _state_label(state_fips, row.get("geography_name")),
-                **{feature: row.get(feature) for feature in feature_names},
+                **feature_values,
             }
         )
     return pd.DataFrame(rows, columns=["year", "state_fips", "geography_name", *feature_names])

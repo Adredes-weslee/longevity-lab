@@ -385,6 +385,7 @@ def _inactive_contextual_geography() -> dict[str, object]:
         "source": None,
         "feature_count": 0,
         "features": [],
+        "data_vintage": None,
         "caveat": None,
     }
 
@@ -854,6 +855,7 @@ def test_context_manifest_artifact_marks_state_year_context_active(
             "source": "census_acs5_api_context, cdc_atsdr_svi_us_county_csv",
             "feature_count": 2,
             "features": ["acs_poverty_percent", "svi_overall_percentile"],
+            "data_vintage": "ACS 2023 5-year; SVI 2022 county aggregation",
             "caveat": (
                 "State-year context is background geography context, not a personal behavior."
             ),
@@ -881,6 +883,34 @@ def test_context_manifest_artifact_marks_state_year_context_active(
             (option["state_fips"], option["label"], option["context_available"])
             for option in geographies["options"]
         ] == [("06", "California", True), ("13", "Georgia", True)]
+
+
+def test_context_geographies_skip_incomplete_artifact_context_rows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Artifact geography readiness should count only rows with usable context values."""
+    bundle_id = _write_context_api_bundle(tmp_path / "artifacts")
+    lookup_path = tmp_path / "artifacts" / "models" / bundle_id / "context_state_year_lookup.json"
+    lookup = json.loads(lookup_path.read_text(encoding="utf-8"))
+    lookup["rows"].append(
+        {
+            "state_fips": "72",
+            "year": 2023,
+            "acs_poverty_percent": 41.0,
+            "svi_overall_percentile": None,
+        }
+    )
+    lookup_path.write_text(json.dumps(lookup) + "\n", encoding="utf-8")
+
+    for test_client in _configured_client(monkeypatch, artifacts_dir=tmp_path / "artifacts"):
+        geographies = test_client.get("/api/context/geographies?year=2023").json()
+
+        assert geographies["readiness"]["active"] is True
+        assert geographies["readiness"]["state_count"] == 2
+        assert [
+            option["state_fips"] for option in geographies["options"] if option["context_available"]
+        ] == ["06", "13"]
 
 
 def test_metadata_bootstrap_auto_falls_back_on_wrong_object_bundle(

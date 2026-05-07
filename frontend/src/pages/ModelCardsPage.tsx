@@ -217,6 +217,12 @@ export function ModelCardsPage({
               </dd>
             </div>
             <div>
+              <dt>Context vintage</dt>
+              <dd>
+                {model.contextual_geography.data_vintage ?? 'No active context vintage declared'}
+              </dd>
+            </div>
+            <div>
               <dt>Context feature list</dt>
               <dd>
                 {model.contextual_geography.features.length

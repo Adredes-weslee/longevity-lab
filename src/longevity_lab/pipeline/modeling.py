@@ -780,6 +780,14 @@ def _write_context_feature_lookup(
     if lookup_frame["state_fips"].isna().any() or lookup_frame["year"].isna().any():
         raise ValueError("Context lookup rows require non-null state_fips and year values.")
     lookup_frame["year"] = lookup_frame["year"].astype(int)
+    complete_context_mask = lookup_frame[list(context_features)].notna().all(axis=1)
+    if CONTEXT_DATA_YEAR_COLUMN in lookup_frame.columns:
+        complete_context_mask &= lookup_frame[CONTEXT_DATA_YEAR_COLUMN].notna()
+    lookup_frame = lookup_frame.loc[complete_context_mask].copy()
+    if lookup_frame.empty:
+        raise ValueError(
+            "Context-aware artifacts require at least one complete context lookup row."
+        )
     unique_rows = lookup_frame.drop_duplicates().reset_index(drop=True)
     duplicate_keys = (
         unique_rows.groupby(list(CONTEXT_JOIN_KEYS), dropna=False)

@@ -157,6 +157,10 @@ function ContextEvidenceSections({ status }: { status: EvidenceStatusResponse })
             <dd>{context.source ?? 'Not declared by active model'}</dd>
           </div>
           <div>
+            <dt>Context vintage</dt>
+            <dd>{context.data_vintage ?? 'Not declared by active model'}</dd>
+          </div>
+          <div>
             <dt>Features</dt>
             <dd>{context.feature_count ? context.features.join(', ') : 'No active context features'}</dd>
           </div>

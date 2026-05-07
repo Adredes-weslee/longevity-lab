@@ -304,7 +304,12 @@ class ArtifactScenarioEngine(ScenarioEngine):
             key = (state_fips, year)
             if key in rows_by_key:
                 raise ValueError(f"Duplicate context lookup state-year key: {key}.")
-            rows_by_key[key] = {name: row.get(name) for name in feature_names}
+            values = {name: row.get(name) for name in feature_names}
+            if any(pd.isna(value) for value in values.values()):
+                continue
+            rows_by_key[key] = values
+        if not rows_by_key:
+            raise ValueError("Context lookup artifact must contain complete state-year rows.")
         return LoadedContextFeatureLookup(
             feature_names=feature_names,
             rows_by_key=rows_by_key,

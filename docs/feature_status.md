@@ -126,7 +126,7 @@ Legend:
 - [DONE] Explorer view shows a compact non-diagnostic disclaimer and runtime scoring-mode banner.
 - [DONE] Explorer keeps state-year geography context separate from lifestyle scenario inputs and labels it as background context.
 - [DONE] Explorer shows selected state/year, lookup readiness, context feature count, model
-  active/inactive status, data vintage, and caveats in a dedicated context card.
+  active/inactive status, context vintage, and caveats in a dedicated context card.
 - [DONE] Named product pages separate the Explorer, data evidence, active model-card metadata, and scenario summary workflows (`frontend/src/pages/`).
 - [DONE] Better "what changed" deltas per organ/condition through visible changed-input chips and drill-down delta summaries.
 - [DONE] Basic accessibility pass for keyboard-selectable anatomy overlays and text-supported color legends.

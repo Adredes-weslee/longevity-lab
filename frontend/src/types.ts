@@ -65,6 +65,7 @@ export interface ContextualGeographyMetadataResponse {
   source: string | null
   feature_count: number
   features: string[]
+  data_vintage: string | null
   caveat: string | null
 }
 

@@ -724,6 +724,7 @@ def test_artifact_engine_uses_manifest_context_lookup_for_selected_geography(
                 "rows": [
                     {"state_fips": "06", "year": 2023, "acs_poverty_percent": 25.0},
                     {"state_fips": "13", "year": 2023, "acs_poverty_percent": 8.0},
+                    {"state_fips": "72", "year": 2023, "acs_poverty_percent": None},
                 ],
             }
         )
@@ -776,10 +777,15 @@ def test_artifact_engine_uses_manifest_context_lookup_for_selected_geography(
         geography=ScenarioGeographySelection(level="state", state_fips="13", year=2023),
     )
     defaulted = engine.evaluate(profile)
+    incomplete_lookup_row = engine.evaluate(
+        profile,
+        geography=ScenarioGeographySelection(level="state", state_fips="72", year=2023),
+    )
 
     assert california[0].probability == pytest.approx(0.8)
     assert georgia[0].probability == pytest.approx(0.2)
     assert defaulted[0].probability == pytest.approx(0.2)
+    assert incomplete_lookup_row[0].probability == pytest.approx(0.2)
 
 
 def test_artifact_engine_rejects_path_traversal(tmp_path: Path) -> None:
