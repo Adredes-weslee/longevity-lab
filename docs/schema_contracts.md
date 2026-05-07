@@ -108,8 +108,8 @@ clients that read the original organs, conditions, runtime, and scenario scores 
   available from the active artifact bundle.
 - `contextual_geography`: the geographic context levels inferred from artifact features, such as
   state-level AQI or manifest-declared state-year ACS/SVI context. This object also includes
-  `feature_count`, `features`, and `caveat`. County-level prediction semantics are not exposed
-  because BRFSS person rows only support state-year serving joins.
+  `feature_count`, `features`, `data_vintage`, and `caveat`. County-level prediction semantics are
+  not exposed because BRFSS person rows only support state-year serving joins.
 
 `GET /api/metadata/bootstrap` also includes a `geography` object for explicit serving context:
 
@@ -132,6 +132,8 @@ When artifact mode is active and the bundle declares `context_features`, this en
 same trusted bundle-local state-year lookup that scoring uses. Otherwise it reads
 `data/processed/context/context_state_year.parquet`. If no lookup is readable, the endpoint returns
 fallback state options with `context_available: false` and never exposes absolute local paths.
+Bundle-local geography options include only state-year rows with complete manifest-declared context
+feature values.
 
 `POST /api/scenario/compare` accepts optional `geography` metadata with `level: "state"`,
 `state_fips`, and `year`. Existing requests without geography remain valid. Demo scoring ignores

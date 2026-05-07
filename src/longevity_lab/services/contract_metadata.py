@@ -74,6 +74,7 @@ def build_artifact_model_metadata(
             ),
             feature_count=len(context_features),
             features=list(context_features),
+            data_vintage=context_metadata.data_vintage if context_metadata is not None else None,
             caveat=context_caveat,
         ),
     )

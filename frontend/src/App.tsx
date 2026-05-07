@@ -174,21 +174,6 @@ function App(): JSX.Element {
   }, [bootstrap, loadGeographies])
 
   useEffect(() => {
-    if (state.geography || !geographies?.options.length) {
-      return
-    }
-    const firstOption = geographies.options[0]
-    dispatch({
-      type: 'setGeography',
-      geography: {
-        level: firstOption.level,
-        state_fips: firstOption.state_fips,
-        year: firstOption.year,
-      },
-    })
-  }, [dispatch, geographies, state.geography])
-
-  useEffect(() => {
     function handleHashChange(): void {
       setView(getViewFromHash(window.location.hash))
     }

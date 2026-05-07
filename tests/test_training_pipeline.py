@@ -416,10 +416,14 @@ def test_train_bundle_persists_context_feature_manifest_and_lookup(
     """Context-aware training should persist exact state-year lookup provenance."""
     input_path = tmp_path / "training.csv"
     _write_training_frame(input_path)
-    frame = pd.read_csv(input_path)
-    frame["context_data_year"] = 2022
-    frame.to_csv(input_path, index=False)
     context_features = CONTEXT_FEATURES
+    frame = pd.read_csv(input_path)
+    frame["state_fips"] = frame["state_fips"].astype(str).str.zfill(2)
+    frame["context_data_year"] = 2022
+    frame.loc[0, "state_fips"] = "66"
+    frame.loc[0, context_features] = pd.NA
+    frame.loc[0, "context_data_year"] = pd.NA
+    frame.to_csv(input_path, index=False)
     raw_cfg = _base_raw_cfg(
         tmp_path=tmp_path,
         input_path=input_path,

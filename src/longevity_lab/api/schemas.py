@@ -102,6 +102,7 @@ class ContextualGeographyMetadataResponse(BaseModel):
     source: str | None = None
     feature_count: int = 0
     features: list[str] = Field(default_factory=list)
+    data_vintage: str | None = None
     caveat: str | None = None
 
 
