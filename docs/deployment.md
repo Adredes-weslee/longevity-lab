@@ -5,11 +5,12 @@ store raw datasets or trained model artifacts.
 
 ## Recommended free-tier shape
 
-- **API:** Render web service running FastAPI in demo mode.
+- **API:** Render web service running FastAPI in artifact mode with a verified public model
+  artifact.
 - **Frontend:** Vercel static site or Render static site.
 - **Artifacts:** do not commit or bundle `data/external/`, `data/processed/`, or
-  `artifacts/models/`. Use `LONGEVITY_LAB_ENGINE=demo` for public demo deployments unless you add
-  an explicit trusted artifact retrieval step later.
+  `artifacts/models/`. Use the trusted artifact retrieval step below for public deployments, with
+  `LONGEVITY_LAB_ENGINE=demo` kept only as the rollback path.
 
 Relevant provider docs:
 
@@ -37,7 +38,8 @@ After creating the Blueprint:
 2. If you later add a custom frontend domain, update `LONGEVITY_LAB_CORS_ALLOW_ORIGINS` to include
    that full origin.
 3. If you later rename the API service, update `VITE_API_BASE_URL` to the new public API origin.
-4. Keep `LONGEVITY_LAB_ENGINE=demo` unless a trusted artifact download/build step is added.
+4. Keep `LONGEVITY_LAB_ENGINE=artifact` only when `LONGEVITY_LAB_ARTIFACT_URL` and
+   `LONGEVITY_LAB_ARTIFACT_SHA256` point to the verified production release below.
 
 Render free instances can cold-start after inactivity. The first API call after idle may be slow.
 
@@ -85,23 +87,32 @@ Open `http://localhost:4173` and verify:
 
 ## Artifact strategy
 
-Public deployments can run artifact-backed scoring by downloading a trusted zipped bundle during the
-Render build. The current release asset is:
+Public deployments run artifact-backed scoring by downloading a trusted zipped bundle during the
+Render build. The current production release asset is:
 
-- `LONGEVITY_LAB_ARTIFACT_BUNDLE=real-20260504-full`
-- `LONGEVITY_LAB_ARTIFACT_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260504-full/real-20260504-full.zip`
-- `LONGEVITY_LAB_ARTIFACT_SHA256=49349ae45e07adad1b80aa70102dfe23fb17ce0d7e6d26469c3f00af4529ec33`
+- `LONGEVITY_LAB_ARTIFACT_BUNDLE=real-20260507-final`
+- `LONGEVITY_LAB_ARTIFACT_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260507-final/real-20260507-final.zip`
+- `LONGEVITY_LAB_ARTIFACT_SHA256=bb801b1892b4aa49a6a27345a2e0f1b2e4614b0e0d72716cd8c2a53b8a31a32e`
 
 The build command runs `scripts/download_model_bundle.py`, which downloads the zip, verifies SHA256,
 rejects unsafe zip paths, and extracts the bundle under `artifacts/models/`. Production can then set
 `LONGEVITY_LAB_ENGINE=artifact`.
 
+The `real-20260507-final` bundle activates the production pieces behind the Explorer and Data
+Evidence context banners:
+
+- eight modeled conditions;
+- manifest-declared `calibration_interval` uncertainty payloads;
+- twelve ACS/SVI context features;
+- bundle-local `context_state_year_lookup.json`; and
+- context vintage `State-year ACS/SVI context vintage 2022 joined to BRFSS 2023 serving keys`.
+
 ACS/SVI context is active in production only for bundles whose `manifest.json` declares
 `context_features` metadata and a trusted bundle-local `context_state_year_lookup.json`. Older
 artifact bundles can still serve, but geography selection remains inert for ACS/SVI scoring until a
-context-aware bundle is published and its release URL/SHA are configured. Do not point Render at a
-new context-aware bundle until the SHA256 is verified and the scenario/evidence smoke checks confirm
-state-year context is reported as active.
+context-aware bundle is published and its release URL/SHA are configured. County context and PLACES
+remain intentionally inactive for scoring unless a future PR defines safe serving semantics and
+passes ablation/reasonableness gates.
 
 Keep `LONGEVITY_LAB_ENGINE=demo` as the rollback path. Do not commit `data/external/`,
 `data/processed/`, or `artifacts/models/` directly to the repo.
