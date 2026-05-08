@@ -5,7 +5,7 @@
 groups = ["default", "artifact-xgboost", "dev", "explainability", "notebook", "train"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:92fda6ec81af760bfee1d16a53d0c7e155a0e0ac2d0e0a1b9fa3b8b43b41b045"
+content_hash = "sha256:0063504688c3243e05abe33d4788ed04dbd58a6f37c020f621e2f54e46bb40ce"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
