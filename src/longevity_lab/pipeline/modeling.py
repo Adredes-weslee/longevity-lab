@@ -559,7 +559,7 @@ def _import_xgboost_classifier() -> type[BaseEstimator]:
 
 def _import_lightgbm_classifier() -> type[BaseEstimator]:
     try:
-        from lightgbm import LGBMClassifier  # type: ignore[import-untyped]
+        from lightgbm import LGBMClassifier  # type: ignore[import-not-found, import-untyped]
     except ImportError as exc:
         raise OptionalModelDependencyError(
             "LightGBM support requires the optional train dependency. "

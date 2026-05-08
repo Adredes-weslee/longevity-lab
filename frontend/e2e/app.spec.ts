@@ -197,7 +197,7 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await expect(page.getByTestId('community-geography-selector')).toContainText(
     'Geography selector',
   )
-  await expect(page.getByText('PLACES aggregate validation')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'PLACES aggregate validation' })).toBeVisible()
   await expect(page.getByTestId('causal-workbench-panel')).toContainText(
     'not used by the Explorer scoring endpoint',
   )
