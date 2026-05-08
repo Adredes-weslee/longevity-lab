@@ -30,7 +30,8 @@ Legend:
 - [DONE] UI information architecture with Explorer, Data Evidence, Model Cards, and Scenario Lab pages.
 - [DONE] Explorer UX upgrade for input deltas, accessible anatomy selection, explanation caveats, uncertainty copy, and color-blind-safe legends.
 - [DONE] Deployment packaging for Render API/static frontend and Vercel static frontend handoff.
-- [DONE] Public GitHub Release artifact download with SHA256 verification for Render artifact mode.
+- [DONE] Public GitHub Release artifact download with SHA256 verification for Render artifact mode;
+  production config points to context-aware `real-20260507-final`.
 - [DONE] Geography serving foundation with explicit state-year context selection and readiness
   lookup.
 - [DONE] Context-aware artifact training and serving activation for manifest-declared state-year

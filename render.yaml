@@ -14,11 +14,11 @@ services:
       - key: LONGEVITY_LAB_ENGINE
         value: artifact
       - key: LONGEVITY_LAB_ARTIFACT_BUNDLE
-        value: real-20260504-full
+        value: real-20260507-final
       - key: LONGEVITY_LAB_ARTIFACT_URL
-        value: https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260504-full/real-20260504-full.zip
+        value: https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260507-final/real-20260507-final.zip
       - key: LONGEVITY_LAB_ARTIFACT_SHA256
-        value: 49349ae45e07adad1b80aa70102dfe23fb17ce0d7e6d26469c3f00af4529ec33
+        value: bb801b1892b4aa49a6a27345a2e0f1b2e4614b0e0d72716cd8c2a53b8a31a32e
       - key: LONGEVITY_LAB_CORS_ALLOW_ORIGINS
         value: https://longevity-lab-frontend.onrender.com
       - key: LONGEVITY_LAB_DATA_DIR
