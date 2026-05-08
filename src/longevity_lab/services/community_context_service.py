@@ -21,14 +21,10 @@ from longevity_lab.artifacts.store import ArtifactBundle
 from longevity_lab.config import Settings
 from longevity_lab.pipeline.build_context_tables import (
     CONTEXT_FEATURE_COLUMNS,
-    context_county_year_parquet,
     context_state_year_parquet,
     load_context_feature_config,
 )
-from longevity_lab.pipeline.build_places_tables import (
-    PLACES_CONTEXT_MEASURES,
-    places_county_year_parquet,
-)
+from longevity_lab.pipeline.build_places_tables import PLACES_CONTEXT_MEASURES
 from longevity_lab.pipeline.download_places import PLACES_CONTEXT_CAVEAT
 from longevity_lab.pipeline.validate_external_context import (
     EXTERNAL_VALIDATION_CAVEAT,
@@ -75,6 +71,7 @@ class CommunityContextService:
         self._settings = settings
         self._artifact_bundle = artifact_bundle
         self._repo_root = Path.cwd()
+        self._evidence_bundle_root = _evidence_bundle_root(settings)
         self._context_labels = _context_feature_labels()
         self._places_labels = _places_feature_labels()
 
@@ -90,10 +87,11 @@ class CommunityContextService:
         state_frame, state_path = self._load_state_context(year=year)
         normalized_state = _normalize_optional_fips(state_fips, width=2)
         selected_state = self._selected_state_fips(state_frame, normalized_state)
-        county_frame, county_path = self._read_year_frame(
-            context_county_year_parquet(self._settings.data_dir),
+        county_frame, county_path = self._read_first_year_frame(
+            self._candidate_processed_paths("context/context_county_year.parquet"),
             year_column="year",
             year=year,
+            use_latest_available=True,
         )
         normalized_county = _normalize_optional_fips(county_fips, width=5)
         selected_county = self._selected_county_fips(
@@ -101,8 +99,8 @@ class CommunityContextService:
             state_fips=selected_state,
             county_fips=normalized_county,
         )
-        places_frame, places_path = self._read_year_frame(
-            places_county_year_parquet(self._settings.data_dir),
+        places_frame, places_path = self._read_first_year_frame(
+            self._candidate_processed_paths("places/places_county_year.parquet"),
             year_column="release_year",
             year=places_year,
         )
@@ -143,10 +141,11 @@ class CommunityContextService:
         artifact_frame, artifact_path = self._artifact_state_context(year=year)
         if artifact_frame is not None:
             return artifact_frame, artifact_path
-        return self._read_year_frame(
-            context_state_year_parquet(self._settings.data_dir),
+        return self._read_first_year_frame(
+            self._candidate_processed_paths("context/context_state_year.parquet"),
             year_column="year",
             year=year,
+            use_latest_available=True,
         )
 
     def _artifact_state_context(self, *, year: int) -> tuple[pd.DataFrame | None, Path]:
@@ -184,6 +183,7 @@ class CommunityContextService:
         *,
         year_column: str,
         year: int,
+        use_latest_available: bool = False,
     ) -> tuple[pd.DataFrame | None, Path]:
         if not path.exists():
             return None, path
@@ -196,7 +196,35 @@ class CommunityContextService:
         frame = frame.copy()
         frame[year_column] = pd.to_numeric(frame[year_column], errors="coerce")
         filtered = frame.loc[frame[year_column] == year].copy()
+        if filtered.empty and use_latest_available:
+            available_years = frame[year_column].dropna()
+            if not available_years.empty:
+                prior_years = available_years.loc[available_years <= year]
+                fallback_year = (
+                    int(prior_years.max()) if not prior_years.empty else int(available_years.max())
+                )
+                filtered = frame.loc[frame[year_column] == fallback_year].copy()
         return (filtered if not filtered.empty else None), path
+
+    def _read_first_year_frame(
+        self,
+        paths: list[Path],
+        *,
+        year_column: str,
+        year: int,
+        use_latest_available: bool = False,
+    ) -> tuple[pd.DataFrame | None, Path]:
+        fallback_path = paths[0]
+        for path in paths:
+            frame, resolved_path = self._read_year_frame(
+                path,
+                year_column=year_column,
+                year=year,
+                use_latest_available=use_latest_available,
+            )
+            if frame is not None:
+                return frame, resolved_path
+        return None, fallback_path
 
     def _selected_state_fips(self, frame: pd.DataFrame | None, requested: str | None) -> str | None:
         if frame is None or "state_fips" not in frame.columns:
@@ -252,7 +280,7 @@ class CommunityContextService:
                 level="state",
                 state_fips=str(row["state_fips"]),
                 label=_state_label(str(row["state_fips"]), row.get("geography_name")),
-                year=year,
+                year=_row_year(row, fallback=year),
                 feature_count=_feature_count(row, excluded=_STATE_KEY_COLUMNS),
                 selected=str(row["state_fips"]) == selected_state,
             )
@@ -267,7 +295,7 @@ class CommunityContextService:
             available=True,
             label=_state_label(str(row["state_fips"]), row.get("geography_name")),
             state_fips=str(row["state_fips"]),
-            year=year,
+            year=_row_year(row, fallback=year),
             source_path=_display_path(path, root=self._display_root(path)),
             message="State-year ACS/SVI context is available for comparison.",
             features=self._features_from_row(
@@ -294,7 +322,7 @@ class CommunityContextService:
                 level="county",
                 year=year,
                 path=path,
-                root=self._settings.data_dir,
+                root=self._display_root(path),
                 message="No county-year ACS/SVI context table is available in this runtime.",
                 caveat=COUNTY_CONTEXT_CAVEAT,
             )
@@ -311,7 +339,7 @@ class CommunityContextService:
                 state_fips=str(row["state_fips"]),
                 county_fips=str(row["county_fips"]),
                 label=str(row.get("geography_name") or row["county_fips"]),
-                year=year,
+                year=_row_year(row, fallback=year),
                 feature_count=_feature_count(row, excluded=_COUNTY_KEY_COLUMNS),
                 selected=str(row["county_fips"]) == selected_county,
             )
@@ -325,7 +353,7 @@ class CommunityContextService:
                 level="county",
                 year=year,
                 path=path,
-                root=self._settings.data_dir,
+                root=self._display_root(path),
                 message="County context exists, but no matching county row was found.",
                 caveat=COUNTY_CONTEXT_CAVEAT,
             )
@@ -336,8 +364,8 @@ class CommunityContextService:
             label=str(row.get("geography_name") or row["county_fips"]),
             state_fips=str(row["state_fips"]),
             county_fips=str(row["county_fips"]),
-            year=year,
-            source_path=_display_path(path, root=self._settings.data_dir),
+            year=_row_year(row, fallback=year),
+            source_path=_display_path(path, root=self._display_root(path)),
             message="County ACS/SVI context is available for background comparison.",
             features=self._features_from_row(
                 row,
@@ -363,7 +391,7 @@ class CommunityContextService:
                 level="county",
                 year=places_year,
                 path=path,
-                root=self._settings.data_dir,
+                root=self._display_root(path),
                 message="No CDC PLACES county context table is available in this runtime.",
                 caveat=PLACES_CONTEXT_CAVEAT,
             )
@@ -386,7 +414,7 @@ class CommunityContextService:
             state_fips=str(row["state_fips"]),
             county_fips=str(row["county_fips"]),
             year=places_year,
-            source_path=_display_path(path, root=self._settings.data_dir),
+            source_path=_display_path(path, root=self._display_root(path)),
             message="CDC PLACES modeled county context is available for comparison.",
             features=self._features_from_row(
                 row,
@@ -434,13 +462,11 @@ class CommunityContextService:
         selected_state: str | None,
         selected_county: str | None,
     ) -> CommunityPlacesValidationSummaryResponse:
-        path = places_external_validation_report_json_path(
-            self._settings.data_dir,
-            places_year=places_year,
-        )
+        path = self._places_validation_path(places_year=places_year)
         if not path.exists():
             return CommunityPlacesValidationSummaryResponse(
                 available=False,
+                report_path=_display_path(path, root=self._display_root(path)),
                 places_release_year=places_year,
                 row_count=0,
                 caveat=EXTERNAL_VALIDATION_CAVEAT,
@@ -451,7 +477,7 @@ class CommunityContextService:
         except json.JSONDecodeError:
             return CommunityPlacesValidationSummaryResponse(
                 available=False,
-                report_path=_display_path(path, root=self._settings.data_dir),
+                report_path=_display_path(path, root=self._display_root(path)),
                 places_release_year=places_year,
                 row_count=0,
                 caveat=EXTERNAL_VALIDATION_CAVEAT,
@@ -479,7 +505,7 @@ class CommunityContextService:
         )
         return CommunityPlacesValidationSummaryResponse(
             available=True,
-            report_path=_display_path(path, root=self._settings.data_dir),
+            report_path=_display_path(path, root=self._display_root(path)),
             places_release_year=places_year,
             row_count=len(raw_rows),
             conditions_compared=compared_conditions,
@@ -491,7 +517,7 @@ class CommunityContextService:
         )
 
     def _causal_reports(self) -> list[CommunityCausalReportSummaryResponse]:
-        root = self._settings.data_dir / "processed" / "reports" / "causal"
+        root = self._causal_reports_root()
         if not root.exists():
             return []
         reports: list[CommunityCausalReportSummaryResponse] = []
@@ -508,9 +534,9 @@ class CommunityContextService:
                     question_id=str(payload.get("question_id") or path.parent.name),
                     title=str(payload.get("title") or _labelize(path.parent.name)),
                     status=str(payload.get("status") or "unknown"),
-                    report_path=_display_path(path, root=self._settings.data_dir),
+                    report_path=_display_path(path, root=self._display_root(path)),
                     markdown_path=(
-                        _display_path(markdown, root=self._settings.data_dir)
+                        _display_path(markdown, root=self._display_root(markdown))
                         if markdown.exists()
                         else None
                     ),
@@ -538,7 +564,34 @@ class CommunityContextService:
             self._artifact_bundle.path.resolve(),
         ):
             return self._repo_root
+        if _path_inside(path.resolve(), self._settings.artifacts_dir.resolve()):
+            return self._settings.artifacts_dir
         return self._settings.data_dir
+
+    def _candidate_processed_paths(self, relative_path: str) -> list[Path]:
+        paths = [self._settings.data_dir / "processed" / relative_path]
+        if self._evidence_bundle_root is not None:
+            paths.append(self._evidence_bundle_root / "processed" / relative_path)
+        return paths
+
+    def _places_validation_path(self, *, places_year: int) -> Path:
+        for path in self._candidate_processed_paths(
+            f"validation/places_external_context_validation_{places_year}.json"
+        ):
+            if path.exists():
+                return path
+        return places_external_validation_report_json_path(
+            self._settings.data_dir,
+            places_year=places_year,
+        )
+
+    def _causal_reports_root(self) -> Path:
+        local_root = self._settings.data_dir / "processed" / "reports" / "causal"
+        if local_root.exists():
+            return local_root
+        if self._evidence_bundle_root is not None:
+            return self._evidence_bundle_root / "processed" / "reports" / "causal"
+        return local_root
 
 
 def _missing_geography_summary(
@@ -558,6 +611,20 @@ def _missing_geography_summary(
         message=message,
         caveat=caveat,
     )
+
+
+def _evidence_bundle_root(settings: Settings) -> Path | None:
+    bundle_id = settings.evidence_bundle
+    if not bundle_id:
+        return None
+    bundle_path = Path(bundle_id)
+    if bundle_path.is_absolute() or ".." in bundle_path.parts:
+        return None
+    root = (settings.artifacts_dir / "evidence" / bundle_id).resolve()
+    evidence_root = (settings.artifacts_dir / "evidence").resolve()
+    if not _path_inside(root, evidence_root) or not root.exists():
+        return None
+    return root
 
 
 def _context_feature_labels() -> dict[str, tuple[str, str | None]]:
@@ -622,6 +689,16 @@ def _state_label(state_fips: str, geography_name: object) -> str:
     if isinstance(geography_name, str) and geography_name.strip():
         return geography_name.strip()
     return STATE_FIPS_TO_NAME.get(state_fips, f"State {state_fips}")
+
+
+def _row_year(row: pd.Series, *, fallback: int) -> int:
+    value = row.get("year")
+    if _is_missing(value):
+        return fallback
+    try:
+        return int(float(str(value)))
+    except (TypeError, ValueError):
+        return fallback
 
 
 def _feature_count(row: pd.Series, *, excluded: set[str]) -> int:

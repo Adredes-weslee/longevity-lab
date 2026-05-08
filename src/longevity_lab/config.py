@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     artifacts_dir: Path = Field(default_factory=lambda: Path("artifacts"))
     engine: Literal["auto", "demo", "artifact"] = "auto"
     artifact_bundle: str | None = None
+    evidence_bundle: str | None = None
 
 
 @lru_cache(maxsize=1)
