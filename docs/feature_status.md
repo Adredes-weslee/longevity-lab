@@ -31,7 +31,7 @@ Legend:
 - [DONE] Explorer UX upgrade for input deltas, accessible anatomy selection, explanation caveats, uncertainty copy, and color-blind-safe legends.
 - [DONE] Deployment packaging for Render API/static frontend and Vercel static frontend handoff.
 - [DONE] Public GitHub Release artifact download with SHA256 verification for Render artifact mode;
-  production config points to context-aware `real-20260507-final`.
+  production config points to context-aware ensemble artifact `real-20260508-xgboost-shap`.
 - [DONE] Geography serving foundation with explicit state-year context selection and readiness
   lookup.
 - [DONE] Context-aware artifact training and serving activation for manifest-declared state-year
@@ -84,7 +84,12 @@ Legend:
 - [DONE] Evaluation script and metrics report scaffold (`src/longevity_lab/pipeline/evaluate.py`).
 - [DONE] Subgroup/slice analysis export for trained bundles (`src/longevity_lab/pipeline/evaluate.py`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Reproducible benchmark harness writes metrics, calibration curves, subgroup metrics, and model-card-ready manifests (`src/longevity_lab/pipeline/benchmarks.py`, `conf/benchmark.yaml`).
-- [DONE] Benchmark harness compares calibrated histogram gradient boosting and optional XGBoost candidates against the decision-tree baseline, recording skipped XGBoost rows when the optional dependency is unavailable (`src/longevity_lab/pipeline/benchmarks.py`, `conf/model/hist_gradient_boosting.yaml`, `conf/model/xgboost.yaml`).
+- [DONE] Benchmark harness compares calibrated histogram gradient boosting plus optional XGBoost
+  and LightGBM candidates against the decision-tree baseline, recording skipped optional rows when
+  the dependency is unavailable; the `ensemble-promotion-20260508` benchmark selected XGBoost
+  for promotion on mean ROC-AUC, average precision, and Brier score
+  (`src/longevity_lab/pipeline/benchmarks.py`, `conf/model/hist_gradient_boosting.yaml`,
+  `conf/model/xgboost.yaml`, `conf/model/lightgbm.yaml`).
 - [DONE] Training config separates scenario-editable features from BRFSS adjustment covariates and state-year ACS/SVI context features, applying survey weights plus condition-specific leakage exclusions (`conf/train.yaml`, `src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Active training scope covers eight BRFSS-derived conditions: heart disease, chronic lung disease, asthma, stroke, depression, diabetes, chronic kidney disease, and arthritis (`conf/train.yaml`, `src/longevity_lab/domain/catalog.py`).
 - [DONE] Artifact manifest schema, bundle loader, context lookup provenance, and safe auto-detection (`src/longevity_lab/artifacts/manifest.py`, `src/longevity_lab/artifacts/store.py`).
@@ -95,6 +100,8 @@ Legend:
 - [DONE] Training packages held-out empirical calibration-interval payloads per condition and
   surfaces uncertainty diagnostics in scenario responses and model cards
   (`src/longevity_lab/pipeline/modeling.py`, `src/longevity_lab/services/model_card_service.py`).
+- [DONE] `real-20260508-xgboost-shap` trains eight calibrated XGBoost condition models from the
+  full processed 2023 table and packages manifest-declared SHAP explanation artifacts for serving.
 
 ### Causal inference
 
@@ -156,5 +163,7 @@ Legend:
 
 Detailed PR scopes and Codex prompts are in `docs/superpowers/plans/2026-05-06-remaining-work-pr-roadmap.md`.
 
-1. Extend typed explanation and uncertainty coverage as new artifact families are trained.
-2. Train and promote newer artifact families when their benchmark evidence justifies activation.
+1. Define safe county-level geography semantics before activating county ACS/SVI or PLACES in
+   person-level predictions.
+2. Expand the causal workbench beyond the current non-serving reports only when each question has
+   explicit assumptions, diagnostics, and sensitivity checks.

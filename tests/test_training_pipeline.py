@@ -12,6 +12,8 @@ from longevity_lab.api.schemas import FeatureProfile
 from longevity_lab.artifacts.store import ArtifactStore
 from longevity_lab.pipeline.modeling import (
     FeaturePreprocessor,
+    _make_training_pipeline,
+    _set_estimator_monotonic_constraints,
     build_training_spec,
     evaluate_bundle,
     evaluate_bundle_slices,
@@ -298,6 +300,70 @@ def test_hist_gradient_boosting_pipeline_applies_monotonic_constraints() -> None
     assert probabilities.shape == (6, 2)
 
 
+def test_lightgbm_monotonic_constraints_use_lightgbm_parameter_name() -> None:
+    """LightGBM accepts monotone_constraints even when get_params omits the key."""
+
+    class LGBMClassifier:
+        def __init__(self) -> None:
+            self.params: dict[str, object] = {}
+
+        def get_params(self, deep: bool = False) -> dict[str, object]:
+            del deep
+            return dict(self.params)
+
+        def set_params(self, **params: object) -> LGBMClassifier:
+            self.params.update(params)
+            return self
+
+        def fit(self, x: pd.DataFrame, y: object = None, **params: object) -> object:
+            del x, y, params
+            return self
+
+    model = LGBMClassifier()
+
+    _set_estimator_monotonic_constraints(model, (1, 0, -1))
+
+    assert model.params["monotone_constraints"] == [1, 0, -1]
+
+
+def test_xgboost_training_pipeline_uses_condition_balance_scale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Promoted XGBoost training should inherit condition-specific scale_pos_weight."""
+
+    class XGBClassifier:
+        def __init__(self, **params: object) -> None:
+            self.params = params
+
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+    raw_cfg = _base_raw_cfg(
+        tmp_path=tmp_path,
+        input_path=input_path,
+        bundle_id="bundle-xgb-scale",
+    )
+    raw_cfg["model"] = {
+        "name": "xgboost",
+        "kind": "xgboost",
+        "params": {"n_estimators": 5},
+    }
+    monkeypatch.setattr(
+        "longevity_lab.pipeline.modeling._import_xgboost_classifier",
+        lambda: XGBClassifier,
+    )
+    spec = build_training_spec(raw_cfg)
+
+    pipeline = _make_training_pipeline(
+        spec.features,
+        spec=spec,
+        overrides={},
+        class_balance_scale=4.0,
+    )
+
+    assert pipeline.named_steps["model"].params["scale_pos_weight"] == 4.0
+
+
 def test_train_bundle_writes_artifacts_and_supports_engine(tmp_path: Path) -> None:
     """Training should write a loadable artifact bundle with per-condition outputs."""
     input_path = tmp_path / "training.csv"
@@ -519,6 +585,7 @@ def test_train_bundle_packages_shap_for_supported_tree_ensemble(
     assert shap_records[0]["background_sample_size"] <= 128
     assert (result.bundle_dir / shap_records[0]["artifact_path"]).exists()
     assert condition["explanation_path"] is None
+    assert condition["explanation_method"] == "shap"
     assert [record["method"] for record in condition["explanation_artifacts"]] == ["shap"]
     metrics = json.loads((result.bundle_dir / "heart_disease_metrics.json").read_text("utf-8"))
     assert metrics["shap_explanation"]["status"] == "available"

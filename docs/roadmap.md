@@ -74,6 +74,13 @@ Recommended model track:
 - XGBoost as the first external best-in-class tabular model, using documented class-imbalance and monotonic-constraint parameters.
 - Optional LightGBM only if XGBoost or scikit-learn models leave material performance gaps.
 
+Current implementation status: the `ensemble-promotion-20260508` benchmark compares all three
+tree-ensemble candidates against the calibrated decision-tree baseline. XGBoost is promoted in
+`real-20260508-xgboost-shap` because it has the strongest mean ROC-AUC, average precision, and
+Brier score across the eight served BRFSS-derived conditions. Histogram gradient boosting and
+LightGBM remain supported benchmark candidates for future lower-dependency or alternate-deployment
+tradeoffs.
+
 Required metrics:
 
 - ROC-AUC, average precision, Brier score, expected calibration error, calibration slope/intercept, log loss, decision-curve style utility where meaningful.
@@ -89,6 +96,10 @@ Explanations must match the trained model:
 - Tree-ensemble bundles should use TreeSHAP with clear caveats about correlation and non-causal attribution.
 - Scenario deltas should distinguish model-derived contribution, input change, and contextual geography.
 - Current artifact bundles can package held-out empirical `calibration_interval` payloads with diagnostics. Future work can compare stricter conformal classifiers such as [MAPIE](https://mapie.readthedocs.io/en/latest/theoretical_description_classification.html) once calibration remains stable on larger artifact families.
+
+Current implementation status: the promoted XGBoost bundle declares SHAP as the served explanation
+method in `manifest.json`, keeps SHAP background samples compact, and leaves uncertainty surfaced
+through the existing held-out calibration interval payloads.
 
 ### Causal Inference
 

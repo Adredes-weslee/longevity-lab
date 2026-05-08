@@ -216,6 +216,7 @@ def test_default_benchmark_config_declares_context_ablation_variants() -> None:
 
     assert "acs_poverty_percent" in spec.training_spec.feature_contract.context_features
     assert "svi_overall_percentile" in spec.training_spec.feature_contract.context_features
+    assert "lightgbm" in {model.kind for model in spec.models}
     variant_ids = {ablation.variant_id for ablation in spec.ablations}
     assert {"no_context", "air_quality_only", "context_plus_air_quality"}.issubset(variant_ids)
 
@@ -311,6 +312,45 @@ def test_benchmark_skips_optional_xgboost_when_dependency_unavailable(
     assert all("optional train dependency" in row["skip_reason"] for row in xgb_rows)
     calibration = json.loads(result.calibration_path.read_text(encoding="utf-8"))
     assert all(row["model_id"] != "xgboost_candidate" for row in calibration)
+
+
+def test_benchmark_skips_optional_lightgbm_when_dependency_unavailable(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """LightGBM should be optional and emit a clear skipped benchmark row."""
+    input_path = tmp_path / "training.csv"
+    _write_training_frame(input_path)
+    config = _benchmark_config(tmp_path, input_path)
+    models = cast(list[dict[str, object]], config["models"])
+    config["models"] = [
+        *models,
+        {
+            "model_id": "lightgbm_candidate",
+            "kind": "lightgbm",
+            "class_imbalance_strategy": "class_weight_balanced",
+            "params": {"n_estimators": 4, "max_depth": 2, "learning_rate": 0.1},
+            "monotonic_constraints": {"age": 1, "bmi": 1},
+        },
+    ]
+
+    def _raise_missing_lightgbm() -> object:
+        raise modeling_module.OptionalModelDependencyError(
+            "LightGBM support requires the optional train dependency."
+        )
+
+    monkeypatch.setattr(modeling_module, "_import_lightgbm_classifier", _raise_missing_lightgbm)
+
+    result = run_benchmark(build_benchmark_spec(config))
+    metrics = json.loads(result.metrics_path.read_text(encoding="utf-8"))
+    lightgbm_rows = [row for row in metrics if row["model_id"] == "lightgbm_candidate"]
+
+    assert lightgbm_rows
+    assert {row["status"] for row in lightgbm_rows} == {"skipped"}
+    assert all(row["test_average_precision"] is None for row in lightgbm_rows)
+    assert all("optional train dependency" in row["skip_reason"] for row in lightgbm_rows)
+    calibration = json.loads(result.calibration_path.read_text(encoding="utf-8"))
+    assert all(row["model_id"] != "lightgbm_candidate" for row in calibration)
 
 
 def test_benchmark_ablation_uses_condition_specific_feature_exclusions(tmp_path: Path) -> None:
