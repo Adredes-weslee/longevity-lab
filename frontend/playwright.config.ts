@@ -6,6 +6,7 @@ const reuseExistingServer = process.env.E2E_REUSE_SERVER === '1'
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   use: {
     baseURL,
