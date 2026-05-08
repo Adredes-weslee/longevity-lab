@@ -40,6 +40,9 @@ Legend:
   `context_data_year` differs from the BRFSS label year.
 - [DONE] Context transparency UX separates editable personal inputs from background state-year
   context across Explorer, Data Evidence, Model Cards, and Scenario Lab.
+- [DONE] Community Context API and UI surface state/county ACS/SVI context, PLACES county
+  context, PLACES aggregate validation rows, and causal workbench report cards as separate
+  evidence/research surfaces that do not modify Explorer personal risk scoring.
 
 ## Current baseline
 
@@ -119,6 +122,10 @@ Legend:
 - [DONE] Model-card endpoint exposes active artifact metrics (`GET /api/models/cards`) (`src/longevity_lab/api/routes/models.py`).
 - [DONE] Evidence endpoint exposes source registry roles, asset readiness, production artifact download status, active-vs-available features, reports, and inactive gaps (`GET /api/evidence/status`) (`src/longevity_lab/api/routes/evidence.py`).
 - [DONE] Geography context endpoint exposes state-year options and active artifact/local context readiness without absolute local paths (`GET /api/context/geographies`) (`src/longevity_lab/api/routes/context.py`).
+- [DONE] Community context endpoint exposes sanitized state/county context summaries, PLACES
+  validation rows, and local causal report summaries without absolute local paths
+  (`GET /api/community/overview`) (`src/longevity_lab/api/routes/community.py`,
+  `src/longevity_lab/services/community_context_service.py`).
 - [DONE] Service layer and engine abstraction (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Artifact-backed engine path (`src/longevity_lab/services/artifact_engine.py`).
 - [DONE] Versioned v2 response metadata shares active model mode, artifact id, data vintage, explanation methods, uncertainty availability, and inferred contextual geography across bootstrap and scenario compare responses (`src/longevity_lab/services/contract_metadata.py`).
@@ -142,6 +149,9 @@ Legend:
 - [DONE] Data Evidence, Model Cards, and Scenario Lab group active state-year context, inactive
   county context, validation-only PLACES, context ablation lift, subgroup caveats, and
   geography/context summary rows separately from lifestyle inputs.
+- [DONE] Community Context page provides context tiles/cards, PLACES model-vs-public-estimate
+  validation rows, and causal workbench report cards while preserving non-diagnostic and
+  non-causal Explorer score boundaries (`frontend/src/pages/CommunityContextPage.tsx`).
 
 ### Reproducibility
 
@@ -163,7 +173,7 @@ Legend:
 
 Detailed PR scopes and Codex prompts are in `docs/superpowers/plans/2026-05-06-remaining-work-pr-roadmap.md`.
 
-1. Define safe county-level geography semantics before activating county ACS/SVI or PLACES in
-   person-level predictions.
-2. Expand the causal workbench beyond the current non-serving reports only when each question has
+1. Define safe county-level geography semantics only if a future aggregate/county model target is
+   created; current county ACS/SVI and PLACES remain context/research surfaces.
+2. Expand the causal workbench beyond current surfaced reports only when each new question has
    explicit assumptions, diagnostics, and sensitivity checks.
