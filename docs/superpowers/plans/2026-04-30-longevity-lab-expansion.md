@@ -1,5 +1,9 @@
 # Longevity Lab Expansion Implementation Plan
 
+> **Status:** Historical/completed plan. Do not treat unchecked reusable checklist items in this
+> file as pending product work. Current implementation status lives in `docs/feature_status.md`;
+> future work should be scoped from `docs/roadmap.md` into a new plan before implementation.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Expand Longevity Lab from a baseline prototype into a reproducible, public-data-backed risk communication platform with stronger data, modeling, evaluation, causal-analysis, and UI surfaces.
@@ -480,12 +484,14 @@ Document and configure a free-tier deployment profile. Use Vercel for static fro
 - PR 15 depends on PR 14 and benefits from PR 13.
 - PR 16 should wait until the API/UI contracts stabilize.
 
-## Review Checklist
+## Historical Review Checklist Template
 
-- [ ] The PR touches only its declared files or explains why the touch set expanded.
-- [ ] Data downloads are scriptable and write provenance.
-- [ ] Model outputs include calibration and subgroup evidence when relevant.
-- [ ] Explanations match the method used by the artifact.
-- [ ] UI copy remains non-diagnostic and plain-language.
-- [ ] Docs, tests, schema contracts, and feature status are synchronized.
-- [ ] Local adversarial review reports no new P0, P1, or P2 findings for the latest hash.
+These checklist items are a reusable template from the completed expansion program, not open tasks:
+
+- The PR touches only its declared files or explains why the touch set expanded.
+- Data downloads are scriptable and write provenance.
+- Model outputs include calibration and subgroup evidence when relevant.
+- Explanations match the method used by the artifact.
+- UI copy remains non-diagnostic and plain-language.
+- Docs, tests, schema contracts, and feature status are synchronized.
+- Local adversarial review reports no new P0, P1, or P2 findings for the latest hash.

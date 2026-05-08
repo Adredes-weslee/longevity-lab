@@ -7,15 +7,16 @@ Longevity Lab is a local-first product prototype for interactive organ-level lif
 This repo is intentionally usable *today* (end-to-end UI <-> API), and it now includes a real local training/evaluation path for tree-based artifact bundles.
 
 - Current state: typed API + runnable UI + explicit compare/apply UX + a reference-based silhouette
-  heatmap + BRFSS/EPA/PLACES/ACS/SVI evidence pipeline + Hydra/Optuna training entrypoints that write calibrated per-condition
-  artifact bundles with metrics, prediction samples, explanation trees, and ablation metrics.
+  heatmap + BRFSS/EPA/PLACES/ACS/SVI evidence pipeline + promoted XGBoost/SHAP artifact serving,
+  Community Context evidence panels, and Hydra/Optuna training entrypoints that write calibrated
+  per-condition artifact bundles with metrics, prediction samples, explanations, and ablation metrics.
 - Default serving mode is `auto`: the backend uses a valid local artifact bundle when present and
   otherwise falls back to clearly labeled demo scoring.
-- Target end state: BRFSS/EPA ingest -> trained + calibrated tree models -> artifact-backed API by
-  default -> organ UI with richer typed explanations.
+- Current production path: public GitHub Release model/evidence bundles are downloaded and verified
+  during Render builds; raw/processed datasets and local model artifacts stay out of git.
 - Product expansion roadmap: `docs/roadmap.md`
-- PR execution plan: `docs/superpowers/plans/2026-04-30-longevity-lab-expansion.md`
-- TODO tracker: `docs/feature_status.md`
+- Completed expansion plan history: `docs/superpowers/plans/2026-04-30-longevity-lab-expansion.md`
+- Feature/status tracker: `docs/feature_status.md`
 
 ## Stack
 
@@ -25,7 +26,7 @@ This repo is intentionally usable *today* (end-to-end UI <-> API), and it now in
 - `docs/`: architecture, roadmap, contracts, and implementation plans
   - Feature tracker: `docs/feature_status.md`
   - Product roadmap: `docs/roadmap.md`
-  - Superpowers PR plan: `docs/superpowers/plans/2026-04-30-longevity-lab-expansion.md`
+  - Historical Superpowers PR plan: `docs/superpowers/plans/2026-04-30-longevity-lab-expansion.md`
 
 ## Why this repo is structured this way
 
@@ -205,7 +206,7 @@ $env:LONGEVITY_LAB_ENGINE='artifact'
 Optional:
 
 ```powershell
-$env:LONGEVITY_LAB_ARTIFACT_BUNDLE='real-20260504-full'
+$env:LONGEVITY_LAB_ARTIFACT_BUNDLE='real-20260508-xgboost-shap'
 ```
 
 The default training scope covers eight BRFSS-derived conditions: heart disease, chronic lung
@@ -307,7 +308,7 @@ curl.exe http://127.0.0.1:8000/api/pipeline/status?year=2023
 ## Documentation map
 
 - Start here: `docs/quickstart.md`
-- Feature/TODO tracker: `docs/feature_status.md`
+- Feature/status tracker: `docs/feature_status.md`
 - Contributing guidelines: `CONTRIBUTING.md` + `docs/git_workflow.md`
 - Dataset sources + download notes: `docs/datasets.md`
 - Data dictionary (fields + transformations): `docs/data_dictionary.md`
