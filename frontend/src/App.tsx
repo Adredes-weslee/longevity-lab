@@ -39,6 +39,8 @@ const navItems: Array<{ label: string; view: AppView }> = [
   { label: 'Scenario lab', view: 'lab' },
 ]
 
+const SCENARIO_COMPARE_DEBOUNCE_MS = 650
+
 function getViewFromHash(hash: string): AppView {
   if (hash === '#/data') {
     return 'data'
@@ -102,7 +104,7 @@ function App(): JSX.Element {
     }
   }, [])
 
-  const runComparison = useCallback(async (): Promise<void> => {
+  const runComparison = useCallback(async (signal?: AbortSignal): Promise<void> => {
     const nextSequence = requestSequence.current + 1
     requestSequence.current = nextSequence
     setBusy(true)
@@ -112,7 +114,7 @@ function App(): JSX.Element {
         baseline: state.baseline,
         candidate: state.candidate,
         geography: state.geography,
-      })
+      }, signal)
       if (requestSequence.current !== nextSequence) {
         return
       }
@@ -124,6 +126,9 @@ function App(): JSX.Element {
         })
       }
     } catch (error) {
+      if (signal?.aborted) {
+        return
+      }
       if (requestSequence.current !== nextSequence) {
         return
       }
@@ -244,10 +249,14 @@ function App(): JSX.Element {
     if (!bootstrap) {
       return
     }
+    const controller = new AbortController()
     const timeoutId = window.setTimeout(() => {
-      void runComparison()
-    }, 140)
-    return () => window.clearTimeout(timeoutId)
+      void runComparison(controller.signal)
+    }, SCENARIO_COMPARE_DEBOUNCE_MS)
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [bootstrap, runComparison])
 
   function navigate(nextView: AppView): void {

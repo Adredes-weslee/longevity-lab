@@ -1,10 +1,85 @@
 import { expect, type Locator, type Page, test } from '@playwright/test'
 
+import type { ScenarioCompareRequest, ScenarioCompareResponse } from '../src/types'
+
 const responsiveViewports = [
   { height: 844, name: 'mobile', narrow: true, width: 390 },
   { height: 1024, name: 'tablet', narrow: true, width: 768 },
   { height: 1200, name: 'desktop', narrow: false, width: 1440 },
 ] as const
+
+function createCompareResponse(candidateScore: number): ScenarioCompareResponse {
+  return {
+    contract_version: 'v2',
+    baseline: {
+      summary_score: 5.8,
+      organs: [
+        { organ_id: 'heart', label: 'Heart', score: 0.058, band: 'green', top_conditions: ['Heart disease'] },
+      ],
+      conditions: [
+        {
+          condition_id: 'heart_disease',
+          label: 'Heart disease',
+          organ_id: 'heart',
+          probability: 0.058,
+          band: 'green',
+          key_drivers: ['Age'],
+          explanations: [],
+          uncertainty: null,
+        },
+      ],
+    },
+    candidate: {
+      summary_score: candidateScore,
+      organs: [
+        { organ_id: 'heart', label: 'Heart', score: candidateScore / 100, band: 'green', top_conditions: ['Heart disease'] },
+      ],
+      conditions: [
+        {
+          condition_id: 'heart_disease',
+          label: 'Heart disease',
+          organ_id: 'heart',
+          probability: candidateScore / 100,
+          band: 'green',
+          key_drivers: ['BMI'],
+          explanations: [],
+          uncertainty: null,
+        },
+      ],
+    },
+    organ_deltas: [
+      {
+        organ_id: 'heart',
+        label: 'Heart',
+        baseline_score: 0.058,
+        candidate_score: candidateScore / 100,
+        score_delta: candidateScore / 100 - 0.058,
+        band: 'green',
+        top_conditions: ['Heart disease'],
+      },
+    ],
+    model_metadata: {
+      model_mode: 'artifact',
+      artifact_id: 'test-artifact',
+      data_vintage: '2023',
+      dataset_name: 'test',
+      dataset_version: 'test',
+      dataset_retrieved_at: null,
+      explanation_methods: ['shap'],
+      uncertainty_available: false,
+      uncertainty_methods: [],
+      contextual_geography: {
+        available: false,
+        levels: [],
+        source: null,
+        feature_count: 0,
+        features: [],
+        data_vintage: null,
+        caveat: null,
+      },
+    },
+  }
+}
 
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   await expect
@@ -255,6 +330,40 @@ test('updates results live when the what-if profile changes', async ({ page }) =
   await expect(page.getByTestId('overview-whatif').locator('.metric-value')).not.toHaveText(
     scenarioScore ?? '',
   )
+})
+
+test('settles range slider edits before refreshing scenario scores', async ({ page }) => {
+  const comparePayloads: ScenarioCompareRequest[] = []
+
+  await page.route('**/api/scenario/compare', async (route) => {
+    const payload = route.request().postDataJSON() as ScenarioCompareRequest
+    comparePayloads.push(payload)
+    const candidateScore = Number((Number(payload.candidate.bmi) / 10).toFixed(1))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(createCompareResponse(candidateScore)),
+    })
+  })
+
+  await page.goto('/')
+
+  await expect(page.getByTestId('overview-whatif').locator('.metric-value')).toHaveText(
+    '2.6',
+  )
+
+  const bmiSlider = page.getByLabel('What-if BMI range input')
+  await bmiSlider.fill('35')
+  await bmiSlider.fill('42')
+
+  await expect(bmiSlider).toHaveValue('42')
+  await expect(page.getByTestId('changed-input-bmi')).toContainText('+14.0')
+  await expect(page.getByTestId('overview-whatif').locator('.metric-value')).toHaveText(
+    '4.2',
+    { timeout: 5000 },
+  )
+
+  expect(comparePayloads.map((payload) => payload.candidate.bmi)).toEqual([26, 42])
 })
 
 test('keeps the last good results visible when a live comparison fails', async ({ page }) => {

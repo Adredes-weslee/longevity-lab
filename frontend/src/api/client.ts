@@ -59,9 +59,11 @@ export async function fetchBootstrap(): Promise<MetadataBootstrapResponse> {
 
 export async function compareScenarios(
   payload: ScenarioCompareRequest,
+  signal?: AbortSignal,
 ): Promise<ScenarioCompareResponse> {
   return requestJson<ScenarioCompareResponse>('/scenario/compare', {
     method: 'POST',
+    signal,
     body: JSON.stringify(payload),
   })
 }

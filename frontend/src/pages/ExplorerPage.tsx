@@ -197,8 +197,10 @@ export function ExplorerPage({
           <strong className="metric-value">
             {scenarioRisk != null ? scenarioRisk.toFixed(1) : '--'}
           </strong>
-          <p className="metric-copy">
-            {baselineRisk != null && riskDelta != null
+          <p className="metric-copy" aria-live="polite">
+            {busy
+              ? 'Refreshing from the latest slider positions...'
+              : baselineRisk != null && riskDelta != null
               ? `Current ${baselineRisk.toFixed(1)} | ${riskDelta >= 0 ? '+' : ''}${riskDelta.toFixed(1)} vs current`
               : 'Move either profile to update the score live.'}
           </p>
