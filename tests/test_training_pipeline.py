@@ -315,6 +315,10 @@ def test_lightgbm_monotonic_constraints_use_lightgbm_parameter_name() -> None:
             self.params.update(params)
             return self
 
+        def fit(self, x: pd.DataFrame, y: object = None, **params: object) -> object:
+            del x, y, params
+            return self
+
     model = LGBMClassifier()
 
     _set_estimator_monotonic_constraints(model, (1, 0, -1))

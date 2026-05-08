@@ -90,18 +90,20 @@ Open `http://localhost:4173` and verify:
 Public deployments run artifact-backed scoring by downloading a trusted zipped bundle during the
 Render build. The current production release asset is:
 
-- `LONGEVITY_LAB_ARTIFACT_BUNDLE=real-20260507-final`
-- `LONGEVITY_LAB_ARTIFACT_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260507-final/real-20260507-final.zip`
-- `LONGEVITY_LAB_ARTIFACT_SHA256=bb801b1892b4aa49a6a27345a2e0f1b2e4614b0e0d72716cd8c2a53b8a31a32e`
+- `LONGEVITY_LAB_ARTIFACT_BUNDLE=real-20260508-xgboost-shap`
+- `LONGEVITY_LAB_ARTIFACT_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260508-xgboost-shap/real-20260508-xgboost-shap.zip`
+- `LONGEVITY_LAB_ARTIFACT_SHA256=1c71eca4aff814f2c15d540ecb6a995230a4ac956232fd2d2b53e4eb4d3ab0aa`
 
 The build command runs `scripts/download_model_bundle.py`, which downloads the zip, verifies SHA256,
 rejects unsafe zip paths, and extracts the bundle under `artifacts/models/`. Production can then set
 `LONGEVITY_LAB_ENGINE=artifact`.
 
-The `real-20260507-final` bundle activates the production pieces behind the Explorer and Data
+The `real-20260508-xgboost-shap` bundle activates the production pieces behind the Explorer and Data
 Evidence context banners:
 
 - eight modeled conditions;
+- calibrated XGBoost tree-ensemble scoring;
+- manifest-declared SHAP explanation artifacts;
 - manifest-declared `calibration_interval` uncertainty payloads;
 - twelve ACS/SVI context features;
 - bundle-local `context_state_year_lookup.json`; and

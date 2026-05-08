@@ -3,7 +3,7 @@
 Longevity Lab keeps prediction and interpretation reproducible by separating model training,
 benchmarking, and serving.
 
-## Current predictive baseline
+## Current predictive model
 
 - The default artifact bundle trains one calibrated model per condition using `conf/train.yaml`.
   Current direct BRFSS labels cover heart disease, chronic lung disease, asthma, stroke,
@@ -12,7 +12,9 @@ benchmarking, and serving.
   These features are joined only by (`state_fips`, `year`) and are not scenario-editable inputs.
 - Training uses the shared `FeaturePreprocessor` pipeline so persisted artifacts and API inference use
   the same feature ordering, imputation, boolean coercion, and categorical encoding.
-- The decision-tree baseline remains interpretable and produces tree-path explanation artifacts.
+- The decision-tree baseline remains available for continuity, but the promoted production
+  candidate is an XGBoost tree ensemble with calibrated probabilities and packaged SHAP
+  explanation artifacts.
 
 ## Benchmark harness
 
@@ -37,7 +39,7 @@ Outputs are written under `reports/benchmarks/<benchmark_id>/` and are intention
 ## Comparisons
 
 The benchmark grid includes logistic regression, the calibrated decision-tree baseline,
-`HistGradientBoostingClassifier`, and optional XGBoost candidates plus ablations for dropping
+`HistGradientBoostingClassifier`, optional XGBoost, and optional LightGBM candidates plus ablations for dropping
 `annual_aqi`, dropping PM2.5/ozone pollutant features, dropping all ACS/SVI context
 (`no_context`), training on air quality only, training on context plus air quality, and using only
 scenario-editable features. All candidates use the same `FeaturePreprocessor` pipeline and the same
@@ -47,10 +49,30 @@ Histogram gradient boosting uses scikit-learn's `class_weight="balanced"` by def
 configured monotonic constraints after preprocessing. Constraints are recorded by raw feature name in
 the benchmark metrics and model-card manifest; one-hot categorical outputs are left unconstrained.
 
-XGBoost is declared only in the optional `train` dependency group. The benchmark harness does not
-import it at module import time. If an XGBoost candidate is configured but the package is not
-installed, `metrics.json` records a `status: "skipped"` row with a clear `skip_reason`; calibration
-curves and subgroup rows are omitted for that skipped candidate.
+XGBoost and LightGBM are declared only in the optional `train` dependency group. The benchmark
+harness does not import either package at module import time. If an optional candidate is configured
+but the package is not installed, `metrics.json` records a `status: "skipped"` row with a clear
+`skip_reason`; calibration curves and subgroup rows are omitted for that skipped candidate.
+
+The `ensemble-promotion-20260508` benchmark compared logistic regression, the current
+decision-tree baseline, histogram gradient boosting, XGBoost, and LightGBM on the full processed
+2023 table. XGBoost had the strongest mean discrimination/ranking signal, with mean ROC-AUC
+0.7731, mean average precision 0.2759, and mean Brier score 0.0796 across the eight conditions.
+That is a mean +0.0131 ROC-AUC, +0.0224 average-precision, and -0.0012 Brier-score improvement
+against the decision-tree baseline.
+
+The promoted `real-20260508-xgboost-shap` artifact reports these calibrated test metrics:
+
+| Condition | ROC-AUC | Average precision | Brier score |
+| --- | ---: | ---: | ---: |
+| Heart disease | 0.8140 | 0.2194 | 0.0549 |
+| Chronic lung disease | 0.7905 | 0.2412 | 0.0507 |
+| Asthma | 0.6838 | 0.1949 | 0.0847 |
+| Stroke | 0.7934 | 0.1184 | 0.0322 |
+| Depression | 0.7284 | 0.4163 | 0.1407 |
+| Diabetes | 0.8035 | 0.3349 | 0.0922 |
+| Kidney disease | 0.7606 | 0.1197 | 0.0365 |
+| Arthritis | 0.8105 | 0.5620 | 0.1451 |
 
 ## Served explanations and uncertainty
 
