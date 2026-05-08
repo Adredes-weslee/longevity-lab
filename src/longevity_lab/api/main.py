@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from longevity_lab.api.middleware import request_logging_middleware
 from longevity_lab.api.routes import (
+    community,
     context,
     evidence,
     health,
@@ -21,6 +22,7 @@ from longevity_lab.api.schemas import FeatureProfile, ModelMetadataResponse, Run
 from longevity_lab.artifacts.store import ArtifactBundle, ArtifactStore
 from longevity_lab.config import Settings, get_settings
 from longevity_lab.services.artifact_engine import ArtifactScenarioEngine
+from longevity_lab.services.community_context_service import CommunityContextService
 from longevity_lab.services.context_lookup import ContextLookupService
 from longevity_lab.services.contract_metadata import (
     build_artifact_model_metadata,
@@ -164,11 +166,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialize app-scoped services once per process."""
     settings = get_settings()
     engine, runtime, model_metadata, condition_ids = _select_engine(settings)
+    active_bundle = _runtime_artifact_bundle(settings=settings, runtime=runtime)
     context_lookup_service = ContextLookupService(
         settings.data_dir,
-        artifact_bundle=_runtime_artifact_bundle(settings=settings, runtime=runtime),
+        artifact_bundle=active_bundle,
     )
     app.state.context_lookup_service = context_lookup_service
+    app.state.community_context_service = CommunityContextService(
+        settings=settings,
+        artifact_bundle=active_bundle,
+    )
     app.state.metadata_service = MetadataService(
         runtime=runtime,
         model_metadata=model_metadata,
@@ -209,6 +216,7 @@ def create_app() -> FastAPI:
     app.include_router(metadata.router, prefix=settings.api_prefix)
     app.include_router(models.router, prefix=settings.api_prefix)
     app.include_router(evidence.router, prefix=settings.api_prefix)
+    app.include_router(community.router, prefix=settings.api_prefix)
     app.include_router(context.router, prefix=settings.api_prefix)
     app.include_router(pipeline.router, prefix=settings.api_prefix)
     app.include_router(scenario.router, prefix=settings.api_prefix)

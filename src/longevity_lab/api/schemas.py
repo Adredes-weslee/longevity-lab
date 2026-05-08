@@ -506,3 +506,118 @@ class ModelCardBundleResponse(BaseModel):
     artifact_id: str | None = None
     generated_from: str | None = None
     condition_cards: list[ConditionModelCardResponse] = Field(default_factory=list)
+
+
+class CommunityFeatureValueResponse(BaseModel):
+    """One context or validation feature shown on the Community Context page."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    feature: str
+    label: str
+    value: float | int | str | bool | None = None
+    formatted_value: str
+    units: str | None = None
+    role: Literal["state_context", "county_context", "places_context"]
+    caveat: str | None = None
+
+
+class CommunityGeographyOptionResponse(BaseModel):
+    """One selectable geography option for community context."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    level: Literal["state", "county"]
+    state_fips: str
+    county_fips: str | None = None
+    label: str
+    year: int
+    feature_count: int
+    selected: bool = False
+
+
+class CommunityGeographySummaryResponse(BaseModel):
+    """Selected state or county context summary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    level: Literal["state", "county"]
+    available: bool
+    label: str | None = None
+    state_fips: str | None = None
+    county_fips: str | None = None
+    year: int
+    source_path: str | None = None
+    message: str
+    features: list[CommunityFeatureValueResponse] = Field(default_factory=list)
+    options: list[CommunityGeographyOptionResponse] = Field(default_factory=list)
+    caveat: str
+
+
+class CommunityPlacesValidationRowResponse(BaseModel):
+    """One model-vs-PLACES aggregate validation row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    condition_id: str
+    geography_level: Literal["state", "county", "national"]
+    geography_name: str | None = None
+    state_fips: str | None = None
+    county_fips: str | None = None
+    model_mean_predicted_probability: float | None = None
+    places_crude_prevalence_probability: float | None = None
+    absolute_difference: float | None = None
+    comparison_direction: str | None = None
+    places_reference_kind: str | None = None
+
+
+class CommunityPlacesValidationSummaryResponse(BaseModel):
+    """PLACES aggregate validation summary for local report outputs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    available: bool
+    report_path: str | None = None
+    places_release_year: int
+    row_count: int
+    conditions_compared: list[str] = Field(default_factory=list)
+    rows: list[CommunityPlacesValidationRowResponse] = Field(default_factory=list)
+    caveat: str
+    message: str
+
+
+class CommunityCausalReportSummaryResponse(BaseModel):
+    """Summary of one local causal workbench report."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question_id: str
+    title: str
+    status: str
+    report_path: str
+    markdown_path: str | None = None
+    rows: int | None = None
+    treatment: str | None = None
+    outcome: str | None = None
+    estimand: str | None = None
+    estimate_method: str | None = None
+    risk_difference: float | None = None
+    diagnostic_status: str | None = None
+    heterogeneity_status: str | None = None
+    caveat: str
+
+
+class CommunityContextOverviewResponse(BaseModel):
+    """Community context and research evidence overview."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_version: ApiContractVersion = API_CONTRACT_VERSION
+    year: int
+    places_year: int
+    state_context: CommunityGeographySummaryResponse
+    county_context: CommunityGeographySummaryResponse
+    places_context: CommunityGeographySummaryResponse
+    places_validation: CommunityPlacesValidationSummaryResponse
+    causal_reports: list[CommunityCausalReportSummaryResponse] = Field(default_factory=list)
+    caveat: str
