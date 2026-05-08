@@ -3,7 +3,7 @@ services:
     name: longevity-lab-api
     runtime: python
     plan: free
-    buildCommand: python scripts/download_model_bundle.py && pip install --upgrade pip && pip install ".[artifact-xgboost]"
+    buildCommand: python scripts/download_model_bundle.py && python scripts/download_evidence_bundle.py && pip install --upgrade pip && pip install ".[artifact-xgboost]"
     startCommand: uvicorn longevity_lab.api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
     envVars:
@@ -19,6 +19,12 @@ services:
         value: https://github.com/Adredes-weslee/longevity-lab/releases/download/model-real-20260508-xgboost-shap/real-20260508-xgboost-shap.zip
       - key: LONGEVITY_LAB_ARTIFACT_SHA256
         value: 1c71eca4aff814f2c15d540ecb6a995230a4ac956232fd2d2b53e4eb4d3ab0aa
+      - key: LONGEVITY_LAB_EVIDENCE_BUNDLE
+        value: public-evidence-20260508-community-context
+      - key: LONGEVITY_LAB_EVIDENCE_BUNDLE_URL
+        value: https://github.com/Adredes-weslee/longevity-lab/releases/download/evidence-public-20260508-community-context/public-evidence-20260508-community-context.zip
+      - key: LONGEVITY_LAB_EVIDENCE_BUNDLE_SHA256
+        value: be50ac0392078eca507d42f3ed8a8f37132eadb4df8fc3dc00c480bee737dc40
       - key: LONGEVITY_LAB_CORS_ALLOW_ORIGINS
         value: https://longevity-lab-frontend.onrender.com
       - key: LONGEVITY_LAB_DATA_DIR
