@@ -205,6 +205,32 @@ def test_run_causal_workbench_writes_reports_for_each_pr22_question(
     assert "## Limitations" in markdown
 
 
+def test_run_causal_workbench_handles_nullable_boolean_adjustment_columns(
+    tmp_path: Path,
+) -> None:
+    """Full processed Parquet can expose adjustment flags as nullable boolean columns."""
+    input_path = tmp_path / "integrated_person_year.parquet"
+    output_dir = tmp_path / "nullable-bool"
+    _write_report_input(input_path, rows=180)
+    frame = pd.read_parquet(input_path)
+    for column in (
+        "has_healthcare_coverage",
+        "has_personal_doctor",
+        "cost_barrier_to_care",
+        "last_checkup_within_year",
+    ):
+        frame[column] = frame[column].astype("boolean")
+    frame.loc[0, "has_healthcare_coverage"] = pd.NA
+    frame.to_parquet(input_path, index=False)
+    config = load_causal_config_for_question("bmi_diabetes")
+
+    result = run_causal_workbench(config=config, input_path=input_path, output_dir=output_dir)
+
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    assert payload["question_id"] == "bmi_diabetes"
+    assert payload["status"] in {"exploratory_assumption_bound", "failed_diagnostic"}
+
+
 def test_run_causal_workbench_writes_diagnostic_failure_report(tmp_path: Path) -> None:
     """A question with unmet prerequisites should still produce an explicit failure report."""
     input_path = tmp_path / "one_class.parquet"
