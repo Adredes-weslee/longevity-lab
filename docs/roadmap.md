@@ -25,6 +25,11 @@ The target architecture has five layers:
 4. **Causal workbench:** separate scripts for explicit causal questions, directed acyclic graphs, estimands, sensitivity checks, and assumption reports.
 5. **Application:** FastAPI contracts and React pages for scenario comparison, evidence/provenance, model cards, data status, and accessible risk communication.
 
+Current implementation status: the application now includes a Community Context surface that reads
+state/county ACS/SVI context, CDC PLACES county context, PLACES aggregate validation reports, and
+local causal workbench reports through `GET /api/community/overview`. These are presented as
+evidence and research surfaces, not as hidden modifiers to Explorer person-level predictions.
+
 ## Data Source Strategy
 
 ### Inclusion Screen
@@ -129,6 +134,9 @@ The UI should move from prototype polish to a user-tested, evidence-transparent 
 
 - Keep the Explorer as the primary scenario-comparison page.
 - Add a Data Evidence page for source provenance, refresh status, schema versions, and feature-ablation lift.
+- Add a Community Context page for state/county ACS/SVI context, PLACES aggregate validation, and
+  causal workbench report cards while keeping county/PLACES/causal outputs out of individual
+  scoring.
 - Add Model Cards pages for intended use, population, data vintage, metrics, calibration, subgroup behavior, limitations, and artifact IDs.
 - Add a Scenario Lab page for saved scenario comparisons and sensitivity charts.
 - Improve the anatomy map with accessible organ labels, keyboard navigation, color-blind-safe palettes, and text alternatives.

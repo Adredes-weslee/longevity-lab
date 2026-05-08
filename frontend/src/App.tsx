@@ -3,10 +3,12 @@ import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import {
   compareScenarios,
   fetchBootstrap,
+  fetchCommunityOverview,
   fetchContextGeographies,
   fetchEvidenceStatus,
   fetchModelCards,
 } from './api/client'
+import { CommunityContextPage } from './pages/CommunityContextPage'
 import { DataEvidencePage } from './pages/DataEvidencePage'
 import { ExplorerPage } from './pages/ExplorerPage'
 import { ModelCardsPage } from './pages/ModelCardsPage'
@@ -16,16 +18,23 @@ import type {
   HeatmapMode,
   MetadataBootstrapResponse,
   ModelCardBundleResponse,
+  CommunityContextOverviewResponse,
   EvidenceStatusResponse,
   GeographyOptionsResponse,
   ScenarioCompareResponse,
 } from './types'
 
-type AppView = 'explorer' | 'data' | 'models' | 'lab'
+type AppView = 'explorer' | 'data' | 'community' | 'models' | 'lab'
+
+interface CommunitySelection {
+  countyFips: string | null
+  stateFips: string | null
+}
 
 const navItems: Array<{ label: string; view: AppView }> = [
   { label: 'Explorer', view: 'explorer' },
   { label: 'Data evidence', view: 'data' },
+  { label: 'Community context', view: 'community' },
   { label: 'Model cards', view: 'models' },
   { label: 'Scenario lab', view: 'lab' },
 ]
@@ -33,6 +42,9 @@ const navItems: Array<{ label: string; view: AppView }> = [
 function getViewFromHash(hash: string): AppView {
   if (hash === '#/data') {
     return 'data'
+  }
+  if (hash === '#/community') {
+    return 'community'
   }
   if (hash === '#/models') {
     return 'models'
@@ -58,6 +70,14 @@ function App(): JSX.Element {
   const [evidenceStatus, setEvidenceStatus] = useState<EvidenceStatusResponse | null>(null)
   const [evidenceError, setEvidenceError] = useState<string | null>(null)
   const [evidenceLoading, setEvidenceLoading] = useState(false)
+  const [communityOverview, setCommunityOverview] =
+    useState<CommunityContextOverviewResponse | null>(null)
+  const [communityError, setCommunityError] = useState<string | null>(null)
+  const [communityLoading, setCommunityLoading] = useState(false)
+  const [communitySelection, setCommunitySelection] = useState<CommunitySelection>({
+    countyFips: null,
+    stateFips: null,
+  })
   const [modelCards, setModelCards] = useState<ModelCardBundleResponse | null>(null)
   const [modelCardsError, setModelCardsError] = useState<string | null>(null)
   const [modelCardsLoading, setModelCardsLoading] = useState(false)
@@ -147,6 +167,26 @@ function App(): JSX.Element {
     }
   }, [])
 
+  const loadCommunityOverview = useCallback(async (): Promise<void> => {
+    setCommunityLoading(true)
+    setCommunityError(null)
+    try {
+      const overview = await fetchCommunityOverview({
+        year: state.geography?.year ?? 2023,
+        placesYear: 2025,
+        stateFips: communitySelection.stateFips ?? state.geography?.state_fips ?? null,
+        countyFips: communitySelection.countyFips,
+      })
+      setCommunityOverview(overview)
+    } catch (error) {
+      setCommunityError(
+        error instanceof Error ? error.message : 'Community context unavailable.',
+      )
+    } finally {
+      setCommunityLoading(false)
+    }
+  }, [communitySelection.countyFips, communitySelection.stateFips, state.geography])
+
   const loadModelCards = useCallback(async (): Promise<void> => {
     setModelCardsLoading(true)
     setModelCardsError(null)
@@ -187,6 +227,12 @@ function App(): JSX.Element {
       void loadEvidenceStatus()
     }
   }, [loadEvidenceStatus, view])
+
+  useEffect(() => {
+    if (view === 'community') {
+      void loadCommunityOverview()
+    }
+  }, [loadCommunityOverview, view])
 
   useEffect(() => {
     if (view === 'models') {
@@ -256,6 +302,20 @@ function App(): JSX.Element {
               loading={evidenceLoading}
               onRetry={() => void loadEvidenceStatus()}
               status={evidenceStatus}
+            />
+          ) : null}
+          {view === 'community' ? (
+            <CommunityContextPage
+              error={communityError}
+              loading={communityLoading}
+              onSelectCounty={(countyFips) =>
+                setCommunitySelection((current) => ({ ...current, countyFips }))
+              }
+              onSelectState={(stateFips) =>
+                setCommunitySelection({ countyFips: null, stateFips })
+              }
+              onRetry={() => void loadCommunityOverview()}
+              overview={communityOverview}
             />
           ) : null}
           {view === 'models' ? (
