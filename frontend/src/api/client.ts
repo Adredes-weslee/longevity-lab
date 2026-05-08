@@ -1,4 +1,5 @@
 import type {
+  CommunityContextOverviewResponse,
   EvidenceStatusResponse,
   GeographyOptionsResponse,
   MetadataBootstrapResponse,
@@ -85,4 +86,30 @@ export async function fetchEvidenceStatus(
 
 export async function fetchModelCards(): Promise<ModelCardBundleResponse> {
   return requestJson<ModelCardBundleResponse>('/models/cards')
+}
+
+export interface CommunityOverviewParams {
+  year?: number
+  placesYear?: number
+  stateFips?: string | null
+  countyFips?: string | null
+}
+
+export async function fetchCommunityOverview({
+  year = 2023,
+  placesYear = 2025,
+  stateFips = null,
+  countyFips = null,
+}: CommunityOverviewParams = {}): Promise<CommunityContextOverviewResponse> {
+  const params = new URLSearchParams({
+    year: String(year),
+    places_year: String(placesYear),
+  })
+  if (stateFips) {
+    params.set('state_fips', stateFips)
+  }
+  if (countyFips) {
+    params.set('county_fips', countyFips)
+  }
+  return requestJson<CommunityContextOverviewResponse>(`/community/overview?${params.toString()}`)
 }

@@ -189,6 +189,19 @@ test('loads the app and renders scenario compare output', async ({ page }) => {
   await expect(page.getByTestId('inactive-county-context')).toContainText('Inactive county context')
   await expect(page.getByTestId('validation-only-places')).toContainText('Validation-only PLACES')
 
+  await page.getByRole('button', { name: 'Community context' }).click()
+  await expect(page.getByTestId('community-context-page')).toBeVisible()
+  await expect(page.getByTestId('community-disclaimer')).toContainText(
+    'does not directly change Explorer personal risk scores',
+  )
+  await expect(page.getByTestId('community-geography-selector')).toContainText(
+    'Geography selector',
+  )
+  await expect(page.getByText('PLACES aggregate validation')).toBeVisible()
+  await expect(page.getByTestId('causal-workbench-panel')).toContainText(
+    'not used by the Explorer scoring endpoint',
+  )
+
   await page.getByRole('button', { name: 'Model cards' }).click()
   await expect(page.getByTestId('model-cards-page')).toBeVisible()
   await expect(page.getByText('Active scoring contract')).toBeVisible()

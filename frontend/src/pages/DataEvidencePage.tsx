@@ -226,6 +226,10 @@ export function DataEvidencePage({
             pipeline assets, validation-only reports, and geography context that is not yet served
             as a scenario input.
           </p>
+          <p>
+            Use the Community Context page to inspect county/state ACS/SVI, PLACES validation, and
+            causal workbench reports as separate evidence surfaces.
+          </p>
         </div>
         <div className="page-stat-grid">
           <div className="page-stat">

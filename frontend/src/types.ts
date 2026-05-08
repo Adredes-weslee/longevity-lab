@@ -137,6 +137,93 @@ export interface ModelCardBundleResponse {
   condition_cards: ConditionModelCardResponse[]
 }
 
+export interface CommunityFeatureValueResponse {
+  feature: string
+  label: string
+  value: number | string | boolean | null
+  formatted_value: string
+  units: string | null
+  role: 'state_context' | 'county_context' | 'places_context'
+  caveat: string | null
+}
+
+export interface CommunityGeographyOptionResponse {
+  level: 'state' | 'county'
+  state_fips: string
+  county_fips: string | null
+  label: string
+  year: number
+  feature_count: number
+  selected: boolean
+}
+
+export interface CommunityGeographySummaryResponse {
+  level: 'state' | 'county'
+  available: boolean
+  label: string | null
+  state_fips: string | null
+  county_fips: string | null
+  year: number
+  source_path: string | null
+  message: string
+  features: CommunityFeatureValueResponse[]
+  options: CommunityGeographyOptionResponse[]
+  caveat: string
+}
+
+export interface CommunityPlacesValidationRowResponse {
+  condition_id: string
+  geography_level: 'state' | 'county' | 'national'
+  geography_name: string | null
+  state_fips: string | null
+  county_fips: string | null
+  model_mean_predicted_probability: number | null
+  places_crude_prevalence_probability: number | null
+  absolute_difference: number | null
+  comparison_direction: string | null
+  places_reference_kind: string | null
+}
+
+export interface CommunityPlacesValidationSummaryResponse {
+  available: boolean
+  report_path: string | null
+  places_release_year: number
+  row_count: number
+  conditions_compared: string[]
+  rows: CommunityPlacesValidationRowResponse[]
+  caveat: string
+  message: string
+}
+
+export interface CommunityCausalReportSummaryResponse {
+  question_id: string
+  title: string
+  status: string
+  report_path: string
+  markdown_path: string | null
+  rows: number | null
+  treatment: string | null
+  outcome: string | null
+  estimand: string | null
+  estimate_method: string | null
+  risk_difference: number | null
+  diagnostic_status: string | null
+  heterogeneity_status: string | null
+  caveat: string
+}
+
+export interface CommunityContextOverviewResponse {
+  contract_version: ApiContractVersion
+  year: number
+  places_year: number
+  state_context: CommunityGeographySummaryResponse
+  county_context: CommunityGeographySummaryResponse
+  places_context: CommunityGeographySummaryResponse
+  places_validation: CommunityPlacesValidationSummaryResponse
+  causal_reports: CommunityCausalReportSummaryResponse[]
+  caveat: string
+}
+
 export interface ConditionScoreResponse {
   condition_id: string
   label: string
