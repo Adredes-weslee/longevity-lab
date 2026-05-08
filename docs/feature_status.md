@@ -14,6 +14,8 @@ Legend:
 - [DONE] Artifact-first runtime default when a valid local bundle exists.
 - [DONE] Model-card endpoint and UI metrics surface for active artifact bundles.
 - [DONE] Evidence-status endpoint and UI separate active scoring inputs from local-only data, validation reports, and inactive geography context.
+- [DONE] Evidence-status endpoint surfaces configured public evidence bundle contents separately
+  from local raw/processed data readiness.
 - [DONE] Data source registry and provenance schema for current public sources.
 - [DONE] BRFSS v2 feature contract with survey weights and broader adjustment covariates.
 - [DONE] EPA pollutant-specific features beyond annual AQI.
@@ -32,6 +34,9 @@ Legend:
 - [DONE] Deployment packaging for Render API/static frontend and Vercel static frontend handoff.
 - [DONE] Public GitHub Release artifact download with SHA256 verification for Render artifact mode;
   production config points to context-aware ensemble artifact `real-20260508-xgboost-shap`.
+- [DONE] Public GitHub Release evidence bundle download with SHA256 verification for deployed
+  Community Context panels; production config points to
+  `public-evidence-20260508-community-context`.
 - [DONE] Geography serving foundation with explicit state-year context selection and readiness
   lookup.
 - [DONE] Context-aware artifact training and serving activation for manifest-declared state-year
@@ -43,6 +48,9 @@ Legend:
 - [DONE] Community Context API and UI surface state/county ACS/SVI context, PLACES county
   context, PLACES aggregate validation rows, and causal workbench report cards as separate
   evidence/research surfaces that do not modify Explorer personal risk scoring.
+- [DONE] Community Context can read the configured public evidence bundle when full local
+  `data/processed/` assets are absent in production, while still keeping those assets out of
+  scoring.
 
 ## Current baseline
 
@@ -164,6 +172,9 @@ Legend:
 - [DONE] E2E smoke tests (`frontend/e2e/`).
 - [DONE] Free-tier deployment profile documented with Render Blueprint config and Vite API-origin support (`render.yaml`, `docs/deployment.md`, `frontend/vite.config.ts`, `frontend/.env.example`).
 - [DONE] Build-time model artifact downloader verifies public release bundles before production artifact mode (`scripts/download_model_bundle.py`).
+- [DONE] Build-time public evidence bundle downloader verifies Community Context release bundles
+  before deployment (`scripts/download_evidence_bundle.py`,
+  `scripts/build_public_evidence_bundle.py`).
 - [DONE] One-command dev bootstrap for Windows and macOS (`scripts/bootstrap_dev.ps1`, `scripts/bootstrap_dev.sh`).
 - [DONE] Artifact-backed runtime no longer requires Optuna just to load packaged bundles (`src/longevity_lab/pipeline/modeling.py`).
 - [DONE] Dataset sources and provenance docs (`docs/datasets.md`, `docs/data_dictionary.md`).

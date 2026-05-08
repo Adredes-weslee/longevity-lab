@@ -128,6 +128,51 @@ def test_community_overview_handles_missing_local_assets(
     assert payload["state_context"]["source_path"] == "processed/context/context_state_year.parquet"
 
 
+def test_community_overview_reads_configured_public_evidence_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Configured evidence bundles should populate context when local data is absent."""
+    data_dir = tmp_path / "data"
+    artifacts_dir = tmp_path / "artifacts"
+    evidence_root = artifacts_dir / "evidence" / "public-evidence-test"
+    _write_context_fixtures(evidence_root, year=2022)
+    _write_places_fixtures(evidence_root)
+    _write_causal_report(evidence_root)
+
+    monkeypatch.setenv("LONGEVITY_LAB_DATA_DIR", str(data_dir))
+    monkeypatch.setenv("LONGEVITY_LAB_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.setenv("LONGEVITY_LAB_EVIDENCE_BUNDLE", "public-evidence-test")
+    monkeypatch.delenv("LONGEVITY_LAB_ENGINE", raising=False)
+    monkeypatch.delenv("LONGEVITY_LAB_ARTIFACT_BUNDLE", raising=False)
+
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as test_client:
+            response = test_client.get(
+                "/api/community/overview?year=2023&places_year=2025&state_fips=06&county_fips=06001"
+            )
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["state_context"]["available"] is True
+    assert payload["state_context"]["year"] == 2022
+    assert payload["county_context"]["available"] is True
+    assert payload["county_context"]["year"] == 2022
+    assert payload["places_context"]["available"] is True
+    assert payload["places_validation"]["available"] is True
+    assert len(payload["causal_reports"]) == 1
+    assert payload["county_context"]["source_path"] == (
+        "evidence/public-evidence-test/processed/context/context_county_year.parquet"
+    )
+    assert payload["places_validation"]["report_path"] == (
+        "evidence/public-evidence-test/processed/validation/"
+        "places_external_context_validation_2025.json"
+    )
+
+
 def test_community_overview_falls_back_when_requested_geography_is_absent(
     community_client: TestClient,
 ) -> None:
@@ -142,13 +187,13 @@ def test_community_overview_falls_back_when_requested_geography_is_absent(
     assert payload["county_context"]["county_fips"] == "06001"
 
 
-def _write_context_fixtures(data_dir: Path) -> None:
+def _write_context_fixtures(data_dir: Path, *, year: int = 2023) -> None:
     context_dir = data_dir / "processed" / "context"
     context_dir.mkdir(parents=True)
     pd.DataFrame(
         [
             {
-                "year": 2023,
+                "year": year,
                 "state_fips": "06",
                 "geography_name": "California",
                 "acs_poverty_percent": 12.5,
@@ -160,7 +205,7 @@ def _write_context_fixtures(data_dir: Path) -> None:
     pd.DataFrame(
         [
             {
-                "year": 2023,
+                "year": year,
                 "state_fips": "06",
                 "county_fips": "06001",
                 "geography_name": "Alameda County, California",
@@ -169,7 +214,7 @@ def _write_context_fixtures(data_dir: Path) -> None:
                 "svi_overall_percentile": 0.25,
             },
             {
-                "year": 2023,
+                "year": year,
                 "state_fips": "06",
                 "county_fips": "06013",
                 "geography_name": "Contra Costa County, California",

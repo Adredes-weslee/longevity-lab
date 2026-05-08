@@ -296,6 +296,58 @@ class EvidenceService:
             _asset(candidate.stem, candidate.stem, "provenance", candidate, root=data_root)
             for candidate in sorted(provenance_dir.glob("*.json"))
         ]
+        evidence_bundle_root = _evidence_bundle_asset_path(
+            artifact_root=artifact_root,
+            bundle_id=self._settings.evidence_bundle,
+        )
+        evidence_caveat = (
+            "Public evidence bundle content for Community Context surfaces only; not scoring input."
+        )
+        public_evidence = [
+            _asset(
+                "bundle_state_context",
+                "Bundled ACS/SVI state context",
+                "artifact",
+                evidence_bundle_root / "processed" / "context" / "context_state_year.parquet",
+                root=artifact_root,
+                caveat=evidence_caveat,
+            ),
+            _asset(
+                "bundle_county_context",
+                "Bundled ACS/SVI county context",
+                "artifact",
+                evidence_bundle_root / "processed" / "context" / "context_county_year.parquet",
+                root=artifact_root,
+                caveat=evidence_caveat,
+            ),
+            _asset(
+                "bundle_places_context",
+                "Bundled CDC PLACES county context",
+                "artifact",
+                evidence_bundle_root / "processed" / "places" / "places_county_year.parquet",
+                root=artifact_root,
+                caveat=evidence_caveat,
+            ),
+            _asset(
+                "bundle_places_validation",
+                "Bundled PLACES aggregate validation",
+                "artifact",
+                evidence_bundle_root
+                / "processed"
+                / "validation"
+                / "places_external_context_validation_2025.json",
+                root=artifact_root,
+                caveat=evidence_caveat,
+            ),
+            _asset(
+                "bundle_causal_reports",
+                "Bundled causal workbench reports",
+                "artifact",
+                evidence_bundle_root / "processed" / "reports" / "causal",
+                root=artifact_root,
+                caveat=evidence_caveat,
+            ),
+        ]
         artifact = [
             _asset(
                 "active_model_bundle",
@@ -303,12 +355,28 @@ class EvidenceService:
                 "artifact",
                 artifact_root / "models" / str(self._runtime.artifact_bundle_id or ""),
                 root=artifact_root,
-            )
+            ),
+            _asset(
+                "public_evidence_bundle",
+                "Public Community Context evidence bundle",
+                "artifact",
+                evidence_bundle_root,
+                root=artifact_root,
+                caveat=(
+                    "Downloaded evidence bundle for deployed Community Context surfaces; "
+                    "not used by Explorer scoring."
+                ),
+            ),
         ]
         return [
             _group("raw_sources", "Raw source downloads", raw),
             _group("processed_tables", "Processed and integrated tables", processed),
             _group("provenance", "Provenance files", provenance),
+            _group(
+                "public_evidence_bundle",
+                "Public evidence bundle contents",
+                public_evidence,
+            ),
             _group("model_artifacts", "Model artifacts", artifact),
         ]
 
@@ -513,3 +581,12 @@ def _active_context_source_ids(bundle: ArtifactBundle | None) -> set[str]:
     if not _active_context_feature_names(bundle):
         return set()
     return set(bundle.manifest.context_features.source_ids)
+
+
+def _evidence_bundle_asset_path(*, artifact_root: Path, bundle_id: str | None) -> Path:
+    if not bundle_id:
+        return artifact_root / "evidence" / "__unconfigured__"
+    bundle_path = Path(bundle_id)
+    if bundle_path.is_absolute() or ".." in bundle_path.parts:
+        return artifact_root / "evidence" / "__invalid__"
+    return artifact_root / "evidence" / bundle_id

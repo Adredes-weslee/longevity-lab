@@ -249,6 +249,7 @@ data/
   processed/              Ignored derived tables and snapshots
 artifacts/
   models/                 Ignored trained model artifacts
+  evidence/               Ignored public evidence bundles for deployed context pages
 reports/                  Ignored generated report outputs
 docs/                     Architecture, roadmap, contracts, and implementation plans
 ```
@@ -261,10 +262,13 @@ This product prototype currently ships with:
 - a runnable React frontend,
 - a deterministic demo scenario engine as an explicit fallback,
 - artifact-backed calibrated model serving when a valid local bundle is available,
-- BRFSS, EPA AirData, ACS, SVI, and PLACES ingest/build scripts (to `data/processed/`, gitignored).
+- BRFSS, EPA AirData, ACS, SVI, and PLACES ingest/build scripts (to `data/processed/`, gitignored),
+- optional public evidence-bundle download for deployed Community Context panels without changing
+  Explorer scoring.
 
-It does **not** commit trained model artifacts or final polished anatomical art assets. Trained bundles
-are produced locally under `artifacts/models/` and are intentionally gitignored.
+It does **not** commit trained model artifacts, raw/processed datasets, or final polished anatomical
+art assets. Trained bundles are produced locally under `artifacts/models/`; public evidence bundles
+are downloaded under `artifacts/evidence/`. Both artifact families are intentionally gitignored.
 
 ## Pipeline (download + build)
 

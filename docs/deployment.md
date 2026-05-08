@@ -9,8 +9,8 @@ store raw datasets or trained model artifacts.
   artifact.
 - **Frontend:** Vercel static site or Render static site.
 - **Artifacts:** do not commit or bundle `data/external/`, `data/processed/`, or
-  `artifacts/models/`. Use the trusted artifact retrieval step below for public deployments, with
-  `LONGEVITY_LAB_ENGINE=demo` kept only as the rollback path.
+  `artifacts/models/`. Use the trusted artifact and evidence retrieval steps below for public
+  deployments, with `LONGEVITY_LAB_ENGINE=demo` kept only as the rollback path.
 
 Relevant provider docs:
 
@@ -40,6 +40,9 @@ After creating the Blueprint:
 3. If you later rename the API service, update `VITE_API_BASE_URL` to the new public API origin.
 4. Keep `LONGEVITY_LAB_ENGINE=artifact` only when `LONGEVITY_LAB_ARTIFACT_URL` and
    `LONGEVITY_LAB_ARTIFACT_SHA256` point to the verified production release below.
+5. Keep the Community Context evidence bundle configured only when
+   `LONGEVITY_LAB_EVIDENCE_BUNDLE_URL` and `LONGEVITY_LAB_EVIDENCE_BUNDLE_SHA256` point to the
+   verified public evidence release below.
 
 Render free instances can cold-start after inactivity. The first API call after idle may be slow.
 
@@ -115,6 +118,25 @@ artifact bundles can still serve, but geography selection remains inert for ACS/
 context-aware bundle is published and its release URL/SHA are configured. County context and PLACES
 remain intentionally inactive for scoring unless a future PR defines safe serving semantics and
 passes ablation/reasonableness gates.
+
+## Public evidence bundle strategy
+
+Public deployments can also populate the Community Context page by downloading a separate trusted
+evidence bundle during the Render build. The current production evidence release asset is:
+
+- `LONGEVITY_LAB_EVIDENCE_BUNDLE=public-evidence-20260508-community-context`
+- `LONGEVITY_LAB_EVIDENCE_BUNDLE_URL=https://github.com/Adredes-weslee/longevity-lab/releases/download/evidence-public-20260508-community-context/public-evidence-20260508-community-context.zip`
+- `LONGEVITY_LAB_EVIDENCE_BUNDLE_SHA256=be50ac0392078eca507d42f3ed8a8f37132eadb4df8fc3dc00c480bee737dc40`
+
+The build command runs `scripts/download_evidence_bundle.py`, which downloads the zip, verifies
+SHA256, rejects unsafe zip paths, and extracts the bundle under `artifacts/evidence/`.
+`scripts/build_public_evidence_bundle.py` creates the release zip from local processed outputs.
+
+The `public-evidence-20260508-community-context` bundle contains ACS/SVI state and county context,
+CDC PLACES county context, PLACES aggregate validation JSON, and non-serving causal workbench
+reports. These assets populate Community Context evidence panels only; they do not change Explorer
+person-level scoring or model features. Data Evidence reports the configured bundle and its bundled
+contents separately from local raw/processed data readiness.
 
 Keep `LONGEVITY_LAB_ENGINE=demo` as the rollback path. Do not commit `data/external/`,
 `data/processed/`, or `artifacts/models/` directly to the repo.

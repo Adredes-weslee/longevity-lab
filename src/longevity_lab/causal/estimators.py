@@ -493,7 +493,7 @@ def _encoded_features(
             values = frame[column].astype("string").fillna("missing")
             parts.append(pd.get_dummies(values, prefix=column, dtype="float64"))
             continue
-        numeric = pd.to_numeric(frame[column], errors="coerce")
+        numeric = pd.to_numeric(frame[column], errors="coerce").astype("float64")
         non_null = numeric.dropna()
         fill_value = float(non_null.median()) if not non_null.empty else 0.0
         parts.append(pd.DataFrame({column: numeric.fillna(fill_value).astype("float64")}))

@@ -27,8 +27,10 @@ The target architecture has five layers:
 
 Current implementation status: the application now includes a Community Context surface that reads
 state/county ACS/SVI context, CDC PLACES county context, PLACES aggregate validation reports, and
-local causal workbench reports through `GET /api/community/overview`. These are presented as
-evidence and research surfaces, not as hidden modifiers to Explorer person-level predictions.
+causal workbench reports through `GET /api/community/overview`. Local runs read these outputs from
+`data/processed/`; public deployments can read the separately downloaded
+`public-evidence-20260508-community-context` bundle. These are presented as evidence and research
+surfaces, not as hidden modifiers to Explorer person-level predictions.
 
 ## Data Source Strategy
 
@@ -184,5 +186,5 @@ Keep local development and reproducibility as the primary path. For public demos
 - Vercel is suitable for a static React frontend.
 - Render is suitable for a small FastAPI API but may cold-start on the free tier.
 - Large datasets and trained artifacts should not be bundled into the deployed repo.
-- Public demo deployments should use either a small sample artifact or a separately documented artifact retrieval step.
+- Public demo deployments should use separately documented model and public-evidence retrieval steps.
 - The UI must clearly display whether it is running demo, sample-artifact, or local full-artifact mode.
