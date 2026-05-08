@@ -38,11 +38,16 @@ notebook = [
 ]
 train = [
     "hydra-core>=1.3.2",
+    "lightgbm>=4.5.0,<5",
     "optuna>=4.8.0",
     "xgboost>=2.1.0,<4",
 ]
 explainability = [
     "shap>=0.47.0,<1",
+]
+artifact-xgboost = [
+    "shap>=0.47.0,<1",
+    "xgboost>=2.1.0,<4",
 ]
 
 [tool]

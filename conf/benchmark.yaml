@@ -200,6 +200,32 @@
         "pm25_mean": 1,
         "ozone_mean": 1
       }
+    },
+    {
+      "model_id": "lightgbm",
+      "kind": "lightgbm",
+      "class_imbalance_strategy": "class_weight_balanced",
+      "params": {
+        "n_estimators": 300,
+        "max_depth": -1,
+        "learning_rate": 0.05,
+        "num_leaves": 31,
+        "min_child_samples": 40,
+        "subsample": 0.9,
+        "colsample_bytree": 0.9,
+        "reg_lambda": 1.0,
+        "class_weight": "balanced"
+      },
+      "monotonic_constraints": {
+        "age": 1,
+        "bmi": 1,
+        "smoker": 1,
+        "alcohol_servings_per_week": 0,
+        "exercise_minutes_per_week": -1,
+        "annual_aqi": 1,
+        "pm25_mean": 1,
+        "ozone_mean": 1
+      }
     }
   ],
   "ablations": [

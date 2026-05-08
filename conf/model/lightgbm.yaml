@@ -1,18 +1,19 @@
 defaults:
   - _self_
 
-name: xgboost
-kind: xgboost
-class_imbalance_strategy: scale_pos_weight
+name: lightgbm
+kind: lightgbm
+class_imbalance_strategy: class_weight_balanced
 params:
   n_estimators: 300
-  max_depth: 3
+  max_depth: -1
   learning_rate: 0.05
+  num_leaves: 31
+  min_child_samples: 40
   subsample: 0.9
   colsample_bytree: 0.9
   reg_lambda: 1.0
-  tree_method: hist
-  eval_metric: logloss
+  class_weight: balanced
 monotonic_constraints:
   age: 1
   bmi: 1

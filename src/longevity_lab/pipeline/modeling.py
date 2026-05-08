@@ -36,6 +36,7 @@ from longevity_lab.artifacts.manifest import (
     ContextFeatureManifest,
     DatasetInfo,
     ExplanationArtifactManifest,
+    ExplanationMethod,
     save_manifest,
 )
 from longevity_lab.pipeline.common import default_data_dir
@@ -447,6 +448,28 @@ def make_xgboost_pipeline(
     )
 
 
+def make_lightgbm_pipeline(
+    *,
+    feature_names: tuple[str, ...],
+    params: Mapping[str, Any],
+    monotonic_constraints: Mapping[str, int] | None,
+    random_state: int,
+) -> SampleWeightPipeline:
+    """Build an optional LightGBM pipeline without importing lightgbm at module import time."""
+    lightgbm_classifier = _import_lightgbm_classifier()
+    model_params = dict(params)
+    model_params.setdefault("objective", "binary")
+    model_params.setdefault("random_state", random_state)
+    model_params.setdefault("n_jobs", 1)
+    model_params.setdefault("verbosity", -1)
+    model = lightgbm_classifier(**model_params)
+    return _make_tabular_model_pipeline(
+        feature_names=feature_names,
+        model=model,
+        monotonic_constraints=monotonic_constraints,
+    )
+
+
 def monotonic_constraint_vector(
     transformed_feature_names: Sequence[str],
     monotonic_constraints: Mapping[str, int] | None,
@@ -517,6 +540,9 @@ def _set_estimator_monotonic_constraints(
     if "monotone_constraints" in params:
         model.set_params(monotone_constraints=constraints)
         return
+    if type(model).__name__ == "LGBMClassifier":
+        model.set_params(monotone_constraints=list(constraints))
+        return
     raise ValueError(f"Estimator {type(model).__name__} does not support monotonic constraints.")
 
 
@@ -529,6 +555,17 @@ def _import_xgboost_classifier() -> type[BaseEstimator]:
             "Install it with `pdm install -G train`."
         ) from exc
     return cast(type[BaseEstimator], XGBClassifier)
+
+
+def _import_lightgbm_classifier() -> type[BaseEstimator]:
+    try:
+        from lightgbm import LGBMClassifier  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise OptionalModelDependencyError(
+            "LightGBM support requires the optional train dependency. "
+            "Install it with `pdm install -G train`."
+        ) from exc
+    return cast(type[BaseEstimator], LGBMClassifier)
 
 
 def build_training_spec(raw_cfg: dict[str, Any]) -> TrainingSpec:
@@ -707,7 +744,7 @@ def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
                     result.explanation_path.name if result.explanation_path is not None else None
                 ),
                 metrics_path=result.metrics_path.name,
-                explanation_method="tree_path",
+                explanation_method=_primary_explanation_method(result),
                 explanation_artifacts=list(result.explanation_artifacts),
                 uncertainty_method=(
                     "calibration_interval" if result.uncertainty_path is not None else "none"
@@ -753,6 +790,13 @@ def train_bundle(spec: TrainingSpec) -> TrainingBundleResult:
         training_summary_path=training_summary_path,
         condition_results=condition_results,
     )
+
+
+def _primary_explanation_method(result: ConditionTrainingResult) -> ExplanationMethod:
+    """Return the manifest method that matches the primary persisted explanation artifact."""
+    if result.explanation_artifacts:
+        return result.explanation_artifacts[0].method
+    return "tree_path"
 
 
 def _write_context_feature_lookup(
@@ -1581,6 +1625,7 @@ def _supports_tree_shap(pipeline: Pipeline) -> bool:
         "RandomForestClassifier",
         "ExtraTreesClassifier",
         "XGBClassifier",
+        "LGBMClassifier",
     }
 
 
@@ -1819,6 +1864,7 @@ def _make_training_pipeline(
     *,
     spec: TrainingSpec,
     overrides: dict[str, Any] | None = None,
+    class_balance_scale: float | None = None,
 ) -> SampleWeightPipeline:
     if spec.model_family == "hist_gradient_boosting":
         params: dict[str, Any] = dict(spec.model_params)
@@ -1827,6 +1873,27 @@ def _make_training_pipeline(
         params.setdefault("max_iter", 20)
         params.setdefault("min_samples_leaf", 20)
         return make_hist_gradient_boosting_pipeline(
+            feature_names=feature_names,
+            params=params,
+            monotonic_constraints=spec.model_monotonic_constraints,
+            random_state=spec.random_state,
+        )
+    if spec.model_family == "xgboost":
+        params = dict(spec.model_params)
+        if overrides:
+            params.update(overrides)
+        return make_xgboost_pipeline(
+            feature_names=feature_names,
+            params=params,
+            monotonic_constraints=spec.model_monotonic_constraints,
+            random_state=spec.random_state,
+            class_balance_scale=class_balance_scale,
+        )
+    if spec.model_family == "lightgbm":
+        params = dict(spec.model_params)
+        if overrides:
+            params.update(overrides)
+        return make_lightgbm_pipeline(
             feature_names=feature_names,
             params=params,
             monotonic_constraints=spec.model_monotonic_constraints,
@@ -1862,6 +1929,7 @@ def _fit_calibrated_pipeline(
         feature_names or spec.features,
         spec=spec,
         overrides=overrides,
+        class_balance_scale=_class_balance_scale(y_train, sample_weight=sample_weight),
     )
     calibration_folds = _safe_cv_folds(y_train, requested_folds=spec.calibration_cv)
     if calibration_folds < 2:
@@ -1874,6 +1942,19 @@ def _fit_calibrated_pipeline(
     )
     calibrated.fit(x_train, y_train, sample_weight=sample_weight)
     return calibrated
+
+
+def _class_balance_scale(labels: pd.Series, *, sample_weight: pd.Series | None) -> float | None:
+    y = labels.astype(int).reset_index(drop=True)
+    if sample_weight is None:
+        weights = pd.Series(np.ones(len(y)), index=y.index)
+    else:
+        weights = pd.to_numeric(sample_weight, errors="coerce").fillna(0.0).reset_index(drop=True)
+    positive_weight = float(weights.loc[y == 1].sum())
+    negative_weight = float(weights.loc[y == 0].sum())
+    if positive_weight <= 0.0 or negative_weight <= 0.0:
+        return None
+    return negative_weight / positive_weight
 
 
 def _tune_tree_params(

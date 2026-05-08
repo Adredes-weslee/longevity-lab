@@ -18,3 +18,5 @@ monotonic_constraints:
   alcohol_servings_per_week: 0
   exercise_minutes_per_week: -1
   annual_aqi: 1
+  pm25_mean: 1
+  ozone_mean: 1

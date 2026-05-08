@@ -38,6 +38,7 @@ from longevity_lab.pipeline.modeling import (
     build_training_spec,
     load_training_frame,
     make_hist_gradient_boosting_pipeline,
+    make_lightgbm_pipeline,
     make_xgboost_pipeline,
 )
 
@@ -45,6 +46,7 @@ BenchmarkModelKind = Literal[
     "logistic_regression",
     "decision_tree",
     "hist_gradient_boosting",
+    "lightgbm",
     "xgboost",
 ]
 
@@ -467,6 +469,8 @@ def _class_imbalance_strategy(model_spec: BenchmarkModelSpec) -> str:
         return model_spec.class_imbalance_strategy
     if model_spec.kind == "xgboost":
         return "scale_pos_weight"
+    if model_spec.kind == "lightgbm" and model_spec.params.get("class_weight") == "balanced":
+        return "class_weight_balanced"
     class_weight = model_spec.params.get("class_weight")
     if class_weight == "balanced":
         return "class_weight_balanced"
@@ -538,6 +542,15 @@ def _make_benchmark_pipeline(
             monotonic_constraints=model_spec.monotonic_constraints,
             random_state=random_state,
             class_balance_scale=_class_balance_scale(y_train, sample_weight=sample_weight),
+        )
+    elif model_spec.kind == "lightgbm":
+        model_params = dict(params)
+        model_params.setdefault("class_weight", "balanced")
+        return make_lightgbm_pipeline(
+            feature_names=feature_names,
+            params=model_params,
+            monotonic_constraints=model_spec.monotonic_constraints,
+            random_state=random_state,
         )
     else:
         raise ValueError(f"Unsupported benchmark model kind: {model_spec.kind}")
