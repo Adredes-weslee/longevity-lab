@@ -76,18 +76,23 @@ Useful routes:
 
 - Explorer: `http://localhost:5173/`
 - Data Evidence: `http://localhost:5173/#/data`
+- Community Context: `http://localhost:5173/#/community`
 - Model Cards: `http://localhost:5173/#/models`
 - Scenario Lab: `http://localhost:5173/#/lab`
 
 Tip: the UI includes a separate **Data Evidence** page that calls `GET /api/pipeline/status`
 to show whether expected raw/processed pipeline artifacts exist locally.
+The **Community Context** page uses `GET /api/community/overview` to show ACS/SVI, PLACES, and
+causal-workbench evidence as background/research context; it does not change Explorer personal
+scores.
 
 ## Quick smoke check after startup
 
 1. Open the Explorer page and confirm the baseline/scenario summaries render.
 2. Click an organ or callout and confirm the drill-down updates.
 3. Open `#/data` and confirm the pipeline status page loads.
-4. Open `#/models` and confirm active model metadata plus model-card metrics are visible when an artifact bundle is active.
+4. Open `#/community` and confirm context/PLACES/causal cards load or degrade with explicit unavailable states.
+5. Open `#/models` and confirm active model metadata plus model-card metrics are visible when an artifact bundle is active.
 
 ## Intended use and safety language
 
@@ -131,7 +136,7 @@ Install the training extras first:
 pdm install -G dev -G train
 ```
 
-Train the default calibrated decision-tree bundle:
+Train the default calibrated decision-tree baseline bundle:
 
 ```powershell
 pdm run python -m longevity_lab.pipeline.train
@@ -167,6 +172,11 @@ The training pipeline writes gitignored outputs under `artifacts/models/<bundle_
 - per-condition metrics JSONs
 - per-condition prediction Parquet files
 - per-condition explanation tree artifacts
+
+The current public demo deployment uses the separately published
+`real-20260508-xgboost-shap` artifact rather than the default local decision-tree baseline. Use the
+benchmark and artifact-promotion workflow in `docs/modeling.md` when you need to reproduce or
+replace that production bundle.
 
 ## Frontend checks
 

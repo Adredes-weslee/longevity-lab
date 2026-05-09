@@ -86,7 +86,12 @@ Open `http://localhost:4173` and verify:
 
 - `/api/health` returns `{"status":"ok"}` through the configured API origin or proxy.
 - Explorer renders the runtime banner and scenario comparison.
+- Slider edits refresh score summaries through `/api/scenario/compare` without waiting on SHAP.
+- Selected organ drill-down explanations refresh through `/api/scenario/explain` after score
+  updates settle.
 - Data Evidence shows local artifacts as ready or missing without failing the page.
+- Community Context shows bundle-backed evidence cards when the public evidence bundle is
+  configured, or explicit unavailable states when it is not.
 
 ## Artifact strategy
 

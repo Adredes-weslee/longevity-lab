@@ -24,7 +24,8 @@ Create branches in project-local worktrees under `.worktrees/<branch-slug>`. The
 
 Every PR should:
 
-- Match one scoped item from `docs/superpowers/plans/2026-04-30-longevity-lab-expansion.md`.
+- Match one scoped item from `docs/roadmap.md`, `docs/feature_status.md`, or an active plan under
+  `docs/superpowers/plans/`.
 - Update `docs/feature_status.md` when feature state changes.
 - Update `README.md`, `docs/quickstart.md`, `docs/schema_contracts.md`, or `docs/data_dictionary.md` when setup, contracts, or data semantics change.
 - Add or update tests when API contracts, data contracts, model outputs, or user-visible flows change.

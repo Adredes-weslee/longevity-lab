@@ -123,15 +123,20 @@ See `docs/quickstart.md` for common workflows (tests, lint, running both).
 
 - Explorer view: `http://localhost:5173/`
 - Data Evidence view: `http://localhost:5173/#/data`
+- Community Context view: `http://localhost:5173/#/community`
 - Model Cards view: `http://localhost:5173/#/models`
 - Scenario Lab view: `http://localhost:5173/#/lab`
 
 Use the Explorer page for the organ heatmap + drill-down flow. Current and what-if inputs stay
 visible side by side, and the scores update live as sliders move. Use the `Delta | Baseline |
-Scenario` toggle to switch the body view.
+Scenario` toggle to switch the body view. Live slider scoring intentionally calls the fast
+`/api/scenario/compare` path without explanations; selected drill-down SHAP/rule-path details load
+separately through `/api/scenario/explain` so explanation generation does not block score updates.
 Use the Data Evidence page to distinguish active scoring inputs from local-only data, generated
-reports, validation context, and inactive geography features. Use Model Cards to inspect active
-model metadata and Scenario Lab to summarize the current what-if comparison.
+reports, validation context, and inactive geography features. Use Community Context for ACS/SVI,
+PLACES, and causal-workbench evidence that does not modify Explorer personal scoring. Use Model
+Cards to inspect active model metadata and Scenario Lab to summarize the current what-if
+comparison.
 
 ## Deployment
 
@@ -167,7 +172,8 @@ Current smoke coverage:
 - organ drill-down opens from the heatmap/callout interaction
 - heatmap mode toggle switches between delta and absolute views
 - numeric inputs clamp to supported ranges
-- live slider edits update results automatically
+- live slider edits update results automatically through the no-explanation compare path
+- selected drill-down explanations refresh separately after score updates settle
 - stale comparison results clear correctly after a failed compare request
 
 ## Training and evaluation

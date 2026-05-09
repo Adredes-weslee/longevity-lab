@@ -150,7 +150,9 @@ All feature work after this roadmap should use PR-sized branches. Worktrees shou
 
 A PR is ready to merge only when:
 
-- The implementation matches the PR prompt in `docs/superpowers/plans/2026-04-30-longevity-lab-expansion.md`.
+- The implementation matches a scoped item from this roadmap, `docs/feature_status.md`, or the
+  current active plan under `docs/superpowers/plans/`. Historical completed plans are reference
+  material, not pending work.
 - The narrowest relevant checks pass locally.
 - All drift-sensitive docs/tests/contracts are updated.
 - Local adversarial review finds no new P0, P1, or P2 issues against the latest commit hash.
