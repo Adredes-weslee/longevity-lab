@@ -14,6 +14,8 @@ import type {
 interface ConditionInspectorProps {
   comparison: ScenarioCompareResponse | null
   conditions: ConditionDefinition[]
+  explanationMessage: string | null
+  explanationsBusy: boolean
   mode: HeatmapMode
   organs: OrganDefinition[]
   selectedOrganId: string | null
@@ -86,6 +88,8 @@ function formatUncertaintyDiagnostics(uncertainty: UncertaintySummaryResponse): 
 export function ConditionInspector({
   comparison,
   conditions,
+  explanationMessage,
+  explanationsBusy,
   mode,
   organs,
   selectedOrganId,
@@ -311,6 +315,8 @@ export function ConditionInspector({
 
           <ul className="condition-list">
             {renderedConditions.map((condition) => {
+              const explanationPending =
+                explanationsBusy && condition.explanations.length === 0
               return (
                 <li
                   className={`condition-card band-${condition.band}`}
@@ -344,7 +350,11 @@ export function ConditionInspector({
                         </span>
                       ))
                     ) : (
-                      <span className="muted">No drivers available.</span>
+                      <span className="muted">
+                        {explanationPending
+                          ? 'Updating selected drivers...'
+                          : 'No drivers available.'}
+                      </span>
                     )}
                   </div>
                   <div className="explanation-block">
@@ -362,10 +372,14 @@ export function ConditionInspector({
                       </ul>
                     ) : (
                       <p className="muted explanation-empty">
-                        No typed explanation is available for this condition in the active model
-                        bundle.
+                        {explanationPending
+                          ? 'Updating model explanations for the selected organ...'
+                          : 'No typed explanation is available for this condition in the active model bundle.'}
                       </p>
                     )}
+                    {explanationMessage ? (
+                      <p className="muted explanation-empty">{explanationMessage}</p>
+                    ) : null}
                     {condition.uncertainty ? (
                       <p className="uncertainty-note">
                         Calibrated uncertainty: {formatUncertainty(condition.uncertainty)}.

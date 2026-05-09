@@ -1,6 +1,7 @@
 """Scenario evaluation services."""
 
-from collections import defaultdict
+import json
+from collections import OrderedDict, defaultdict
 from collections.abc import Iterable
 from dataclasses import asdict
 
@@ -30,6 +31,9 @@ class DemoScenarioEngine:
         self,
         profile: FeatureProfile,
         geography: ScenarioGeographySelection | None = None,
+        *,
+        include_explanations: bool = True,
+        explanation_condition_ids: set[str] | None = None,
     ) -> list[ConditionScore]:
         """Score the profile with simple transparent heuristics.
 
@@ -132,7 +136,10 @@ class DemoScenarioEngine:
                 if name in factors
             }
             probability = min(max(factors["base"] + sum(contributions.values()), 0.01), 0.95)
-            explanations = demo_explanation_records(contributions)
+            should_explain = include_explanations and (
+                explanation_condition_ids is None or condition_id in explanation_condition_ids
+            )
+            explanations = demo_explanation_records(contributions) if should_explain else []
             key_drivers = [record.display_name for record in explanations]
             results.append(
                 ConditionScore(
@@ -150,6 +157,8 @@ class DemoScenarioEngine:
 class ScenarioService:
     """Scenario evaluation orchestration."""
 
+    _CACHE_LIMIT = 256
+
     def __init__(
         self,
         engine: ScenarioEngine,
@@ -158,6 +167,7 @@ class ScenarioService:
         """Store the scenario engine implementation."""
         self._engine = engine
         self._model_metadata = model_metadata or build_demo_model_metadata()
+        self._evaluation_cache: OrderedDict[str, ScenarioEvaluationResponse] = OrderedDict()
 
     def compare(
         self,
@@ -165,10 +175,22 @@ class ScenarioService:
         candidate: FeatureProfile,
         *,
         geography: ScenarioGeographySelection | None = None,
+        include_explanations: bool = True,
+        explanation_condition_ids: set[str] | None = None,
     ) -> ScenarioCompareResponse:
         """Compare two profiles and return organ deltas."""
-        baseline_eval = self._evaluate(baseline, geography=geography)
-        candidate_eval = self._evaluate(candidate, geography=geography)
+        baseline_eval = self._evaluate(
+            baseline,
+            geography=geography,
+            include_explanations=include_explanations,
+            explanation_condition_ids=explanation_condition_ids,
+        )
+        candidate_eval = self._evaluate(
+            candidate,
+            geography=geography,
+            include_explanations=include_explanations,
+            explanation_condition_ids=explanation_condition_ids,
+        )
 
         organ_deltas: list[OrganDeltaResponse] = []
         baseline_organs = {organ.organ_id: organ for organ in baseline_eval.organs}
@@ -199,9 +221,27 @@ class ScenarioService:
         profile: FeatureProfile,
         *,
         geography: ScenarioGeographySelection | None,
+        include_explanations: bool,
+        explanation_condition_ids: set[str] | None,
     ) -> ScenarioEvaluationResponse:
         """Evaluate a single profile."""
-        condition_scores = self._engine.evaluate(profile, geography=geography)
+        cache_key = self._evaluation_cache_key(
+            profile=profile,
+            geography=geography,
+            include_explanations=include_explanations,
+            explanation_condition_ids=explanation_condition_ids,
+        )
+        cached = self._evaluation_cache.get(cache_key)
+        if cached is not None:
+            self._evaluation_cache.move_to_end(cache_key)
+            return cached
+
+        condition_scores = self._engine.evaluate(
+            profile,
+            geography=geography,
+            include_explanations=include_explanations,
+            explanation_condition_ids=explanation_condition_ids,
+        )
         condition_responses: list[ConditionScoreResponse] = []
         for item in condition_scores:
             probability = round(item.probability, 4)
@@ -258,10 +298,36 @@ class ScenarioService:
             if organ_summaries
             else 0.0
         )
-        return ScenarioEvaluationResponse(
+        response = ScenarioEvaluationResponse(
             summary_score=summary_score,
             organs=organ_summaries,
             conditions=condition_responses,
+        )
+        self._evaluation_cache[cache_key] = response
+        self._evaluation_cache.move_to_end(cache_key)
+        if len(self._evaluation_cache) > self._CACHE_LIMIT:
+            self._evaluation_cache.popitem(last=False)
+        return response
+
+    @staticmethod
+    def _evaluation_cache_key(
+        *,
+        profile: FeatureProfile,
+        geography: ScenarioGeographySelection | None,
+        include_explanations: bool,
+        explanation_condition_ids: set[str] | None,
+    ) -> str:
+        """Return a stable key for repeated profile evaluations."""
+        return json.dumps(
+            {
+                "profile": profile.model_dump(mode="json"),
+                "geography": geography.model_dump(mode="json") if geography else None,
+                "include_explanations": include_explanations,
+                "explanation_condition_ids": sorted(explanation_condition_ids)
+                if explanation_condition_ids is not None
+                else None,
+            },
+            sort_keys=True,
         )
 
     @staticmethod

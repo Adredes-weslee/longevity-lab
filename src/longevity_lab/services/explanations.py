@@ -82,6 +82,9 @@ class ShapModule(Protocol):
     TreeExplainer: ShapExplainerFactory
 
 
+_SHAP_EXPLAINER_CACHE: dict[tuple[int, bool], tuple[object, ShapTreeExplainer]] = {}
+
+
 class SupportsTreePathModel(Protocol):
     """Decision-tree attributes needed for rule-path explanations."""
 
@@ -247,7 +250,7 @@ def _shap_explanations(
     )
     if model is None:
         return []
-    explainer = _build_tree_explainer(shap_module, model=model, background=background)
+    explainer = _cached_tree_explainer(shap_module, model=model, background=background)
     raw_values = explainer.shap_values(transformed)
     values = _first_shap_row(raw_values)
     ranked = sorted(
@@ -297,6 +300,23 @@ def _build_tree_explainer(
         return shap_module.TreeExplainer(model, background)
     except TypeError:
         return shap_module.TreeExplainer(model)
+
+
+def _cached_tree_explainer(
+    shap_module: ShapModule,
+    *,
+    model: object,
+    background: pd.DataFrame | np.ndarray | None,
+) -> ShapTreeExplainer:
+    """Return a reusable TreeExplainer for a loaded model/background pair."""
+    cache_key = (id(model), background is not None)
+    cached = _SHAP_EXPLAINER_CACHE.get(cache_key)
+    if cached is not None and cached[0] is model:
+        return cached[1]
+    else:
+        explainer = _build_tree_explainer(shap_module, model=model, background=background)
+        _SHAP_EXPLAINER_CACHE[cache_key] = (model, explainer)
+    return explainer
 
 
 def _model_and_transformed_frame(

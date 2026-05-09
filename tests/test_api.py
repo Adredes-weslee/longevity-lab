@@ -785,6 +785,40 @@ def test_scenario_compare_auto_selected_artifact_reports_model_metadata(
         assert [item["organ_id"] for item in payload["organ_deltas"]] == ["heart"]
 
 
+def test_scenario_compare_can_skip_explanations_for_fast_slider_updates(
+    client: TestClient,
+) -> None:
+    """Fast compare mode should keep scores but omit model explanation payloads."""
+    payload = {**_compare_payload(), "explanation_mode": "none"}
+    response = client.post("/api/scenario/compare", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["candidate"]["summary_score"] > 0
+    assert all(
+        condition["explanations"] == [] and condition["key_drivers"] == []
+        for condition in body["candidate"]["conditions"]
+    )
+
+
+def test_scenario_explain_returns_selected_organ_explanations_only(
+    client: TestClient,
+) -> None:
+    """Lazy explanation endpoint should explain only the selected drill-down target."""
+    payload = {**_compare_payload(), "organ_id": "heart"}
+    response = client.post("/api/scenario/explain", json=payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    by_condition = {
+        condition["condition_id"]: condition for condition in body["candidate"]["conditions"]
+    }
+    assert by_condition["heart_disease"]["explanations"]
+    assert by_condition["heart_disease"]["key_drivers"]
+    assert by_condition["diabetes"]["explanations"] == []
+    assert by_condition["diabetes"]["key_drivers"] == []
+
+
 def test_artifact_scenario_compare_accepts_geography_without_score_change(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

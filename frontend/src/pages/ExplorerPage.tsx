@@ -18,6 +18,8 @@ interface ExplorerPageProps {
   bootstrap: MetadataBootstrapResponse
   busy: boolean
   comparison: ScenarioCompareResponse | null
+  explanationMessage: string | null
+  explanationsBusy: boolean
   geographies: GeographyOptionsResponse | null
   geographiesLoading: boolean
   geographiesError: string | null
@@ -148,6 +150,8 @@ export function ExplorerPage({
   bootstrap,
   busy,
   comparison,
+  explanationMessage,
+  explanationsBusy,
   geographies,
   geographiesLoading,
   geographiesError,
@@ -270,6 +274,8 @@ export function ExplorerPage({
         <ConditionInspector
           comparison={comparison}
           conditions={bootstrap.conditions}
+          explanationMessage={explanationMessage}
+          explanationsBusy={explanationsBusy}
           mode={heatmapMode}
           organs={bootstrap.organs}
           selectedOrganId={state.selectedOrganId}

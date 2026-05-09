@@ -20,10 +20,15 @@ class StubEngine:
         self,
         profile: FeatureProfile,
         geography: ScenarioGeographySelection | None = None,
+        *,
+        include_explanations: bool = True,
+        explanation_condition_ids: set[str] | None = None,
     ) -> list[ConditionScore]:
         """Return a single condition score for the provided profile."""
         _ = profile
         _ = geography
+        _ = include_explanations
+        _ = explanation_condition_ids
         return [
             ConditionScore(
                 condition_id="heart_disease",

@@ -3,6 +3,7 @@ export type ApiContractVersion = 'v2'
 export type HeatmapMode = 'delta' | 'baseline' | 'scenario'
 export type ExplanationDirection = 'increases' | 'decreases' | 'neutral'
 export type ExplanationMethod = 'demo' | 'tree_path' | 'shap'
+export type ExplanationMode = 'none' | 'full'
 export type UncertaintyMethod = 'calibration_interval'
 export type GeographyLevel = 'state' | 'county' | 'tract' | 'zcta'
 export type ScenarioGeographyLevel = 'state'
@@ -281,6 +282,15 @@ export interface ScenarioCompareRequest {
   baseline: FeatureProfile
   candidate: FeatureProfile
   geography?: ScenarioGeographySelection | null
+  explanation_mode?: ExplanationMode
+}
+
+export interface ScenarioExplainRequest {
+  baseline: FeatureProfile
+  candidate: FeatureProfile
+  geography?: ScenarioGeographySelection | null
+  organ_id?: string | null
+  condition_id?: string | null
 }
 
 export interface ScenarioCompareResponse {

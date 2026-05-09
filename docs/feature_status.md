@@ -134,6 +134,10 @@ Legend:
   validation rows, and local causal report summaries without absolute local paths
   (`GET /api/community/overview`) (`src/longevity_lab/api/routes/community.py`,
   `src/longevity_lab/services/community_context_service.py`).
+- [DONE] Scenario compare supports a fast no-explanation mode for live slider scoring, while
+  `POST /api/scenario/explain` lazily returns selected organ/condition explanations so SHAP is not
+  recomputed for every condition on every slider movement (`src/longevity_lab/api/routes/scenario.py`,
+  `src/longevity_lab/services/scenario_service.py`).
 - [DONE] Service layer and engine abstraction (`src/longevity_lab/services/scenario_service.py`).
 - [DONE] Artifact-backed engine path (`src/longevity_lab/services/artifact_engine.py`).
 - [DONE] Versioned v2 response metadata shares active model mode, artifact id, data vintage, explanation methods, uncertainty availability, and inferred contextual geography across bootstrap and scenario compare responses (`src/longevity_lab/services/contract_metadata.py`).
@@ -145,6 +149,8 @@ Legend:
 - [DONE] Body map uses a reference-based silhouette underlay plus SVG organ overlays for heart, lungs, brain, pancreas, kidneys, and joints.
 - [DONE] Explorer layout includes side-by-side current and what-if inputs, a persistent comparison strip, and absolute-risk versus relative-change legends.
 - [DONE] Scenario editing is live and updates the evaluation snapshot automatically.
+- [DONE] Live slider updates use the fast scoring path and refresh selected drill-down
+  explanations separately to avoid blocking score changes on SHAP generation.
 - [DONE] High-risk drill-down panels surface public-health guidance links when either current or what-if profile is in the red band.
 - [DONE] Explorer view shows a compact non-diagnostic disclaimer and runtime scoring-mode banner.
 - [DONE] Explorer keeps state-year geography context separate from lifestyle scenario inputs and labels it as background context.

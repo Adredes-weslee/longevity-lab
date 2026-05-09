@@ -8,6 +8,7 @@ ApiContractVersion = Literal["v2"]
 RiskBand = Literal["green", "amber", "red"]
 ExplanationDirection = Literal["increases", "decreases", "neutral"]
 ExplanationMethod = Literal["demo", "tree_path", "shap"]
+ExplanationMode = Literal["none", "full"]
 UncertaintyMethod = Literal["calibration_interval"]
 GeographyLevel = Literal["state", "county", "tract", "zcta"]
 ScenarioGeographyLevel = Literal["state"]
@@ -246,6 +247,19 @@ class ScenarioCompareRequest(BaseModel):
     baseline: FeatureProfile
     candidate: FeatureProfile
     geography: ScenarioGeographySelection | None = None
+    explanation_mode: ExplanationMode = "full"
+
+
+class ScenarioExplainRequest(BaseModel):
+    """Lazy explanation request for selected scenario drill-down content."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    baseline: FeatureProfile
+    candidate: FeatureProfile
+    geography: ScenarioGeographySelection | None = None
+    organ_id: str | None = None
+    condition_id: str | None = None
 
 
 class ScenarioCompareResponse(BaseModel):

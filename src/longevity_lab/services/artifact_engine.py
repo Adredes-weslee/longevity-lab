@@ -75,6 +75,9 @@ class ArtifactScenarioEngine(ScenarioEngine):
         self,
         profile: FeatureProfile,
         geography: ScenarioGeographySelection | None = None,
+        *,
+        include_explanations: bool = True,
+        explanation_condition_ids: set[str] | None = None,
     ) -> list[ConditionScore]:
         """Evaluate a profile by calling each loaded per-condition pipeline.
 
@@ -97,9 +100,17 @@ class ArtifactScenarioEngine(ScenarioEngine):
                 condition_id=condition.condition_id,
             )
             meta = self._by_condition[condition.condition_id]
-            explanations = _build_first_available_explanations(
-                frame=frame,
-                artifacts=model.explanation_artifacts,
+            should_explain = include_explanations and (
+                explanation_condition_ids is None
+                or condition.condition_id in explanation_condition_ids
+            )
+            explanations = (
+                _build_first_available_explanations(
+                    frame=frame,
+                    artifacts=model.explanation_artifacts,
+                )
+                if should_explain
+                else []
             )
             key_drivers = [record.display_name for record in explanations]
             uncertainty = build_uncertainty_summary(
