@@ -166,7 +166,21 @@ Frontend pages must keep contextual geography visible as a separate background-c
 
 ## Scenario response explanations and uncertainty
 
-`POST /api/scenario/compare` condition responses include:
+`POST /api/scenario/compare` accepts `explanation_mode`:
+
+- `none`: fast live-scoring path for slider updates. Responses keep probabilities, organ
+  summaries, deltas, model metadata, and uncertainty, but omit explanation records and
+  `key_drivers`.
+- `full`: backwards-compatible path for callers that explicitly need all condition
+  explanations in the compare response.
+
+The frontend uses `explanation_mode=none` for live score refreshes and then calls
+`POST /api/scenario/explain` for the selected organ or condition. That lazy endpoint returns the
+same scenario response shape, with explanations populated only for the requested drill-down target.
+This keeps score updates fast while preserving model-matched SHAP/rule-path detail where users are
+looking.
+
+Condition responses can include:
 
 - `key_drivers`: backwards-compatible display labels for the top explanation items.
 - `explanations`: typed records with `feature`, `display_name`, `direction`, `magnitude`,

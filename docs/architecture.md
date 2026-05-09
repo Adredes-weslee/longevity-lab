@@ -74,10 +74,16 @@ The scaffold includes a deterministic demo engine so the UI and API can run befo
 
 ## Current UX slice
 
-The current dashboard is intentionally split into two views:
+The current dashboard is intentionally split into product surfaces:
 
-- `Explorer`: primary scenario editing, explicit compare/apply, organ heatmap view toggle, and condition drill-down
-- `Data integration`: raw/processed artifact and provenance verification
+- `Explorer`: live current/what-if scenario editing, fast score refreshes, organ heatmap view
+  toggle, and lazy selected drill-down explanations.
+- `Data evidence`: raw/processed artifact, provenance, source-role, and production bundle
+  verification.
+- `Community context`: ACS/SVI/PLACES/geography context as evidence, not hidden personal-score
+  modifiers.
+- `Model cards` and `Scenario lab`: model metadata, metrics, uncertainty, and scenario summary
+  workflows.
 
 This keeps data-health checks visible without crowding the main analysis flow.
 

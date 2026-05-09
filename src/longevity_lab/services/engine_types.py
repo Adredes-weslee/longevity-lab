@@ -30,5 +30,8 @@ class ScenarioEngine(Protocol):
         self,
         profile: FeatureProfile,
         geography: ScenarioGeographySelection | None = None,
+        *,
+        include_explanations: bool = True,
+        explanation_condition_ids: set[str] | None = None,
     ) -> list[ConditionScore]:
         """Return condition-level scores for a single profile."""

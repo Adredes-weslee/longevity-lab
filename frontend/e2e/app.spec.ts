@@ -350,6 +350,7 @@ test('settles range slider edits before refreshing scenario scores', async ({ pa
 
   await expect(page.getByTestId('overview-whatif').locator('.metric-value')).toHaveText(
     '2.6',
+    { timeout: 10000 },
   )
 
   const bmiSlider = page.getByLabel('What-if BMI range input')
@@ -364,6 +365,9 @@ test('settles range slider edits before refreshing scenario scores', async ({ pa
   )
 
   expect(comparePayloads.map((payload) => payload.candidate.bmi)).toEqual([26, 42])
+  expect(comparePayloads.every((payload) => payload.explanation_mode === 'none')).toBe(
+    true,
+  )
 })
 
 test('keeps the last good results visible when a live comparison fails', async ({ page }) => {

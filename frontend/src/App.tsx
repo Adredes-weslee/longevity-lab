@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 
 import {
   compareScenarios,
+  explainScenario,
   fetchBootstrap,
   fetchCommunityOverview,
   fetchContextGeographies,
@@ -40,6 +41,7 @@ const navItems: Array<{ label: string; view: AppView }> = [
 ]
 
 const SCENARIO_COMPARE_DEBOUNCE_MS = 650
+const SCENARIO_EXPLANATION_DEBOUNCE_MS = 300
 
 function getViewFromHash(hash: string): AppView {
   if (hash === '#/data') {
@@ -59,6 +61,48 @@ function getViewFromHash(hash: string): AppView {
 
 function hashForView(view: AppView): string {
   return view === 'explorer' ? '/explorer' : `/${view}`
+}
+
+function mergeSelectedExplanationDetails(
+  current: ScenarioCompareResponse,
+  explained: ScenarioCompareResponse,
+  selectedOrganId: string,
+): ScenarioCompareResponse {
+  const selectedConditionIds = new Set(
+    explained.candidate.conditions
+      .filter((condition) => condition.organ_id === selectedOrganId)
+      .map((condition) => condition.condition_id),
+  )
+  const mergeEvaluation = (
+    currentEvaluation: ScenarioCompareResponse['candidate'],
+    explainedEvaluation: ScenarioCompareResponse['candidate'],
+  ): ScenarioCompareResponse['candidate'] => ({
+    ...currentEvaluation,
+    conditions: currentEvaluation.conditions.map((condition) => {
+      if (!selectedConditionIds.has(condition.condition_id)) {
+        return condition
+      }
+      const explainedCondition = explainedEvaluation.conditions.find(
+        (entry) => entry.condition_id === condition.condition_id,
+      )
+      if (!explainedCondition) {
+        return condition
+      }
+      return {
+        ...condition,
+        key_drivers: explainedCondition.key_drivers,
+        explanations: explainedCondition.explanations,
+        uncertainty: explainedCondition.uncertainty,
+      }
+    }),
+  })
+
+  return {
+    ...current,
+    baseline: mergeEvaluation(current.baseline, explained.baseline),
+    candidate: mergeEvaluation(current.candidate, explained.candidate),
+    model_metadata: explained.model_metadata,
+  }
 }
 
 function App(): JSX.Element {
@@ -84,10 +128,25 @@ function App(): JSX.Element {
   const [modelCardsError, setModelCardsError] = useState<string | null>(null)
   const [modelCardsLoading, setModelCardsLoading] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [explanationsBusy, setExplanationsBusy] = useState(false)
+  const [explanationMessage, setExplanationMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [heatmapMode, setHeatmapMode] = useState<HeatmapMode>('delta')
   const [view, setView] = useState<AppView>(() => getViewFromHash(window.location.hash))
   const requestSequence = useRef(0)
+  const explanationSequence = useRef(0)
+  const lastExplanationKey = useRef<string | null>(null)
+  const currentExplanationKey = useMemo(() => {
+    if (!state.selectedOrganId) {
+      return null
+    }
+    return JSON.stringify({
+      baseline: state.baseline,
+      candidate: state.candidate,
+      geography: state.geography,
+      organId: state.selectedOrganId,
+    })
+  }, [state.baseline, state.candidate, state.geography, state.selectedOrganId])
 
   const loadBootstrap = useCallback(async (): Promise<void> => {
     setBootstrapLoading(true)
@@ -114,6 +173,7 @@ function App(): JSX.Element {
         baseline: state.baseline,
         candidate: state.candidate,
         geography: state.geography,
+        explanation_mode: 'none',
       }, signal)
       if (requestSequence.current !== nextSequence) {
         return
@@ -141,6 +201,53 @@ function App(): JSX.Element {
       }
     }
   }, [dispatch, state.baseline, state.candidate, state.geography, state.selectedOrganId])
+
+  const runSelectedExplanation = useCallback(async (signal?: AbortSignal): Promise<void> => {
+    const selectedOrganId = state.selectedOrganId
+    if (!selectedOrganId) {
+      return
+    }
+    const nextSequence = explanationSequence.current + 1
+    explanationSequence.current = nextSequence
+    setExplanationsBusy(true)
+    setExplanationMessage(null)
+    try {
+      const explanationComparison = await explainScenario({
+        baseline: state.baseline,
+        candidate: state.candidate,
+        geography: state.geography,
+        organ_id: selectedOrganId,
+      }, signal)
+      if (explanationSequence.current !== nextSequence) {
+        return
+      }
+      setComparison((current) =>
+        current
+          ? mergeSelectedExplanationDetails(
+              current,
+              explanationComparison,
+              selectedOrganId,
+            )
+          : explanationComparison,
+      )
+    } catch (error) {
+      if (signal?.aborted) {
+        return
+      }
+      if (explanationSequence.current !== nextSequence) {
+        return
+      }
+      setExplanationMessage(
+        error instanceof Error
+          ? `Selected explanations unavailable: ${error.message}`
+          : 'Selected explanations unavailable.',
+      )
+    } finally {
+      if (explanationSequence.current === nextSequence) {
+        setExplanationsBusy(false)
+      }
+    }
+  }, [state.baseline, state.candidate, state.geography, state.selectedOrganId])
 
   const loadGeographies = useCallback(async (year: number): Promise<void> => {
     setGeographiesLoading(true)
@@ -259,6 +366,24 @@ function App(): JSX.Element {
     }
   }, [bootstrap, runComparison])
 
+  useEffect(() => {
+    if (!bootstrap || !comparison || !state.selectedOrganId) {
+      return
+    }
+    const controller = new AbortController()
+    if (lastExplanationKey.current === currentExplanationKey) {
+      return
+    }
+    lastExplanationKey.current = currentExplanationKey
+    const timeoutId = window.setTimeout(() => {
+      void runSelectedExplanation(controller.signal)
+    }, SCENARIO_EXPLANATION_DEBOUNCE_MS)
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [bootstrap, comparison, currentExplanationKey, runSelectedExplanation, state.selectedOrganId])
+
   function navigate(nextView: AppView): void {
     window.location.hash = hashForView(nextView)
   }
@@ -297,6 +422,8 @@ function App(): JSX.Element {
               bootstrap={bootstrap}
               busy={busy}
               comparison={comparison}
+              explanationMessage={explanationMessage}
+              explanationsBusy={explanationsBusy}
               geographies={geographies}
               geographiesError={geographiesError}
               geographiesLoading={geographiesLoading}

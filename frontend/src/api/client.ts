@@ -7,6 +7,7 @@ import type {
   PipelineStatusResponse,
   ScenarioCompareRequest,
   ScenarioCompareResponse,
+  ScenarioExplainRequest,
 } from '../types'
 
 const API_PREFIX = '/api'
@@ -62,6 +63,17 @@ export async function compareScenarios(
   signal?: AbortSignal,
 ): Promise<ScenarioCompareResponse> {
   return requestJson<ScenarioCompareResponse>('/scenario/compare', {
+    method: 'POST',
+    signal,
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function explainScenario(
+  payload: ScenarioExplainRequest,
+  signal?: AbortSignal,
+): Promise<ScenarioCompareResponse> {
+  return requestJson<ScenarioCompareResponse>('/scenario/explain', {
     method: 'POST',
     signal,
     body: JSON.stringify(payload),
